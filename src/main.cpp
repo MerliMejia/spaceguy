@@ -30,11 +30,15 @@ struct SwapchainSupportDetails
     std::vector<vk::PresentModeKHR> presentModes;
 };
 
-struct UniformBufferObject
+struct CameraBufferObject
 {
-    alignas(16) glm::mat4 model;
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
+};
+
+struct ObjectPushConstants
+{
+    alignas(16) glm::mat4 model;
 };
 
 struct BufferWithMemory
@@ -42,6 +46,20 @@ struct BufferWithMemory
     vk::raii::Buffer buffer;
     vk::raii::DeviceMemory memory;
 };
+
+struct Mesh
+{
+    uint32_t vertexCount;
+};
+
+struct Object3D
+{
+    const Mesh *mesh;
+    glm::mat4 model;
+};
+
+Mesh triangleMesh{
+    .vertexCount = 3};
 
 GLFWwindow *window = nullptr;
 vk::raii::Context context;
@@ -78,6 +96,24 @@ std::vector<void *> uniformBuffersMapped;
 vk::raii::DescriptorSetLayout descriptorSetLayout = nullptr;
 vk::raii::DescriptorPool descriptorPool = nullptr;
 std::vector<vk::raii::DescriptorSet> descriptorSets;
+
+std::vector<Object3D> objects;
+
+void createSceneObjects()
+{
+    objects.clear();
+
+    objects.push_back(Object3D{
+        .mesh = &triangleMesh,
+        .model = glm::translate(glm::mat4(1.0f), glm::vec3(-0.75f, 0.0f, 0.0f)) *
+                 glm::scale(glm::mat4(1.0f), glm::vec3(0.5f))});
+
+    objects.push_back(Object3D{
+        .mesh = &triangleMesh,
+        .model =
+            glm::translate(glm::mat4(1.0f), glm::vec3(0.75f, 0.0f, 0.0f)) *
+            glm::scale(glm::mat4(1.0f), glm::vec3(0.5f))});
+}
 
 SwapchainSupportDetails querySwapchainSupport(VkPhysicalDevice device)
 {
@@ -450,11 +486,16 @@ void createGraphicsPipeline()
 
     vk::DescriptorSetLayout setLayouts[] = {*descriptorSetLayout};
 
+    vk::PushConstantRange pushConstantRange{
+        .stageFlags = vk::ShaderStageFlagBits::eVertex,
+        .offset = 0,
+        .size = sizeof(ObjectPushConstants)};
+
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
         .setLayoutCount = 1,
         .pSetLayouts = setLayouts,
-        .pushConstantRangeCount = 0,
-        .pPushConstantRanges = nullptr};
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &pushConstantRange};
 
     pipelineLayout = vk::raii::PipelineLayout{device, pipelineLayoutInfo};
 
@@ -710,7 +751,19 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
         *descriptorSets[frameIndex],
         nullptr);
 
-    commandBuffer.draw(3, 1, 0, 0);
+    for (const Object3D &object : objects)
+    {
+        ObjectPushConstants pushConstants{
+            .model = object.model};
+
+        commandBuffer.pushConstants<ObjectPushConstants>(
+            *pipelineLayout,
+            vk::ShaderStageFlagBits::eVertex,
+            0,
+            std::array<ObjectPushConstants, 1>{pushConstants});
+
+        commandBuffer.draw(object.mesh->vertexCount, 1, 0, 0);
+    }
 
     commandBuffer.endRendering();
 
@@ -729,29 +782,39 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
 
 void updateUniformBuffer(uint32_t currentImage)
 {
+    CameraBufferObject camera{};
+
+    camera.view = glm::lookAt(
+        glm::vec3(2.0f, 2.0f, 2.0f),
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 0.0f, 1.0f));
+
+    camera.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(swapchainExtent.width) / static_cast<float>(swapchainExtent.height), 0.1f, 10.0f);
+
+    camera.proj[1][1] *= -1.0f;
+
+    memcpy(uniformBuffersMapped[currentImage], &camera, sizeof(camera));
+}
+
+void updateObjectTransforms()
+{
     static auto startTime = std::chrono::high_resolution_clock::now();
 
     auto currentTime = std::chrono::high_resolution_clock::now();
 
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(
+                     currentTime - startTime)
+                     .count();
 
-    UniformBufferObject ubo{};
-
-    ubo.model =
-        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)) *
+    objects[0].model =
+        glm::translate(glm::mat4(1.0f), glm::vec3(-0.75f, 0.0f, 0.0f)) *
         glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)) *
-        glm::scale(glm::mat4(1.0f), glm::vec3(0.75f));
+        glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
 
-    ubo.view = glm::lookAt(
-        glm::vec3(2.0f, 2.0f, 2.0f),
-        glm::vec3(0.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 0.0f, 1.0f)); //?????
-
-    ubo.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(swapchainExtent.width) / static_cast<float>(swapchainExtent.height), 0.1f, 10.0f);
-
-    ubo.proj[1][1] *= -1.0f;
-
-    memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+    objects[1].model =
+        glm::translate(glm::mat4(1.0f), glm::vec3(0.75f, 0.0f, 0.0f)) *
+        glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
 }
 
 void drawFrame()
@@ -762,6 +825,7 @@ void drawFrame()
     uint32_t imageIndex = swapchain.acquireNextImage(UINT64_MAX, *imageAvailableSemaphores[currentFrame], nullptr).value;
 
     updateUniformBuffer(currentFrame);
+    updateObjectTransforms();
 
     device.resetFences(*inFlightFences[currentFrame]);
 
@@ -854,7 +918,7 @@ BufferWithMemory createBuffer(
 
 void createUniformBuffers()
 {
-    vk::DeviceSize bufferSize = sizeof(UniformBufferObject);
+    vk::DeviceSize bufferSize = sizeof(CameraBufferObject);
 
     uniformBuffers.clear();
     uniformBuffersMemory.clear();
@@ -928,7 +992,7 @@ void createDescriptorSets()
         vk::DescriptorBufferInfo bufferInfo{
             .buffer = *uniformBuffers[i],
             .offset = 0,
-            .range = sizeof(UniformBufferObject)};
+            .range = sizeof(CameraBufferObject)};
 
         vk::WriteDescriptorSet descriptorWrite{
             .dstSet = *descriptorSets[i],
@@ -964,6 +1028,8 @@ int main()
     createUniformBuffers();
     createDescriptorPool();
     createDescriptorSets();
+
+    createSceneObjects();
 
     createCommandBuffers();
     createSyncObjects();
