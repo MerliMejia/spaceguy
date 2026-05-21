@@ -19,6 +19,7 @@ FetchContent_MakeAvailable(glm)
 
 add_executable(spaceguy
     src/main.cpp
+    src/engine/vulkanBackend.cpp
 )
 
 target_compile_features(spaceguy PRIVATE cxx_std_20)
