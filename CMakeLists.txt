@@ -22,6 +22,7 @@ add_executable(spaceguy
     src/engine/vulkanBackend.cpp
     src/engine/predefined/vulkanGraphicPipelines.cpp
     src/engine/vulkanRenderer.cpp
+    src/engine/predefined/vulkanDescriptorSetLayouts.cpp
 )
 
 target_compile_features(spaceguy PRIVATE cxx_std_20)

@@ -7,17 +7,6 @@
 
 #include "../vulkanRenderer.h"
 
-struct CameraBufferObject
-{
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
-};
-
-struct ObjectPushConstants
-{
-    alignas(16) glm::mat4 model;
-};
-
 vk::raii::ShaderModule createShaderModule(const std::vector<char> &code)
 {
     vk::ShaderModuleCreateInfo createInfo{
@@ -27,7 +16,7 @@ vk::raii::ShaderModule createShaderModule(const std::vector<char> &code)
     return vk::raii::ShaderModule{vulkanContext.device, createInfo};
 }
 
-vk::GraphicsPipelineCreateInfo SIMPLE_CAMERA_MODEL_GRAPHICS_PIPELINE()
+void CREATE_SIMPLE_CAMERA_MODEL_GP()
 {
     auto vertShaderCode = readFile("shaders/simple_camera_model.vert.spv");
     auto fragShaderCode = readFile("shaders/simple_camera_model.frag.spv");
@@ -116,7 +105,7 @@ vk::GraphicsPipelineCreateInfo SIMPLE_CAMERA_MODEL_GRAPHICS_PIPELINE()
         .colorAttachmentCount = 1,
         .pColorAttachmentFormats = &vulkanContext.swapchainImageFormat};
 
-    return {
+    vk::GraphicsPipelineCreateInfo createInfo{
         .pNext = &pipelineRenderingCreateInfo,
         .stageCount = static_cast<uint32_t>(shaderStages.size()),
         .pStages = shaderStages.data(),
@@ -130,4 +119,7 @@ vk::GraphicsPipelineCreateInfo SIMPLE_CAMERA_MODEL_GRAPHICS_PIPELINE()
         .layout = *vulkanRendererContext.pipelineLayout,
         .renderPass = nullptr,
         .subpass = 0};
+
+    vulkanRendererContext.graphicsPipeline = vk::raii::Pipeline{
+        vulkanContext.device, nullptr, createInfo};
 }

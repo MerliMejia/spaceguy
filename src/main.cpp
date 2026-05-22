@@ -25,12 +25,7 @@
 #include "engine/vulkanBackend.h"
 #include "engine/vulkanRenderer.h"
 #include "engine/predefined/vulkanGraphicPipelines.h"
-
-struct BufferWithMemory
-{
-    vk::raii::Buffer buffer;
-    vk::raii::DeviceMemory memory;
-};
+#include "engine/vulkanGlobals.h"
 
 struct Mesh
 {
@@ -46,17 +41,10 @@ struct Object3D
 Mesh triangleMesh{
     .vertexCount = 3};
 
-std::vector<vk::raii::CommandBuffer> commandBuffers;
-
-constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 std::vector<vk::raii::Semaphore> imageAvailableSemaphores;
 std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
 std::vector<vk::raii::Fence> inFlightFences;
 uint32_t currentFrame = 0;
-
-std::vector<vk::raii::Buffer> uniformBuffers;
-std::vector<vk::raii::DeviceMemory> uniformBuffersMemory;
-std::vector<void *> uniformBuffersMapped;
 
 std::vector<Object3D> objects;
 
@@ -76,28 +64,17 @@ void createSceneObjects()
             glm::scale(glm::mat4(1.0f), glm::vec3(0.5f))});
 }
 
-void createGraphicsPipeline()
-{
-    vulkanRendererContext.graphicsPipeline = vk::raii::Pipeline{
-        vulkanContext.device, nullptr, SIMPLE_CAMERA_MODEL_GRAPHICS_PIPELINE()};
-}
-
 void cleanup()
 {
+    vulkanContext.device.waitIdle();
+
+    // since the device is in a global object, we need to manually clear?
+    inFlightFences.clear();
+    imageAvailableSemaphores.clear();
+    renderFinishedSemaphores.clear();
+
     glfwDestroyWindow(vulkanContext.window);
     glfwTerminate();
-}
-
-void createCommandBuffers()
-{
-    commandBuffers.clear();
-
-    vk::CommandBufferAllocateInfo allocInfo{
-        .commandPool = *vulkanContext.commandPool,
-        .level = vk::CommandBufferLevel::ePrimary,
-        .commandBufferCount = MAX_FRAMES_IN_FLIGHT};
-
-    commandBuffers = vk::raii::CommandBuffers{vulkanContext.device, allocInfo};
 }
 
 void createSyncObjects()
@@ -162,7 +139,7 @@ void transitionImageLayout(
 
 void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
 {
-    auto &commandBuffer = commandBuffers[frameIndex];
+    auto &commandBuffer = vulkanRendererContext.commandBuffers[frameIndex];
 
     commandBuffer.begin(vk::CommandBufferBeginInfo{});
 
@@ -263,7 +240,7 @@ void updateUniformBuffer(uint32_t currentImage)
 
     camera.proj[1][1] *= -1.0f;
 
-    memcpy(uniformBuffersMapped[currentImage], &camera, sizeof(camera));
+    memcpy(vulkanRendererContext.uniformBuffersMapped[currentImage], &camera, sizeof(camera));
 }
 
 void updateObjectTransforms()
@@ -299,7 +276,7 @@ void drawFrame()
 
     vulkanContext.device.resetFences(*inFlightFences[currentFrame]);
 
-    commandBuffers[currentFrame].reset();
+    vulkanRendererContext.commandBuffers[currentFrame].reset();
     recordCommandBuffer(currentFrame, imageIndex);
 
     vk::Semaphore waitSemaphores[] = {
@@ -311,7 +288,7 @@ void drawFrame()
     vk::Semaphore signalSemaphores[] = {
         *renderFinishedSemaphores[imageIndex]};
 
-    vk::CommandBuffer commandBuffer = *commandBuffers[currentFrame];
+    vk::CommandBuffer commandBuffer = *vulkanRendererContext.commandBuffers[currentFrame];
 
     vk::SubmitInfo submitInfo{
         .waitSemaphoreCount = 1,
@@ -338,162 +315,16 @@ void drawFrame()
     currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties)
-{
-    vk::PhysicalDeviceMemoryProperties memProperties = vulkanContext.physicalDevice.getMemoryProperties();
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
-    {
-        bool typeMatches = typeFilter & (1 << i);
-        bool hasPropertoes =
-            (memProperties.memoryTypes[i].propertyFlags & properties) == properties;
-
-        if (typeMatches && hasPropertoes)
-        {
-            return i;
-        }
-    }
-
-    throw std::runtime_error("failed to find suitable memory");
-}
-
-BufferWithMemory createBuffer(
-    vk::DeviceSize size,
-    vk::BufferUsageFlags usage,
-    vk::MemoryPropertyFlags properties)
-{
-    vk::BufferCreateInfo bufferInfo{
-        .size = size,
-        .usage = usage,
-        .sharingMode = vk::SharingMode::eExclusive};
-
-    vk::raii::Buffer buffer = vk::raii::Buffer(vulkanContext.device, bufferInfo);
-
-    vk::MemoryRequirements memRequirements = buffer.getMemoryRequirements();
-
-    vk::MemoryAllocateInfo allocInfo{
-        .allocationSize = memRequirements.size,
-        .memoryTypeIndex = findMemoryType(
-            memRequirements.memoryTypeBits,
-            properties)};
-
-    vk::raii::DeviceMemory bufferMemory(vulkanContext.device, allocInfo);
-
-    buffer.bindMemory(*bufferMemory, 0);
-
-    return {
-        std::move(buffer),
-        std::move(bufferMemory)};
-}
-
-void createUniformBuffers()
-{
-    vk::DeviceSize bufferSize = sizeof(CameraBufferObject);
-
-    uniformBuffers.clear();
-    uniformBuffersMemory.clear();
-    uniformBuffersMapped.clear();
-
-    uniformBuffers.reserve(MAX_FRAMES_IN_FLIGHT);
-    uniformBuffersMemory.reserve(MAX_FRAMES_IN_FLIGHT);
-    uniformBuffersMapped.reserve(MAX_FRAMES_IN_FLIGHT);
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-    {
-        BufferWithMemory bufferWithMemory = createBuffer(
-            bufferSize,
-            vk::BufferUsageFlagBits::eUniformBuffer,
-            vk::MemoryPropertyFlagBits::eHostVisible |
-                vk::MemoryPropertyFlagBits::eHostCoherent);
-
-        uniformBuffers.emplace_back(std::move(bufferWithMemory.buffer));
-        uniformBuffersMemory.emplace_back(std::move(bufferWithMemory.memory));
-
-        uniformBuffersMapped.push_back(
-            uniformBuffersMemory.back().mapMemory(0, bufferSize));
-    }
-}
-
-void createDescriptorSetLayout()
-{
-    vk::DescriptorSetLayoutBinding uboLayoutBinding{
-        .binding = 0,
-        .descriptorType = vk::DescriptorType::eUniformBuffer,
-        .descriptorCount = 1,
-        .stageFlags = vk::ShaderStageFlagBits::eVertex,
-        .pImmutableSamplers = nullptr};
-
-    vk::DescriptorSetLayoutCreateInfo layoutInfo{
-        .bindingCount = 1,
-        .pBindings = &uboLayoutBinding};
-
-    vulkanRendererContext.descriptorSetLayout = vk::raii::DescriptorSetLayout(vulkanContext.device, layoutInfo);
-}
-
-void createDescriptorPool()
-{
-    vk::DescriptorPoolSize poolSize{
-        .type = vk::DescriptorType::eUniformBuffer,
-        .descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)};
-
-    vk::DescriptorPoolCreateInfo poolInfo{
-        .maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
-        .poolSizeCount = 1,
-        .pPoolSizes = &poolSize};
-
-    vulkanRendererContext.descriptorPool = vk::raii::DescriptorPool(vulkanContext.device, poolInfo);
-}
-
-void createDescriptorSets()
-{
-    std::vector<vk::DescriptorSetLayout> layouts(
-        MAX_FRAMES_IN_FLIGHT,
-        *vulkanRendererContext.descriptorSetLayout);
-
-    vk::DescriptorSetAllocateInfo allocInf{
-        .descriptorPool = *vulkanRendererContext.descriptorPool,
-        .descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
-        .pSetLayouts = layouts.data()};
-
-    vulkanRendererContext.descriptorSets = vk::raii::DescriptorSets(vulkanContext.device, allocInf);
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-    {
-        vk::DescriptorBufferInfo bufferInfo{
-            .buffer = *uniformBuffers[i],
-            .offset = 0,
-            .range = sizeof(CameraBufferObject)};
-
-        vk::WriteDescriptorSet descriptorWrite{
-            .dstSet = *vulkanRendererContext.descriptorSets[i],
-            .dstBinding = 0,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = vk::DescriptorType::eUniformBuffer,
-            .pImageInfo = nullptr,
-            .pBufferInfo = &bufferInfo,
-            .pTexelBufferView = nullptr};
-
-        vulkanContext.device.updateDescriptorSets(descriptorWrite, nullptr);
-    }
-}
-
 int main()
 {
     std::cout << "Spaceguy running\n";
 
     setupVulkan();
 
-    createDescriptorSetLayout();
-    createGraphicsPipeline();
-
-    createUniformBuffers();
-    createDescriptorPool();
-    createDescriptorSets();
+    setupRenderer();
 
     createSceneObjects();
 
-    createCommandBuffers();
     createSyncObjects();
 
     while (!glfwWindowShouldClose(vulkanContext.window))
@@ -501,8 +332,6 @@ int main()
         glfwPollEvents();
         drawFrame();
     }
-
-    vulkanContext.device.waitIdle();
 
     cleanup();
 
