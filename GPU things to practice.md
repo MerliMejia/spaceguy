@@ -13,3 +13,5 @@ GPU things to practice
 [] Sampled images / textures (color, normal, roughness, metalness, shadow maps, env maps)
 
 [] Storage images (compute shader output, post processing)
+
+[] Use different 

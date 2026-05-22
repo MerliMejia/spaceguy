@@ -16,7 +16,6 @@
 #include <set>
 #include <optional>
 #include <utility>
-#include <fstream>
 #include <array>
 #include <cstdint>
 #include <algorithm>
@@ -24,17 +23,8 @@
 #include <cstring>
 
 #include "engine/vulkanBackend.h"
-
-struct CameraBufferObject
-{
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
-};
-
-struct ObjectPushConstants
-{
-    alignas(16) glm::mat4 model;
-};
+#include "engine/vulkanRenderer.h"
+#include "engine/predefined/vulkanGraphicPipelines.h"
 
 struct BufferWithMemory
 {
@@ -56,9 +46,6 @@ struct Object3D
 Mesh triangleMesh{
     .vertexCount = 3};
 
-vk::raii::PipelineLayout pipelineLayout{nullptr};
-vk::raii::Pipeline graphicsPipeline{nullptr};
-
 std::vector<vk::raii::CommandBuffer> commandBuffers;
 
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
@@ -70,10 +57,6 @@ uint32_t currentFrame = 0;
 std::vector<vk::raii::Buffer> uniformBuffers;
 std::vector<vk::raii::DeviceMemory> uniformBuffersMemory;
 std::vector<void *> uniformBuffersMapped;
-
-vk::raii::DescriptorSetLayout descriptorSetLayout = nullptr;
-vk::raii::DescriptorPool descriptorPool = nullptr;
-std::vector<vk::raii::DescriptorSet> descriptorSets;
 
 std::vector<Object3D> objects;
 
@@ -93,140 +76,10 @@ void createSceneObjects()
             glm::scale(glm::mat4(1.0f), glm::vec3(0.5f))});
 }
 
-static std::vector<char> readFile(const std::string &filename)
-{
-    std::ifstream file(filename, std::ios::ate | std::ios::binary);
-
-    if (!file.is_open())
-    {
-        throw std::runtime_error("failed to open file: " + filename);
-    }
-
-    size_t fileSize = static_cast<size_t>(file.tellg());
-    std::vector<char> buffer(fileSize);
-
-    file.seekg(0);
-    file.read(buffer.data(), fileSize);
-    file.close();
-
-    return buffer;
-}
-
-vk::raii::ShaderModule createShaderModule(const std::vector<char> &code)
-{
-    vk::ShaderModuleCreateInfo createInfo{
-        .codeSize = code.size(),
-        .pCode = reinterpret_cast<const uint32_t *>(code.data())};
-
-    return vk::raii::ShaderModule{vulkanContext.device, createInfo};
-}
-
 void createGraphicsPipeline()
 {
-    auto vertShaderCode = readFile("shaders/triangle.vert.spv");
-    auto fragShaderCode = readFile("shaders/triangle.frag.spv");
-
-    vk::raii::ShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-    vk::raii::ShaderModule fragShaderModule = createShaderModule(fragShaderCode);
-
-    vk::PipelineShaderStageCreateInfo vertShaderStageInfo{
-        .stage = vk::ShaderStageFlagBits::eVertex,
-        .module = *vertShaderModule,
-        .pName = "main"};
-
-    vk::PipelineShaderStageCreateInfo fragShaderStageInfo{
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .module = *fragShaderModule,
-        .pName = "main"};
-
-    std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages = {
-        vertShaderStageInfo,
-        fragShaderStageInfo};
-
-    vk::PipelineVertexInputStateCreateInfo vertexInputInfo{
-        .vertexBindingDescriptionCount = 0,
-        .pVertexBindingDescriptions = nullptr,
-        .vertexAttributeDescriptionCount = 0,
-        .pVertexAttributeDescriptions = nullptr};
-
-    vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
-        .topology = vk::PrimitiveTopology::eTriangleList,
-        .primitiveRestartEnable = vk::False};
-
-    vk::PipelineViewportStateCreateInfo viewportState{
-        .viewportCount = 1,
-        .scissorCount = 1};
-
-    vk::PipelineRasterizationStateCreateInfo rasterizer{
-        .depthClampEnable = vk::False,
-        .rasterizerDiscardEnable = vk::False,
-        .polygonMode = vk::PolygonMode::eFill,
-        .cullMode = vk::CullModeFlagBits::eNone,
-        .frontFace = vk::FrontFace::eClockwise,
-        .depthBiasEnable = vk::False,
-        .lineWidth = 1.0f};
-
-    vk::PipelineMultisampleStateCreateInfo multisampling{
-        .rasterizationSamples = vk::SampleCountFlagBits::e1,
-        .sampleShadingEnable = vk::False};
-
-    vk::PipelineColorBlendAttachmentState colorBlendAttachment{
-        .blendEnable = vk::False,
-        .colorWriteMask =
-            vk::ColorComponentFlagBits::eR |
-            vk::ColorComponentFlagBits::eG |
-            vk::ColorComponentFlagBits::eB |
-            vk::ColorComponentFlagBits::eA};
-
-    vk::PipelineColorBlendStateCreateInfo colorBlending{
-        .logicOpEnable = vk::False,
-        .attachmentCount = 1,
-        .pAttachments = &colorBlendAttachment};
-
-    std::array<vk::DynamicState, 2> dynamicStates = {
-        vk::DynamicState::eViewport,
-        vk::DynamicState::eScissor};
-
-    vk::PipelineDynamicStateCreateInfo dynamicState{
-        .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
-        .pDynamicStates = dynamicStates.data()};
-
-    vk::DescriptorSetLayout setLayouts[] = {*descriptorSetLayout};
-
-    vk::PushConstantRange pushConstantRange{
-        .stageFlags = vk::ShaderStageFlagBits::eVertex,
-        .offset = 0,
-        .size = sizeof(ObjectPushConstants)};
-
-    vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
-        .setLayoutCount = 1,
-        .pSetLayouts = setLayouts,
-        .pushConstantRangeCount = 1,
-        .pPushConstantRanges = &pushConstantRange};
-
-    pipelineLayout = vk::raii::PipelineLayout{vulkanContext.device, pipelineLayoutInfo};
-
-    vk::PipelineRenderingCreateInfo pipelineRenderingCreateInfo{
-        .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &vulkanContext.swapchainImageFormat};
-
-    vk::GraphicsPipelineCreateInfo pipelineInfo{
-        .pNext = &pipelineRenderingCreateInfo,
-        .stageCount = static_cast<uint32_t>(shaderStages.size()),
-        .pStages = shaderStages.data(),
-        .pVertexInputState = &vertexInputInfo,
-        .pInputAssemblyState = &inputAssembly,
-        .pViewportState = &viewportState,
-        .pRasterizationState = &rasterizer,
-        .pMultisampleState = &multisampling,
-        .pColorBlendState = &colorBlending,
-        .pDynamicState = &dynamicState,
-        .layout = *pipelineLayout,
-        .renderPass = nullptr,
-        .subpass = 0};
-
-    graphicsPipeline = vk::raii::Pipeline{
-        vulkanContext.device, nullptr, pipelineInfo};
+    vulkanRendererContext.graphicsPipeline = vk::raii::Pipeline{
+        vulkanContext.device, nullptr, SIMPLE_CAMERA_MODEL_GRAPHICS_PIPELINE()};
 }
 
 void cleanup()
@@ -238,7 +91,7 @@ void cleanup()
 void createCommandBuffers()
 {
     commandBuffers.clear();
-    
+
     vk::CommandBufferAllocateInfo allocInfo{
         .commandPool = *vulkanContext.commandPool,
         .level = vk::CommandBufferLevel::ePrimary,
@@ -344,7 +197,7 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
 
     commandBuffer.beginRendering(renderingInfo);
 
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *graphicsPipeline);
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *vulkanRendererContext.graphicsPipeline);
 
     vk::Viewport viewport{
         .x = 0.0f,
@@ -363,9 +216,9 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
 
     commandBuffer.bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics,
-        *pipelineLayout,
+        *vulkanRendererContext.pipelineLayout,
         0,
-        *descriptorSets[frameIndex],
+        *vulkanRendererContext.descriptorSets[frameIndex],
         nullptr);
 
     for (const Object3D &object : objects)
@@ -374,7 +227,7 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
             .model = object.model};
 
         commandBuffer.pushConstants<ObjectPushConstants>(
-            *pipelineLayout,
+            *vulkanRendererContext.pipelineLayout,
             vk::ShaderStageFlagBits::eVertex,
             0,
             std::array<ObjectPushConstants, 1>{pushConstants});
@@ -574,7 +427,7 @@ void createDescriptorSetLayout()
         .bindingCount = 1,
         .pBindings = &uboLayoutBinding};
 
-    descriptorSetLayout = vk::raii::DescriptorSetLayout(vulkanContext.device, layoutInfo);
+    vulkanRendererContext.descriptorSetLayout = vk::raii::DescriptorSetLayout(vulkanContext.device, layoutInfo);
 }
 
 void createDescriptorPool()
@@ -588,21 +441,21 @@ void createDescriptorPool()
         .poolSizeCount = 1,
         .pPoolSizes = &poolSize};
 
-    descriptorPool = vk::raii::DescriptorPool(vulkanContext.device, poolInfo);
+    vulkanRendererContext.descriptorPool = vk::raii::DescriptorPool(vulkanContext.device, poolInfo);
 }
 
 void createDescriptorSets()
 {
     std::vector<vk::DescriptorSetLayout> layouts(
         MAX_FRAMES_IN_FLIGHT,
-        *descriptorSetLayout);
+        *vulkanRendererContext.descriptorSetLayout);
 
     vk::DescriptorSetAllocateInfo allocInf{
-        .descriptorPool = *descriptorPool,
+        .descriptorPool = *vulkanRendererContext.descriptorPool,
         .descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
         .pSetLayouts = layouts.data()};
 
-    descriptorSets = vk::raii::DescriptorSets(vulkanContext.device, allocInf);
+    vulkanRendererContext.descriptorSets = vk::raii::DescriptorSets(vulkanContext.device, allocInf);
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
@@ -612,7 +465,7 @@ void createDescriptorSets()
             .range = sizeof(CameraBufferObject)};
 
         vk::WriteDescriptorSet descriptorWrite{
-            .dstSet = *descriptorSets[i],
+            .dstSet = *vulkanRendererContext.descriptorSets[i],
             .dstBinding = 0,
             .dstArrayElement = 0,
             .descriptorCount = 1,
