@@ -43,3 +43,13 @@ A descriptorPool is the allocator for descriptor sets, basically:
 The descriptor set is the actual resource.
 
 We use one descriptor set per frame in flight or one per frame basically because each frame should have it's own uniforms and data (I need to check when it is with per vertex data).
+
+Vertex positions goes to the vertex shader through a vertex buffer and the graphics pipeline vertex input state.
+
+layout(binding = 0) is a descriptor binding (goes in the descriptor set layout).
+layout(location = 0) is a buffer binding.
+
+So layout(location = 0) in vec2/vec3 inPosition is a vertex buffer binding.
+
+You need to bind the buffers BEFORE executing the draw command...
+

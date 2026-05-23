@@ -11,8 +11,15 @@
 
 #include "vulkanGlobals.h"
 
+struct Vertex
+{
+    glm::vec2 pos;
+};
+
 struct Mesh
 {
+    vk::raii::Buffer vertexBuffer = nullptr;
+    vk::raii::DeviceMemory vertexDeviceMemory = nullptr;
     uint32_t vertexCount;
 };
 

@@ -8,6 +8,13 @@ std::vector<Object3D> objects;
 Mesh triangleMesh{
     .vertexCount = 3};
 
+// For actual per vertex stuff:
+std::vector<Vertex> vertices = {
+    {{0.0f, -0.5f}},
+    {{0.5f, 0.5f}},
+    {{-0.5f, 0.5f}},
+};
+
 struct BufferWithMemory
 {
     vk::raii::Buffer buffer;
@@ -195,6 +202,24 @@ void createSceneObjects()
             glm::scale(glm::mat4(1.0f), glm::vec3(0.5f))});
 }
 
+void createVertexBuffers()
+{
+    vk::DeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+
+    auto vertexBuffer = createBuffer(bufferSize,
+                                     vk::BufferUsageFlagBits::eVertexBuffer,
+                                     vk::MemoryPropertyFlagBits::eHostVisible |
+                                         vk::MemoryPropertyFlagBits::eHostCoherent);
+
+    void *data = vertexBuffer.memory.mapMemory(0, bufferSize);
+    memcpy(data, vertices.data(), static_cast<size_t>(bufferSize));
+    vertexBuffer.memory.unmapMemory();
+
+    triangleMesh.vertexBuffer = std::move(vertexBuffer.buffer);
+    triangleMesh.vertexDeviceMemory = std::move(vertexBuffer.memory);
+    triangleMesh.vertexCount = static_cast<uint32_t>(vertices.size());
+}
+
 void setupRenderer()
 {
     createDescriptorSetLayout();
@@ -209,6 +234,9 @@ void setupRenderer()
     createSyncObjects();
 
     createSceneObjects();
+
+    // After we create scene objects since each object should have the same vertex buffer for now.
+    createVertexBuffers();
 }
 
 void transitionImageLayout(
@@ -317,6 +345,11 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
             0,
             std::array<ObjectPushConstants, 1>{pushConstants});
 
+        // Per vertex stuff:
+        vk::Buffer vertexBuffer[] = {*object.mesh->vertexBuffer};
+        vk::DeviceSize offsets[] = {0};
+
+        commandBuffer.bindVertexBuffers(0, vertexBuffer, offsets);
         commandBuffer.draw(object.mesh->vertexCount, 1, 0, 0);
     }
 

@@ -1,4 +1,5 @@
 #version 450
+layout(location = 0) in vec2 inPosition;
 
 layout(binding = 0) uniform CameraBufferObject {
     mat4 view;
@@ -9,11 +10,9 @@ layout(push_constant) uniform ObjectPushConstants {
     mat4 model;
 } objectData;
 
-vec2 positions[3] = vec2[](vec2(0.0, -0.5), vec2(0.5, 0.5), vec2(-0.5, 0.5));
-
 void main() {
     gl_Position = camera.proj *
         camera.view *
         objectData.model *
-        vec4(positions[gl_VertexIndex], 0.0, 1.0);
+        vec4(inPosition, 0.0, 1.0);
 }
