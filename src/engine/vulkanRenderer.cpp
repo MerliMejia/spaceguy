@@ -150,6 +150,32 @@ void createCommandBuffers()
     vulkanRendererContext.commandBuffers = vk::raii::CommandBuffers{vulkanContext.device, allocInfo};
 }
 
+void createSyncObjects()
+{
+    vulkanRendererContext.imageAvailableSemaphores.clear();
+    vulkanRendererContext.renderFinishedSemaphores.clear();
+    vulkanRendererContext.inFlightFences.clear();
+
+    vulkanRendererContext.imageAvailableSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
+    vulkanRendererContext.renderFinishedSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
+    vulkanRendererContext.inFlightFences.reserve(MAX_FRAMES_IN_FLIGHT);
+
+    vk::SemaphoreCreateInfo semaphoreInfo{};
+    vk::FenceCreateInfo fenceInfo{
+        .flags = vk::FenceCreateFlagBits::eSignaled};
+
+    for (size_t i = 0; i < vulkanContext.swapchainImages.size(); i++)
+    {
+        vulkanRendererContext.renderFinishedSemaphores.emplace_back(vulkanContext.device, semaphoreInfo);
+    }
+
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+    {
+        vulkanRendererContext.imageAvailableSemaphores.emplace_back(vulkanContext.device, semaphoreInfo);
+        vulkanRendererContext.inFlightFences.emplace_back(vulkanContext.device, fenceInfo);
+    }
+}
+
 void setupRenderer()
 {
     createDescriptorSetLayout();
@@ -160,4 +186,6 @@ void setupRenderer()
     createUniformBuffers();
     createDescriptorPool();
     createDescriptorSets();
+
+    createSyncObjects();
 }

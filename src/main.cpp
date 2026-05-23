@@ -41,11 +41,6 @@ struct Object3D
 Mesh triangleMesh{
     .vertexCount = 3};
 
-std::vector<vk::raii::Semaphore> imageAvailableSemaphores;
-std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
-std::vector<vk::raii::Fence> inFlightFences;
-uint32_t currentFrame = 0;
-
 std::vector<Object3D> objects;
 
 void createSceneObjects()
@@ -69,38 +64,12 @@ void cleanup()
     vulkanContext.device.waitIdle();
 
     // since the device is in a global object, we need to manually clear?
-    inFlightFences.clear();
-    imageAvailableSemaphores.clear();
-    renderFinishedSemaphores.clear();
+    vulkanRendererContext.inFlightFences.clear();
+    vulkanRendererContext.imageAvailableSemaphores.clear();
+    vulkanRendererContext.renderFinishedSemaphores.clear();
 
     glfwDestroyWindow(vulkanContext.window);
     glfwTerminate();
-}
-
-void createSyncObjects()
-{
-    imageAvailableSemaphores.clear();
-    renderFinishedSemaphores.clear();
-    inFlightFences.clear();
-
-    imageAvailableSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
-    renderFinishedSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
-    inFlightFences.reserve(MAX_FRAMES_IN_FLIGHT);
-
-    vk::SemaphoreCreateInfo semaphoreInfo{};
-    vk::FenceCreateInfo fenceInfo{
-        .flags = vk::FenceCreateFlagBits::eSignaled};
-
-    for (size_t i = 0; i < vulkanContext.swapchainImages.size(); i++)
-    {
-        renderFinishedSemaphores.emplace_back(vulkanContext.device, semaphoreInfo);
-    }
-
-    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-    {
-        imageAvailableSemaphores.emplace_back(vulkanContext.device, semaphoreInfo);
-        inFlightFences.emplace_back(vulkanContext.device, fenceInfo);
-    }
 }
 
 void transitionImageLayout(
@@ -267,28 +236,28 @@ void updateObjectTransforms()
 void drawFrame()
 {
     vulkanContext.device.waitForFences(
-        *inFlightFences[currentFrame], vk::True, UINT64_MAX);
+        *vulkanRendererContext.inFlightFences[vulkanRendererContext.currentFrame], vk::True, UINT64_MAX);
 
-    uint32_t imageIndex = vulkanContext.swapchain.acquireNextImage(UINT64_MAX, *imageAvailableSemaphores[currentFrame], nullptr).value;
+    uint32_t imageIndex = vulkanContext.swapchain.acquireNextImage(UINT64_MAX, *vulkanRendererContext.imageAvailableSemaphores[vulkanRendererContext.currentFrame], nullptr).value;
 
-    updateUniformBuffer(currentFrame);
+    updateUniformBuffer(vulkanRendererContext.currentFrame);
     updateObjectTransforms();
 
-    vulkanContext.device.resetFences(*inFlightFences[currentFrame]);
+    vulkanContext.device.resetFences(*vulkanRendererContext.inFlightFences[vulkanRendererContext.currentFrame]);
 
-    vulkanRendererContext.commandBuffers[currentFrame].reset();
-    recordCommandBuffer(currentFrame, imageIndex);
+    vulkanRendererContext.commandBuffers[vulkanRendererContext.currentFrame].reset();
+    recordCommandBuffer(vulkanRendererContext.currentFrame, imageIndex);
 
     vk::Semaphore waitSemaphores[] = {
-        *imageAvailableSemaphores[currentFrame]};
+        *vulkanRendererContext.imageAvailableSemaphores[vulkanRendererContext.currentFrame]};
 
     vk::PipelineStageFlags waitStages[] = {
         vk::PipelineStageFlagBits::eColorAttachmentOutput};
 
     vk::Semaphore signalSemaphores[] = {
-        *renderFinishedSemaphores[imageIndex]};
+        *vulkanRendererContext.renderFinishedSemaphores[imageIndex]};
 
-    vk::CommandBuffer commandBuffer = *vulkanRendererContext.commandBuffers[currentFrame];
+    vk::CommandBuffer commandBuffer = *vulkanRendererContext.commandBuffers[vulkanRendererContext.currentFrame];
 
     vk::SubmitInfo submitInfo{
         .waitSemaphoreCount = 1,
@@ -299,7 +268,7 @@ void drawFrame()
         .signalSemaphoreCount = 1,
         .pSignalSemaphores = signalSemaphores};
 
-    vulkanContext.graphicsQueue.submit(submitInfo, *inFlightFences[currentFrame]);
+    vulkanContext.graphicsQueue.submit(submitInfo, *vulkanRendererContext.inFlightFences[vulkanRendererContext.currentFrame]);
 
     vk::SwapchainKHR swapchains[] = {*vulkanContext.swapchain};
 
@@ -312,7 +281,7 @@ void drawFrame()
 
     vulkanContext.presentQueue.presentKHR(presentInfo);
 
-    currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+    vulkanRendererContext.currentFrame = (vulkanRendererContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 int main()
@@ -324,8 +293,6 @@ int main()
     setupRenderer();
 
     createSceneObjects();
-
-    createSyncObjects();
 
     while (!glfwWindowShouldClose(vulkanContext.window))
     {

@@ -14,4 +14,11 @@ GPU things to practice
 
 [] Storage images (compute shader output, post processing)
 
-[] Use different 
+// Possible things to practice:
+
+Multiple queue submissions per frame: you may need extra semaphores between submits.
+Separate graphics / compute / transfer queues: you may use semaphores or timeline semaphores for queue-to-queue ordering.
+Streaming uploads: often use timeline semaphores or per-upload fences.
+Per-swapchain-image resources: attachments, image views, or descriptor bindings tied to the acquired image may be indexed by imageIndex.
+Per-frame transient resources: command buffers, staging arenas, uniform buffers, descriptor pools, and fences are commonly indexed by frameIndex.
+Timeline semaphore architecture: can reduce the number of binary semaphores, especially in larger engines.

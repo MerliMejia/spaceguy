@@ -24,6 +24,12 @@ struct VulkanRendererContext
     std::vector<vk::raii::Buffer> uniformBuffers;
     std::vector<vk::raii::DeviceMemory> uniformBuffersMemory;
     std::vector<void *> uniformBuffersMapped;
+
+    // Sync objects
+    std::vector<vk::raii::Semaphore> imageAvailableSemaphores;
+    std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
+    std::vector<vk::raii::Fence> inFlightFences;
+    uint32_t currentFrame = 0;
 };
 
 extern VulkanRendererContext vulkanRendererContext;
