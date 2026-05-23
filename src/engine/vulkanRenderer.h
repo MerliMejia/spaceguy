@@ -2,10 +2,29 @@
 
 #define VULKAN_HPP_NO_CONSTRUCTORS
 #include <vulkan/vulkan_raii.hpp>
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <vector>
 
 #include "vulkanGlobals.h"
+
+struct Mesh
+{
+    uint32_t vertexCount;
+};
+
+struct Object3D
+{
+    const Mesh *mesh;
+    glm::mat4 model;
+};
+
+extern Mesh triangleMesh;
+
+extern std::vector<Object3D> objects;
 
 // Will store/handle every vulkan stuff that can change depending of how we decide that the renderer
 // will render stuff.
@@ -35,3 +54,4 @@ struct VulkanRendererContext
 extern VulkanRendererContext vulkanRendererContext;
 
 void setupRenderer();
+void drawFrame();
