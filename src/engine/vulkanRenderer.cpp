@@ -10,9 +10,65 @@ Mesh triangleMesh{
 
 // For actual per vertex stuff:
 std::vector<Vertex> vertices = {
-    {{0.0f, -0.5f}},
-    {{0.5f, 0.5f}},
-    {{-0.5f, 0.5f}},
+    {{-0.5f, -0.5f, -0.5f}}, // 0
+    {{0.5f, -0.5f, -0.5f}},  // 1
+    {{0.5f, 0.5f, -0.5f}},   // 2
+    {{-0.5f, 0.5f, -0.5f}},  // 3
+
+    {{-0.5f, -0.5f, 0.5f}}, // 4
+    {{0.5f, -0.5f, 0.5f}},  // 5
+    {{0.5f, 0.5f, 0.5f}},   // 6
+    {{-0.5f, 0.5f, 0.5f}},  // 7
+};
+
+std::vector<uint16_t> indices = {
+    // Back face
+    0,
+    2,
+    1,
+    0,
+    3,
+    2,
+
+    // Front face
+    4,
+    5,
+    6,
+    4,
+    6,
+    7,
+
+    // Left face
+    0,
+    4,
+    7,
+    0,
+    7,
+    3,
+
+    // Right face
+    1,
+    2,
+    6,
+    1,
+    6,
+    5,
+
+    // Bottom face
+    0,
+    1,
+    5,
+    0,
+    5,
+    4,
+
+    // Top face
+    3,
+    7,
+    6,
+    3,
+    6,
+    2,
 };
 
 struct BufferWithMemory
@@ -220,6 +276,24 @@ void createVertexBuffers()
     triangleMesh.vertexCount = static_cast<uint32_t>(vertices.size());
 }
 
+void createIndexBuffers()
+{
+    vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+
+    auto indexBuffer = createBuffer(bufferSize,
+                                    vk::BufferUsageFlagBits::eIndexBuffer,
+                                    vk::MemoryPropertyFlagBits::eHostVisible |
+                                        vk::MemoryPropertyFlagBits::eHostCoherent);
+
+    void *data = indexBuffer.memory.mapMemory(0, bufferSize);
+    memcpy(data, indices.data(), static_cast<size_t>(bufferSize));
+    indexBuffer.memory.unmapMemory();
+
+    triangleMesh.indexBuffer = std::move(indexBuffer.buffer);
+    triangleMesh.indexDeviceMemory = std::move(indexBuffer.memory);
+    triangleMesh.indexCount = static_cast<uint32_t>(indices.size());
+}
+
 void setupRenderer()
 {
     createDescriptorSetLayout();
@@ -237,6 +311,7 @@ void setupRenderer()
 
     // After we create scene objects since each object should have the same vertex buffer for now.
     createVertexBuffers();
+    createIndexBuffers();
 }
 
 void transitionImageLayout(
@@ -350,7 +425,8 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
         vk::DeviceSize offsets[] = {0};
 
         commandBuffer.bindVertexBuffers(0, vertexBuffer, offsets);
-        commandBuffer.draw(object.mesh->vertexCount, 1, 0, 0);
+        commandBuffer.bindIndexBuffer(*object.mesh->indexBuffer, 0, vk::IndexType::eUint16);
+        commandBuffer.drawIndexed(object.mesh->indexCount, 1, 0, 0, 0);
     }
 
     commandBuffer.endRendering();

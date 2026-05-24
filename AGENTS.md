@@ -13,3 +13,21 @@ This project should follow the current Khronos Vulkan Tutorial approach:
 - Prefer the modern tutorial baseline: Vulkan 1.4 when available, with Vulkan 1.3 compatibility when required by the local SDK or platform.
 - Do not add new render-pass/framebuffer based tutorial code unless the requester explicitly asks for the legacy path.
 - When explaining implementation steps, reference the latest Khronos Vulkan Tutorial at `https://docs.vulkan.org/tutorial/latest/`.
+
+# Vulkan-Hpp Constructor Style
+
+This project uses:
+
+```cpp
+#define VULKAN_HPP_NO_CONSTRUCTORS
+#include <vulkan/vulkan_raii.hpp>
+
+Prefer aggregate/designated initialization compatible with VULKAN_HPP_NO_CONSTRUCTORS, for example:
+
+vk::PipelineVertexInputStateCreateInfo vertexInputInfo{
+    .vertexBindingDescriptionCount = bindingCount,
+    .pVertexBindingDescriptions = bindings.data(),
+    .vertexAttributeDescriptionCount = attributeCount,
+    .pVertexAttributeDescriptions = attributes.data(),
+};
+```

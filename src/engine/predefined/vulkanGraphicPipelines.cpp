@@ -46,7 +46,7 @@ void CREATE_SIMPLE_CAMERA_MODEL_GP()
     vk::VertexInputAttributeDescription attributeDescription{
         .location = 0,
         .binding = 0,
-        .format = vk::Format::eR32G32Sfloat,
+        .format = vk::Format::eR32G32B32Sfloat,
         .offset = offsetof(Vertex, pos)};
 
     vk::PipelineVertexInputStateCreateInfo vertexInputInfo{

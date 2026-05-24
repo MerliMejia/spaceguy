@@ -13,14 +13,17 @@
 
 struct Vertex
 {
-    glm::vec2 pos;
+    glm::vec3 pos;
 };
 
 struct Mesh
 {
     vk::raii::Buffer vertexBuffer = nullptr;
     vk::raii::DeviceMemory vertexDeviceMemory = nullptr;
+    vk::raii::Buffer indexBuffer = nullptr;
+    vk::raii::DeviceMemory indexDeviceMemory = nullptr;
     uint32_t vertexCount;
+    uint32_t indexCount;
 };
 
 struct Object3D
