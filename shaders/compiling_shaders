@@ -1,2 +1,2 @@
-glslc shaders/simple_camera_model.vert -o shaders/simple_camera_model.vert.spv
-glslc shaders/simple_camera_model.frag -o shaders/simple_camera_model.frag.spv
+glslc shaders/default.vert -o shaders/default.vert.spv
+glslc shaders/default.frag -o shaders/default.frag.spv

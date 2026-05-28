@@ -16,10 +16,10 @@ vk::raii::ShaderModule createShaderModule(const std::vector<char> &code)
     return vk::raii::ShaderModule{vulkanContext.device, createInfo};
 }
 
-void CREATE_SIMPLE_CAMERA_MODEL_GP()
+void DEFAULT_GRAPHICS_PIPELINE()
 {
-    auto vertShaderCode = readFile("shaders/simple_camera_model.vert.spv");
-    auto fragShaderCode = readFile("shaders/simple_camera_model.frag.spv");
+    auto vertShaderCode = readFile("shaders/default.vert.spv");
+    auto fragShaderCode = readFile("shaders/default.frag.spv");
 
     vk::raii::ShaderModule vertShaderModule = createShaderModule(vertShaderCode);
     vk::raii::ShaderModule fragShaderModule = createShaderModule(fragShaderCode);
@@ -43,17 +43,21 @@ void CREATE_SIMPLE_CAMERA_MODEL_GP()
         .stride = sizeof(Vertex),
         .inputRate = vk::VertexInputRate::eVertex};
 
-    vk::VertexInputAttributeDescription attributeDescription{
-        .location = 0,
-        .binding = 0,
-        .format = vk::Format::eR32G32B32Sfloat,
-        .offset = offsetof(Vertex, pos)};
+    std::array<vk::VertexInputAttributeDescription, 2> attributeDescriptions = {
+        {{.location = 0,
+          .binding = 0,
+          .format = vk::Format::eR32G32B32Sfloat,
+          .offset = offsetof(Vertex, pos)},
+         {.location = 1,
+          .binding = 0,
+          .format = vk::Format::eR32G32B32Sfloat,
+          .offset = offsetof(Vertex, color)}}};
 
     vk::PipelineVertexInputStateCreateInfo vertexInputInfo{
         .vertexBindingDescriptionCount = 1,
         .pVertexBindingDescriptions = &bindingDescription,
-        .vertexAttributeDescriptionCount = 1,
-        .pVertexAttributeDescriptions = &attributeDescription};
+        .vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size()),
+        .pVertexAttributeDescriptions = attributeDescriptions.data()};
 
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
         .topology = vk::PrimitiveTopology::eTriangleList,

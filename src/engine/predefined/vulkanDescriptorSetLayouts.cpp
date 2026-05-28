@@ -1,7 +1,7 @@
 #include "vulkanDescriptorSetLayouts.h"
 #include "../vulkanGlobals.h"
 
-void CREATE_SIMPLE_DESCRIPTOR_SET_LAYOUT(vk::raii::DescriptorSetLayout &descriptorSetLayout, vk::raii::Device &device)
+void DEFAULT_DESCRIPTOR_SET_LAYOUT(vk::raii::DescriptorSetLayout &descriptorSetLayout, vk::raii::Device &device)
 {
     vk::DescriptorSetLayoutBinding uboLayoutBinding{
         .binding = 0,
@@ -16,7 +16,7 @@ void CREATE_SIMPLE_DESCRIPTOR_SET_LAYOUT(vk::raii::DescriptorSetLayout &descript
 
     descriptorSetLayout = vk::raii::DescriptorSetLayout(device, layoutInfo);
 };
-void CREATE_SIMPLE_DESCRIPTOR_POOL(vk::raii::DescriptorPool &descriptorPool, vk::raii::Device &device)
+void DEFAULT_DESCRIPTOR_POOL(vk::raii::DescriptorPool &descriptorPool, vk::raii::Device &device)
 {
     vk::DescriptorPoolSize poolSize{
         .type = vk::DescriptorType::eUniformBuffer,

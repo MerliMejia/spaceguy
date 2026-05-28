@@ -7,7 +7,7 @@
 #include <glm/glm.hpp>
 
 // Different graphic pipelines.
-extern void CREATE_SIMPLE_CAMERA_MODEL_GP();
+extern void DEFAULT_GRAPHICS_PIPELINE();
 
 // Different uniform buffers and push constants
 struct CameraBufferObject

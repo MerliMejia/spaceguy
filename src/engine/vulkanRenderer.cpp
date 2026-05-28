@@ -10,15 +10,16 @@ Mesh triangleMesh{
 
 // For actual per vertex stuff:
 std::vector<Vertex> vertices = {
-    {{-0.5f, -0.5f, -0.5f}}, // 0
-    {{0.5f, -0.5f, -0.5f}},  // 1
-    {{0.5f, 0.5f, -0.5f}},   // 2
-    {{-0.5f, 0.5f, -0.5f}},  // 3
+    // 3 pos, 3 color
+    {{-0.5f, -0.5f, -0.5f}, {-0.5f, -0.5f, -0.5f}}, // 0
+    {{0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, -0.5f}},   // 1
+    {{0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, -0.5f}},     // 2
+    {{-0.5f, 0.5f, -0.5f}, {-0.5f, 0.5f, -0.5f}},   // 3
 
-    {{-0.5f, -0.5f, 0.5f}}, // 4
-    {{0.5f, -0.5f, 0.5f}},  // 5
-    {{0.5f, 0.5f, 0.5f}},   // 6
-    {{-0.5f, 0.5f, 0.5f}},  // 7
+    {{-0.5f, -0.5f, 0.5f}, {-0.5f, -0.5f, 0.5f}}, // 4
+    {{0.5f, -0.5f, 0.5f}, {0.5f, -0.5f, 0.5f}},   // 5
+    {{0.5f, 0.5f, 0.5f}, {0.5f, 0.5f, 0.5f}},     // 6
+    {{-0.5f, 0.5f, 0.5f}, {-0.5f, 0.5f, 0.5f}},   // 7
 };
 
 std::vector<uint16_t> indices = {
@@ -79,12 +80,12 @@ struct BufferWithMemory
 
 void createDescriptorSetLayout()
 {
-    CREATE_SIMPLE_DESCRIPTOR_SET_LAYOUT(vulkanRendererContext.descriptorSetLayout, vulkanContext.device);
+    DEFAULT_DESCRIPTOR_SET_LAYOUT(vulkanRendererContext.descriptorSetLayout, vulkanContext.device);
 }
 
 void createDescriptorPool()
 {
-    CREATE_SIMPLE_DESCRIPTOR_POOL(vulkanRendererContext.descriptorPool, vulkanContext.device);
+    DEFAULT_DESCRIPTOR_POOL(vulkanRendererContext.descriptorPool, vulkanContext.device);
 }
 
 void createDescriptorSets()
@@ -125,7 +126,7 @@ void createDescriptorSets()
 
 void createGraphicsPipeline()
 {
-    CREATE_SIMPLE_CAMERA_MODEL_GP();
+    DEFAULT_GRAPHICS_PIPELINE();
 }
 
 uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties)
