@@ -295,12 +295,64 @@ void createIndexBuffers()
     triangleMesh.indexCount = static_cast<uint32_t>(indices.size());
 }
 
+void createDepthResources()
+{
+
+    vk::ImageCreateInfo imageInfo{
+        .imageType = vk::ImageType::e2D,
+        .format = vulkanRendererContext.depthFormat,
+        .extent = vk::Extent3D{
+            .width = vulkanContext.swapchainExtent.width,
+            .height = vulkanContext.swapchainExtent.height,
+            .depth = 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = vk::SampleCountFlagBits::e1,
+        .tiling = vk::ImageTiling::eOptimal,
+        .usage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
+        .sharingMode = vk::SharingMode::eExclusive,
+        .initialLayout = vk::ImageLayout::eUndefined};
+
+    vulkanRendererContext.depthImage = vk::raii::Image{vulkanContext.device, imageInfo};
+
+    vk::MemoryRequirements memRequirements =
+        vulkanRendererContext.depthImage.getMemoryRequirements();
+
+    vk::MemoryAllocateInfo allocInfo{
+        .allocationSize = memRequirements.size,
+        .memoryTypeIndex = findMemoryType(
+            memRequirements.memoryTypeBits,
+            vk::MemoryPropertyFlagBits::eDeviceLocal),
+    };
+
+    vulkanRendererContext.depthImageMemory =
+        vk::raii::DeviceMemory{vulkanContext.device, allocInfo};
+
+    vulkanRendererContext.depthImage.bindMemory(
+        *vulkanRendererContext.depthImageMemory,
+        0);
+
+    vk::ImageViewCreateInfo createInfo{
+        .image = *vulkanRendererContext.depthImage,
+        .viewType = vk::ImageViewType::e2D,
+        .format = vulkanRendererContext.depthFormat,
+        .subresourceRange = vk::ImageSubresourceRange{
+            .aspectMask = vk::ImageAspectFlagBits::eDepth,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1}};
+
+    vulkanRendererContext.depthImageView = vk::raii::ImageView{vulkanContext.device, createInfo};
+}
+
 void setupRenderer()
 {
     createDescriptorSetLayout();
     createGraphicsPipeline();
 
     createCommandBuffers();
+    createDepthResources();
 
     createUniformBuffers();
     createDescriptorPool();
@@ -323,7 +375,8 @@ void transitionImageLayout(
     vk::PipelineStageFlags srcStage,
     vk::AccessFlags srcAccess,
     vk::PipelineStageFlags dstStage,
-    vk::AccessFlags dstAccess)
+    vk::AccessFlags dstAccess,
+    vk::ImageAspectFlags aspectMask)
 {
     vk::ImageMemoryBarrier barrier{
         .srcAccessMask = srcAccess,
@@ -334,7 +387,7 @@ void transitionImageLayout(
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .image = image,
         .subresourceRange = vk::ImageSubresourceRange{
-            .aspectMask = vk::ImageAspectFlagBits::eColor,
+            .aspectMask = aspectMask,
             .baseMipLevel = 0,
             .levelCount = 1,
             .baseArrayLayer = 0,
@@ -363,7 +416,8 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
         vk::PipelineStageFlagBits::eTopOfPipe,
         {},
         vk::PipelineStageFlagBits::eColorAttachmentOutput,
-        vk::AccessFlagBits::eColorAttachmentWrite);
+        vk::AccessFlagBits::eColorAttachmentWrite,
+        vk::ImageAspectFlagBits::eColor);
 
     vk::ClearValue clearColor{
         .color = vk::ClearColorValue{
@@ -376,13 +430,40 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
         .storeOp = vk::AttachmentStoreOp::eStore,
         .clearValue = clearColor};
 
+    vk::ClearValue clearDepth{
+        .depthStencil = vk::ClearDepthStencilValue{
+            .depth = 1.0f,
+            .stencil = 0,
+        },
+    };
+
+    vk::RenderingAttachmentInfo depthAttachment{
+        .imageView = *vulkanRendererContext.depthImageView,
+        .imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
+        .loadOp = vk::AttachmentLoadOp::eClear,
+        .storeOp = vk::AttachmentStoreOp::eDontCare,
+        .clearValue = clearDepth,
+    };
+
     vk::RenderingInfo renderingInfo{
         .renderArea = vk::Rect2D{
             .offset = vk::Offset2D{0, 0},
             .extent = vulkanContext.swapchainExtent},
         .layerCount = 1,
         .colorAttachmentCount = 1,
-        .pColorAttachments = &colorAttachment};
+        .pColorAttachments = &colorAttachment,
+        .pDepthAttachment = &depthAttachment};
+
+    transitionImageLayout(
+        commandBuffer,
+        *vulkanRendererContext.depthImage,
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eDepthAttachmentOptimal,
+        vk::PipelineStageFlagBits::eTopOfPipe,
+        {},
+        vk::PipelineStageFlagBits::eEarlyFragmentTests,
+        vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+        vk::ImageAspectFlagBits::eDepth);
 
     commandBuffer.beginRendering(renderingInfo);
 
@@ -440,7 +521,8 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
         vk::PipelineStageFlagBits::eColorAttachmentOutput,
         vk::AccessFlagBits::eColorAttachmentWrite,
         vk::PipelineStageFlagBits::eBottomOfPipe,
-        {});
+        {},
+        vk::ImageAspectFlagBits::eColor);
 
     commandBuffer.end();
 }

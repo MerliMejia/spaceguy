@@ -118,7 +118,16 @@ void DEFAULT_GRAPHICS_PIPELINE()
 
     vk::PipelineRenderingCreateInfo pipelineRenderingCreateInfo{
         .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &vulkanContext.swapchainImageFormat};
+        .pColorAttachmentFormats = &vulkanContext.swapchainImageFormat,
+        .depthAttachmentFormat = vulkanRendererContext.depthFormat};
+
+    vk::PipelineDepthStencilStateCreateInfo depthStencil{
+        .depthTestEnable = vk::True,
+        .depthWriteEnable = vk::True,
+        .depthCompareOp = vk::CompareOp::eLess,
+        .depthBoundsTestEnable = vk::False,
+        .stencilTestEnable = vk::False,
+    };
 
     vk::GraphicsPipelineCreateInfo createInfo{
         .pNext = &pipelineRenderingCreateInfo,
@@ -133,7 +142,8 @@ void DEFAULT_GRAPHICS_PIPELINE()
         .pDynamicState = &dynamicState,
         .layout = *vulkanRendererContext.pipelineLayout,
         .renderPass = nullptr,
-        .subpass = 0};
+        .subpass = 0,
+        .pDepthStencilState = &depthStencil};
 
     vulkanRendererContext.graphicsPipeline = vk::raii::Pipeline{
         vulkanContext.device, nullptr, createInfo};

@@ -60,6 +60,12 @@ struct VulkanRendererContext
     std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
     std::vector<vk::raii::Fence> inFlightFences;
     uint32_t currentFrame = 0;
+
+    // Depth testing
+    vk::Format depthFormat = vk::Format::eD32Sfloat;
+    vk::raii::Image depthImage = nullptr;
+    vk::raii::DeviceMemory depthImageMemory = nullptr;
+    vk::raii::ImageView depthImageView = nullptr;
 };
 
 extern VulkanRendererContext vulkanRendererContext;
