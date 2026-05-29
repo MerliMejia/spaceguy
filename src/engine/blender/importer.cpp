@@ -72,7 +72,7 @@ static std::string readString()
     return next();
 }
 
-_3D loadModel(const std::string &path)
+BlenderModel loadModel(const std::string &path)
 {
     std::ifstream file(path);
 
@@ -84,7 +84,7 @@ _3D loadModel(const std::string &path)
     currentTokens.clear();
     cursor = 0;
 
-    _3D model;
+    BlenderModel model;
 
     currentTokens = readTokensIgnoringComments(file);
 

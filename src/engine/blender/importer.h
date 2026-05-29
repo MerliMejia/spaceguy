@@ -28,13 +28,13 @@ struct AnimationClip
     std::vector<AnimationFrame> frames;
 };
 
-struct _3D
+struct BlenderModel
 {
     std::string name;
     float fps = 24.0f;
     std::vector<Vertex> vertices;
-    std::vector<std::uint32_t> indices;
+    std::vector<std::uint16_t> indices;
     std::vector<AnimationClip> animations;
 };
 
-_3D loadModel(const std::string &path);
+BlenderModel loadModel(const std::string &path);

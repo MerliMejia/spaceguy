@@ -12,25 +12,11 @@
 #include "vulkanGlobals.h"
 #include "../utils/types.h"
 
-struct Mesh
-{
-    vk::raii::Buffer vertexBuffer = nullptr;
-    vk::raii::DeviceMemory vertexDeviceMemory = nullptr;
-    vk::raii::Buffer indexBuffer = nullptr;
-    vk::raii::DeviceMemory indexDeviceMemory = nullptr;
-    uint32_t vertexCount;
-    uint32_t indexCount;
-};
-
 struct Object3D
 {
     const Mesh *mesh;
     glm::mat4 model;
 };
-
-extern Mesh triangleMesh;
-
-extern std::vector<Object3D> objects;
 
 // Will store/handle every vulkan stuff that can change depending of how we decide that the renderer
 // will render stuff.
@@ -61,6 +47,9 @@ struct VulkanRendererContext
     vk::raii::Image depthImage = nullptr;
     vk::raii::DeviceMemory depthImageMemory = nullptr;
     vk::raii::ImageView depthImageView = nullptr;
+
+    // To actually draw
+    std::vector<Object3D> objects;
 };
 
 extern VulkanRendererContext vulkanRendererContext;

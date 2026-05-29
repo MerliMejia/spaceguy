@@ -12,6 +12,7 @@
 #include "engine/predefined/vulkanGraphicPipelines.h"
 #include "engine/vulkanGlobals.h"
 #include "engine/blender/importer.h"
+#include "utils/generators.h"
 
 void cleanup()
 {
@@ -28,27 +29,43 @@ void cleanup()
 
 int main()
 {
+    setupVulkan();
+
+    setupRenderer();
+
     std::cout << "Spaceguy running\n";
 
     std::cout << "Loading assets/Cube.3d...\n";
+    Mesh modelMesh;
 
     try
     {
-        _3D model = loadModel("assets/Cube.3d");
+        BlenderModel model = loadModel("assets/Cube.3d");
 
         std::cout << "Loaded object: " << model.name << "\n";
         std::cout << "Vertices: " << model.vertices.size() << "\n";
         std::cout << "Indices: " << model.indices.size() << "\n";
         std::cout << "Animations: " << model.animations.size() << "\n";
+
+        modelMesh = generateMesh(model.vertices, model.indices);
     }
     catch (const std::exception &error)
     {
         std::cerr << "Failed to load model: " << error.what() << "\n";
     }
 
-    setupVulkan();
+    std::cout << "Mesh: " << "indices: " << modelMesh.indexCount << " vertices: " << modelMesh.vertexCount << std::endl;
 
-    setupRenderer();
+    vulkanRendererContext.objects.push_back(Object3D{
+        .mesh = &modelMesh,
+        .model = glm::translate(glm::mat4(1.0f), glm::vec3(-0.75f, 0.0f, 0.0f)) *
+                 glm::scale(glm::mat4(1.0f), glm::vec3(0.5f))});
+
+    vulkanRendererContext.objects.push_back(Object3D{
+        .mesh = &modelMesh,
+        .model =
+            glm::translate(glm::mat4(1.0f), glm::vec3(0.75f, 0.0f, 0.0f)) *
+            glm::scale(glm::mat4(1.0f), glm::vec3(0.5f))});
 
     while (!glfwWindowShouldClose(vulkanContext.window))
     {

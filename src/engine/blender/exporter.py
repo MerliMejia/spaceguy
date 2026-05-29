@@ -6,8 +6,32 @@ def write_vec3(file, v):
     file.write(f"{v.x:.9f} {v.y:.9f} {v.z:.9f}\n")
 
 
-def get_vertex_color(mesh, vertex_index):
-    return (1.0, 1.0, 1.0)
+def get_active_color_attribute(mesh):
+    if hasattr(mesh, "color_attributes") and mesh.color_attributes:
+        active = mesh.color_attributes.active_color
+        if active is not None:
+            return active
+        return mesh.color_attributes[0]
+
+    if hasattr(mesh, "vertex_colors") and mesh.vertex_colors:
+        return mesh.vertex_colors.active or mesh.vertex_colors[0]
+
+    return None
+
+
+def get_vertex_color(mesh, color_attr, vertex_index):
+    if color_attr is None:
+        return (1.0, 1.0, 1.0)
+
+    if getattr(color_attr, "domain", None) != "POINT":
+        raise RuntimeError(
+            f"Color attribute '{color_attr.name}' uses domain "
+            f"'{color_attr.domain}', expected 'POINT'. "
+            "Use vertex/point colors, not face-corner colors."
+        )
+
+    color = color_attr.data[vertex_index].color
+    return (float(color[0]), float(color[1]), float(color[2]))
 
 
 def collect_animation_ranges(scene):
@@ -20,7 +44,6 @@ def collect_animation_ranges(scene):
         if name.endswith("_start"):
             clip_name = name[:-len("_start")]
             starts[clip_name] = marker.frame
-
         elif name.endswith("_end"):
             clip_name = name[:-len("_end")]
             ends[clip_name] = marker.frame
@@ -69,11 +92,16 @@ def export_spaceguy_3d(filepath, obj=None):
     eval_mesh = eval_obj.to_mesh()
     eval_mesh.calc_loop_triangles()
 
+    color_attr = get_active_color_attribute(eval_mesh)
+
     base_vertex_count = len(eval_mesh.vertices)
     triangles = [tuple(tri.vertices) for tri in eval_mesh.loop_triangles]
 
     base_positions = [v.co.copy() for v in eval_mesh.vertices]
-    base_colors = [get_vertex_color(eval_mesh, i) for i in range(base_vertex_count)]
+    base_colors = [
+        get_vertex_color(eval_mesh, color_attr, i)
+        for i in range(base_vertex_count)
+    ]
 
     eval_obj.to_mesh_clear()
 
@@ -145,6 +173,8 @@ def export_spaceguy_3d(filepath, obj=None):
             scene.frame_set(original_frame)
 
     print(f"Exported {filepath}")
+    print(f"Vertices: {base_vertex_count}")
+    print(f"Indices: {len(triangles) * 3}")
     print("Animations:")
     for clip_name, start_frame, end_frame in clips:
         print(f"  {clip_name}: {start_frame} -> {end_frame}")

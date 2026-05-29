@@ -2,81 +2,9 @@
 #include "./predefined/vulkanDescriptorSetLayouts.h"
 #include "./predefined/vulkanGraphicPipelines.h"
 #include "./vulkanBackend.h"
+#include "../utils/buffers.h"
 
 VulkanRendererContext vulkanRendererContext{};
-std::vector<Object3D> objects;
-Mesh triangleMesh{
-    .vertexCount = 3};
-
-// For actual per vertex stuff:
-std::vector<Vertex> vertices = {
-    // 3 pos, 3 color
-    {{-0.5f, -0.5f, -0.5f}, {-0.5f, -0.5f, -0.5f}}, // 0
-    {{0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, -0.5f}},   // 1
-    {{0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, -0.5f}},     // 2
-    {{-0.5f, 0.5f, -0.5f}, {-0.5f, 0.5f, -0.5f}},   // 3
-
-    {{-0.5f, -0.5f, 0.5f}, {-0.5f, -0.5f, 0.5f}}, // 4
-    {{0.5f, -0.5f, 0.5f}, {0.5f, -0.5f, 0.5f}},   // 5
-    {{0.5f, 0.5f, 0.5f}, {0.5f, 0.5f, 0.5f}},     // 6
-    {{-0.5f, 0.5f, 0.5f}, {-0.5f, 0.5f, 0.5f}},   // 7
-};
-
-std::vector<uint16_t> indices = {
-    // Back face
-    0,
-    2,
-    1,
-    0,
-    3,
-    2,
-
-    // Front face
-    4,
-    5,
-    6,
-    4,
-    6,
-    7,
-
-    // Left face
-    0,
-    4,
-    7,
-    0,
-    7,
-    3,
-
-    // Right face
-    1,
-    2,
-    6,
-    1,
-    6,
-    5,
-
-    // Bottom face
-    0,
-    1,
-    5,
-    0,
-    5,
-    4,
-
-    // Top face
-    3,
-    7,
-    6,
-    3,
-    6,
-    2,
-};
-
-struct BufferWithMemory
-{
-    vk::raii::Buffer buffer;
-    vk::raii::DeviceMemory memory;
-};
 
 void createDescriptorSetLayout()
 {
@@ -127,54 +55,6 @@ void createDescriptorSets()
 void createGraphicsPipeline()
 {
     DEFAULT_GRAPHICS_PIPELINE();
-}
-
-uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties)
-{
-    vk::PhysicalDeviceMemoryProperties memProperties = vulkanContext.physicalDevice.getMemoryProperties();
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
-    {
-        bool typeMatches = typeFilter & (1 << i);
-        bool hasPropertoes =
-            (memProperties.memoryTypes[i].propertyFlags & properties) == properties;
-
-        if (typeMatches && hasPropertoes)
-        {
-            return i;
-        }
-    }
-
-    throw std::runtime_error("failed to find suitable memory");
-}
-
-BufferWithMemory createBuffer(
-    vk::DeviceSize size,
-    vk::BufferUsageFlags usage,
-    vk::MemoryPropertyFlags properties)
-{
-    vk::BufferCreateInfo bufferInfo{
-        .size = size,
-        .usage = usage,
-        .sharingMode = vk::SharingMode::eExclusive};
-
-    vk::raii::Buffer buffer = vk::raii::Buffer(vulkanContext.device, bufferInfo);
-
-    vk::MemoryRequirements memRequirements = buffer.getMemoryRequirements();
-
-    vk::MemoryAllocateInfo allocInfo{
-        .allocationSize = memRequirements.size,
-        .memoryTypeIndex = findMemoryType(
-            memRequirements.memoryTypeBits,
-            properties)};
-
-    vk::raii::DeviceMemory bufferMemory(vulkanContext.device, allocInfo);
-
-    buffer.bindMemory(*bufferMemory, 0);
-
-    return {
-        std::move(buffer),
-        std::move(bufferMemory)};
 }
 
 void createUniformBuffers()
@@ -243,58 +123,6 @@ void createSyncObjects()
     }
 }
 
-void createSceneObjects()
-{
-    objects.clear();
-
-    objects.push_back(Object3D{
-        .mesh = &triangleMesh,
-        .model = glm::translate(glm::mat4(1.0f), glm::vec3(-0.75f, 0.0f, 0.0f)) *
-                 glm::scale(glm::mat4(1.0f), glm::vec3(0.5f))});
-
-    objects.push_back(Object3D{
-        .mesh = &triangleMesh,
-        .model =
-            glm::translate(glm::mat4(1.0f), glm::vec3(0.75f, 0.0f, 0.0f)) *
-            glm::scale(glm::mat4(1.0f), glm::vec3(0.5f))});
-}
-
-void createVertexBuffers()
-{
-    vk::DeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-
-    auto vertexBuffer = createBuffer(bufferSize,
-                                     vk::BufferUsageFlagBits::eVertexBuffer,
-                                     vk::MemoryPropertyFlagBits::eHostVisible |
-                                         vk::MemoryPropertyFlagBits::eHostCoherent);
-
-    void *data = vertexBuffer.memory.mapMemory(0, bufferSize);
-    memcpy(data, vertices.data(), static_cast<size_t>(bufferSize));
-    vertexBuffer.memory.unmapMemory();
-
-    triangleMesh.vertexBuffer = std::move(vertexBuffer.buffer);
-    triangleMesh.vertexDeviceMemory = std::move(vertexBuffer.memory);
-    triangleMesh.vertexCount = static_cast<uint32_t>(vertices.size());
-}
-
-void createIndexBuffers()
-{
-    vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-    auto indexBuffer = createBuffer(bufferSize,
-                                    vk::BufferUsageFlagBits::eIndexBuffer,
-                                    vk::MemoryPropertyFlagBits::eHostVisible |
-                                        vk::MemoryPropertyFlagBits::eHostCoherent);
-
-    void *data = indexBuffer.memory.mapMemory(0, bufferSize);
-    memcpy(data, indices.data(), static_cast<size_t>(bufferSize));
-    indexBuffer.memory.unmapMemory();
-
-    triangleMesh.indexBuffer = std::move(indexBuffer.buffer);
-    triangleMesh.indexDeviceMemory = std::move(indexBuffer.memory);
-    triangleMesh.indexCount = static_cast<uint32_t>(indices.size());
-}
-
 void createDepthResources()
 {
 
@@ -359,12 +187,6 @@ void setupRenderer()
     createDescriptorSets();
 
     createSyncObjects();
-
-    createSceneObjects();
-
-    // After we create scene objects since each object should have the same vertex buffer for now.
-    createVertexBuffers();
-    createIndexBuffers();
 }
 
 void transitionImageLayout(
@@ -491,7 +313,7 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
         *vulkanRendererContext.descriptorSets[frameIndex],
         nullptr);
 
-    for (const Object3D &object : objects)
+    for (const Object3D &object : vulkanRendererContext.objects)
     {
         ObjectPushConstants pushConstants{
             .model = object.model};
@@ -553,12 +375,12 @@ void updateObjectTransforms()
                      currentTime - startTime)
                      .count();
 
-    objects[0].model =
+    vulkanRendererContext.objects[0].model =
         glm::translate(glm::mat4(1.0f), glm::vec3(-0.75f, 0.0f, 0.0f)) *
         glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)) *
         glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
 
-    objects[1].model =
+    vulkanRendererContext.objects[1].model =
         glm::translate(glm::mat4(1.0f), glm::vec3(0.75f, 0.0f, 0.0f)) *
         glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)) *
         glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
