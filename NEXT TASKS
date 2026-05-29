@@ -1,0 +1,29 @@
+3D Exporter
+
+[] Vertex positions (with indices?)
+[] Vertex color
+[] Frame data (frame count?)
+[] Per animation, per frame vertex data (positions for now)
+
+This should generate a .3d file that can be something like:
+
+```
+object_name <value>
+fps <value>
+animation_count <value>
+
+vertex-data
+<value>
+value here is:
+(default vertex positions (vec3)
+vertex colors (vec3))[]
+
+animations
+(animation_1(the name of the animation)
+<value>
+value here is:
+frame_1
+<value>
+value here is:
+vertex position for the frame (vec3)[])[]
+```

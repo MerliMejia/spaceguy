@@ -11,6 +11,7 @@
 #include "engine/vulkanRenderer.h"
 #include "engine/predefined/vulkanGraphicPipelines.h"
 #include "engine/vulkanGlobals.h"
+#include "engine/blender/importer.h"
 
 void cleanup()
 {
@@ -28,6 +29,22 @@ void cleanup()
 int main()
 {
     std::cout << "Spaceguy running\n";
+
+    std::cout << "Loading assets/Cube.3d...\n";
+
+    try
+    {
+        _3D model = loadModel("assets/Cube.3d");
+
+        std::cout << "Loaded object: " << model.name << "\n";
+        std::cout << "Vertices: " << model.vertices.size() << "\n";
+        std::cout << "Indices: " << model.indices.size() << "\n";
+        std::cout << "Animations: " << model.animations.size() << "\n";
+    }
+    catch (const std::exception &error)
+    {
+        std::cerr << "Failed to load model: " << error.what() << "\n";
+    }
 
     setupVulkan();
 
