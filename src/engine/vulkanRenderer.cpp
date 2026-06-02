@@ -9,31 +9,36 @@ VulkanRendererContext vulkanRendererContext{};
 void createDescriptorSetLayout()
 {
     DEFAULT_DESCRIPTOR_SET_LAYOUT(vulkanRendererContext.descriptorSetLayout, vulkanContext.device);
+    ANIMATED_DESCRIPTOR_SET_LAYOUT(
+        vulkanRendererContext.animatedDescriptorSetLayout,
+        vulkanContext.device);
 }
 
 void createDescriptorPool()
 {
     DEFAULT_DESCRIPTOR_POOL(vulkanRendererContext.descriptorPool, vulkanContext.device);
+    ANIMATED_DESCRIPTOR_POOL(
+        vulkanRendererContext.animatedDescriptorPool,
+        vulkanContext.device);
 }
 
-void createDescriptorSets()
+void createStaticDescriptorSets()
 {
     std::vector<vk::DescriptorSetLayout> layouts(
         MAX_FRAMES_IN_FLIGHT,
         *vulkanRendererContext.descriptorSetLayout);
 
-    vk::DescriptorSetAllocateInfo allocInf{
+    vk::DescriptorSetAllocateInfo allocInfo{
         .descriptorPool = *vulkanRendererContext.descriptorPool,
         .descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
         .pSetLayouts = layouts.data()};
 
-    vulkanRendererContext.descriptorSets = vk::raii::DescriptorSets(vulkanContext.device, allocInf);
+    vulkanRendererContext.descriptorSets =
+        vk::raii::DescriptorSets(vulkanContext.device, allocInfo);
 
-    // The way we set up descriptor sets here should change based on how we render stuff.
-    // I just don't know a good way to abstract this yet.
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
-        vk::DescriptorBufferInfo bufferInfo{
+        vk::DescriptorBufferInfo cameraBufferInfo{
             .buffer = *vulkanRendererContext.uniformBuffers[i],
             .offset = 0,
             .range = sizeof(CameraBufferObject)};
@@ -41,20 +46,62 @@ void createDescriptorSets()
         vk::WriteDescriptorSet descriptorWrite{
             .dstSet = *vulkanRendererContext.descriptorSets[i],
             .dstBinding = 0,
-            .dstArrayElement = 0,
             .descriptorCount = 1,
             .descriptorType = vk::DescriptorType::eUniformBuffer,
-            .pImageInfo = nullptr,
-            .pBufferInfo = &bufferInfo,
-            .pTexelBufferView = nullptr};
+            .pBufferInfo = &cameraBufferInfo};
 
         vulkanContext.device.updateDescriptorSets(descriptorWrite, nullptr);
+    }
+}
+
+void createAnimatedDescriptorSets()
+{
+    std::vector<vk::DescriptorSetLayout> layouts(
+        MAX_FRAMES_IN_FLIGHT,
+        *vulkanRendererContext.animatedDescriptorSetLayout);
+
+    vk::DescriptorSetAllocateInfo allocInfo{
+        .descriptorPool = *vulkanRendererContext.animatedDescriptorPool,
+        .descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+        .pSetLayouts = layouts.data()};
+
+    vulkanRendererContext.animatedDescriptorSets =
+        vk::raii::DescriptorSets(vulkanContext.device, allocInfo);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+    {
+        vk::DescriptorBufferInfo cameraBufferInfo{
+            .buffer = *vulkanRendererContext.uniformBuffers[i],
+            .offset = 0,
+            .range = sizeof(CameraBufferObject)};
+
+        vk::DescriptorBufferInfo animationBufferInfo{
+            .buffer = *vulkanRendererContext.animationPositionsBuffer,
+            .offset = 0,
+            .range = VK_WHOLE_SIZE};
+
+        std::array<vk::WriteDescriptorSet, 2> descriptorWrites{
+            vk::WriteDescriptorSet{
+                .dstSet = *vulkanRendererContext.animatedDescriptorSets[i],
+                .dstBinding = 0,
+                .descriptorCount = 1,
+                .descriptorType = vk::DescriptorType::eUniformBuffer,
+                .pBufferInfo = &cameraBufferInfo},
+            vk::WriteDescriptorSet{
+                .dstSet = *vulkanRendererContext.animatedDescriptorSets[i],
+                .dstBinding = 1,
+                .descriptorCount = 1,
+                .descriptorType = vk::DescriptorType::eStorageBuffer,
+                .pBufferInfo = &animationBufferInfo}};
+
+        vulkanContext.device.updateDescriptorSets(descriptorWrites, nullptr);
     }
 }
 
 void createGraphicsPipeline()
 {
     DEFAULT_GRAPHICS_PIPELINE();
+    ANIMATED_GRAPHICS_PIPELINE();
 }
 
 void createUniformBuffers()
@@ -174,19 +221,21 @@ void createDepthResources()
     vulkanRendererContext.depthImageView = vk::raii::ImageView{vulkanContext.device, createInfo};
 }
 
-void setupRenderer()
+void setupRendererCore()
+{
+    createCommandBuffers();
+    createDepthResources();
+    createUniformBuffers();
+    createSyncObjects();
+}
+
+void setupRendererAfterAssetsLoaded()
 {
     createDescriptorSetLayout();
     createGraphicsPipeline();
-
-    createCommandBuffers();
-    createDepthResources();
-
-    createUniformBuffers();
     createDescriptorPool();
-    createDescriptorSets();
-
-    createSyncObjects();
+    createStaticDescriptorSets();
+    createAnimatedDescriptorSets();
 }
 
 void transitionImageLayout(
@@ -289,8 +338,6 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
 
     commandBuffer.beginRendering(renderingInfo);
 
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *vulkanRendererContext.graphicsPipeline);
-
     vk::Viewport viewport{
         .x = 0.0f,
         .y = 0.0f,
@@ -315,22 +362,94 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
 
     for (const Object3D &object : vulkanRendererContext.objects)
     {
-        ObjectPushConstants pushConstants{
-            .model = object.model};
+        if (object.renderKind == ObjectRenderKind::Animated)
+        {
+            commandBuffer.bindPipeline(
+                vk::PipelineBindPoint::eGraphics,
+                *vulkanRendererContext.animatedGraphicsPipeline);
 
-        commandBuffer.pushConstants<ObjectPushConstants>(
-            *vulkanRendererContext.pipelineLayout,
-            vk::ShaderStageFlagBits::eVertex,
-            0,
-            std::array<ObjectPushConstants, 1>{pushConstants});
+            commandBuffer.bindDescriptorSets(
+                vk::PipelineBindPoint::eGraphics,
+                *vulkanRendererContext.animatedPipelineLayout,
+                0,
+                *vulkanRendererContext.animatedDescriptorSets[frameIndex],
+                nullptr);
 
-        // Per vertex stuff:
-        vk::Buffer vertexBuffer[] = {*object.mesh->vertexBuffer};
-        vk::DeviceSize offsets[] = {0};
+            const AnimationClipGpu &clip =
+                object.animatedMesh->animations[object.activeAnimation];
 
-        commandBuffer.bindVertexBuffers(0, vertexBuffer, offsets);
-        commandBuffer.bindIndexBuffer(*object.mesh->indexBuffer, 0, vk::IndexType::eUint16);
-        commandBuffer.drawIndexed(object.mesh->indexCount, 1, 0, 0, 0);
+            const uint32_t localFrame =
+                object.activeFrame % clip.frameCount;
+
+            const AnimationFrameGpu &frame =
+                object.animatedMesh->frames[clip.firstFrame + localFrame];
+
+            AnimatedObjectPushConstants pushConstants{
+                .model = object.model,
+                .animationPositionOffset = frame.positionOffset,
+                .vertexCount = object.animatedMesh->mesh.vertexCount};
+
+            commandBuffer.pushConstants<AnimatedObjectPushConstants>(
+                *vulkanRendererContext.animatedPipelineLayout,
+                vk::ShaderStageFlagBits::eVertex,
+                0,
+                pushConstants);
+
+            vk::Buffer vertexBuffers[] = {
+                *object.animatedMesh->mesh.vertexBuffer};
+            vk::DeviceSize offsets[] = {0};
+
+            commandBuffer.bindVertexBuffers(0, vertexBuffers, offsets);
+            commandBuffer.bindIndexBuffer(
+                *object.animatedMesh->mesh.indexBuffer,
+                0,
+                vk::IndexType::eUint16);
+
+            commandBuffer.drawIndexed(
+                object.animatedMesh->mesh.indexCount,
+                1,
+                0,
+                0,
+                0);
+        }
+        else
+        {
+            commandBuffer.bindPipeline(
+                vk::PipelineBindPoint::eGraphics,
+                *vulkanRendererContext.graphicsPipeline);
+
+            commandBuffer.bindDescriptorSets(
+                vk::PipelineBindPoint::eGraphics,
+                *vulkanRendererContext.pipelineLayout,
+                0,
+                *vulkanRendererContext.descriptorSets[frameIndex],
+                nullptr);
+
+            ObjectPushConstants pushConstants{
+                .model = object.model};
+
+            commandBuffer.pushConstants<ObjectPushConstants>(
+                *vulkanRendererContext.pipelineLayout,
+                vk::ShaderStageFlagBits::eVertex,
+                0,
+                pushConstants);
+
+            vk::Buffer vertexBuffers[] = {*object.mesh->vertexBuffer};
+            vk::DeviceSize offsets[] = {0};
+
+            commandBuffer.bindVertexBuffers(0, vertexBuffers, offsets);
+            commandBuffer.bindIndexBuffer(
+                *object.mesh->indexBuffer,
+                0,
+                vk::IndexType::eUint16);
+
+            commandBuffer.drawIndexed(
+                object.mesh->indexCount,
+                1,
+                0,
+                0,
+                0);
+        }
     }
 
     commandBuffer.endRendering();
@@ -354,7 +473,7 @@ void updateUniformBuffer(uint32_t currentImage)
     CameraBufferObject camera{};
 
     camera.view = glm::lookAt(
-        glm::vec3(2.0f, 2.0f, 2.0f),
+        glm::vec3(0.0f, -2.0f, 0.0f),
         glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec3(0.0f, 0.0f, 1.0f));
 
@@ -367,23 +486,7 @@ void updateUniformBuffer(uint32_t currentImage)
 
 void updateObjectTransforms()
 {
-    static auto startTime = std::chrono::high_resolution_clock::now();
-
-    auto currentTime = std::chrono::high_resolution_clock::now();
-
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(
-                     currentTime - startTime)
-                     .count();
-
-    vulkanRendererContext.objects[0].model =
-        glm::translate(glm::mat4(1.0f), glm::vec3(-0.75f, 0.0f, 0.0f)) *
-        glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)) *
-        glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
-
-    vulkanRendererContext.objects[1].model =
-        glm::translate(glm::mat4(1.0f), glm::vec3(0.75f, 0.0f, 0.0f)) *
-        glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)) *
-        glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
+    // Not needed for now.
 }
 
 void drawFrame()
@@ -435,4 +538,23 @@ void drawFrame()
     vulkanContext.presentQueue.presentKHR(presentInfo);
 
     vulkanRendererContext.currentFrame = (vulkanRendererContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+void uploadAnimationPositions(const std::vector<glm::vec4> &positions)
+{
+    vk::DeviceSize bufferSize = sizeof(glm::vec4) * positions.size();
+
+    BufferWithMemory buffer = createBuffer(
+        bufferSize,
+        vk::BufferUsageFlagBits::eStorageBuffer,
+        vk::MemoryPropertyFlagBits::eHostVisible |
+            vk::MemoryPropertyFlagBits::eHostCoherent);
+
+    void *data = buffer.memory.mapMemory(0, bufferSize);
+    memcpy(data, positions.data(), static_cast<size_t>(bufferSize));
+    buffer.memory.unmapMemory();
+
+    vulkanRendererContext.animationPositionsBuffer = std::move(buffer.buffer);
+    vulkanRendererContext.animationPositionsMemory = std::move(buffer.memory);
+    vulkanRendererContext.animationPositionCount = static_cast<uint32_t>(positions.size());
 }

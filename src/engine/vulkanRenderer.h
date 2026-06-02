@@ -8,14 +8,26 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <vector>
+#include <cstring>
 
 #include "vulkanGlobals.h"
 #include "../utils/types.h"
 
+enum class ObjectRenderKind
+{
+    Static,
+    Animated
+};
+
 struct Object3D
 {
-    const Mesh *mesh;
+    ObjectRenderKind renderKind = ObjectRenderKind::Static;
+    const Mesh *mesh = nullptr;
+    const AnimatedMesh *animatedMesh = nullptr;
     glm::mat4 model;
+
+    uint32_t activeAnimation = 0;
+    uint32_t activeFrame = 0;
 };
 
 // Will store/handle every vulkan stuff that can change depending of how we decide that the renderer
@@ -29,6 +41,12 @@ struct VulkanRendererContext
     std::vector<vk::raii::DescriptorSet> descriptorSets;
     vk::raii::PipelineLayout pipelineLayout{nullptr};
     vk::raii::Pipeline graphicsPipeline{nullptr};
+    // Animated
+    vk::raii::DescriptorSetLayout animatedDescriptorSetLayout = nullptr;
+    vk::raii::DescriptorPool animatedDescriptorPool = nullptr;
+    std::vector<vk::raii::DescriptorSet> animatedDescriptorSets;
+    vk::raii::PipelineLayout animatedPipelineLayout = nullptr;
+    vk::raii::Pipeline animatedGraphicsPipeline = nullptr;
 
     // Per frame?
     std::vector<vk::raii::CommandBuffer> commandBuffers;
@@ -50,9 +68,17 @@ struct VulkanRendererContext
 
     // To actually draw
     std::vector<Object3D> objects;
+
+    // Animations
+    vk::raii::Buffer animationPositionsBuffer = nullptr;
+    vk::raii::DeviceMemory animationPositionsMemory = nullptr;
+    uint32_t animationPositionCount = 0;
 };
 
 extern VulkanRendererContext vulkanRendererContext;
 
-void setupRenderer();
+void setupRendererCore();
+void setupRendererAfterAssetsLoaded();
 void drawFrame();
+
+void uploadAnimationPositions(const std::vector<glm::vec4> &positions);

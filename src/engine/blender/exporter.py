@@ -6,71 +6,179 @@ def write_vec3(file, v):
     file.write(f"{v.x:.9f} {v.y:.9f} {v.z:.9f}\n")
 
 
-def get_active_color_attribute(mesh):
-    if hasattr(mesh, "color_attributes") and mesh.color_attributes:
-        active = mesh.color_attributes.active_color
-        if active is not None:
-            return active
-        return mesh.color_attributes[0]
-
-    if hasattr(mesh, "vertex_colors") and mesh.vertex_colors:
-        return mesh.vertex_colors.active or mesh.vertex_colors[0]
-
-    return None
-
-
-def get_vertex_color(mesh, color_attr, vertex_index):
-    if color_attr is None:
+def get_material_color(material):
+    if material is None:
         return (1.0, 1.0, 1.0)
 
-    if getattr(color_attr, "domain", None) != "POINT":
-        raise RuntimeError(
-            f"Color attribute '{color_attr.name}' uses domain "
-            f"'{color_attr.domain}', expected 'POINT'. "
-            "Use vertex/point colors, not face-corner colors."
-        )
+    if material.use_nodes and material.node_tree is not None:
+        for node in material.node_tree.nodes:
+            if node.type == "BSDF_PRINCIPLED":
+                base_color = node.inputs.get("Base Color")
 
-    color = color_attr.data[vertex_index].color
+                if base_color is not None:
+                    color = base_color.default_value
+                    return (float(color[0]), float(color[1]), float(color[2]))
+
+    color = material.diffuse_color
     return (float(color[0]), float(color[1]), float(color[2]))
 
 
-def collect_animation_ranges(scene):
-    starts = {}
-    ends = {}
+def get_polygon_material_color(obj, polygon):
+    if polygon.material_index < len(obj.material_slots):
+        material = obj.material_slots[polygon.material_index].material
+        return get_material_color(material)
 
-    for marker in scene.timeline_markers:
-        name = marker.name.strip()
+    return (1.0, 1.0, 1.0)
 
-        if name.endswith("_start"):
-            clip_name = name[:-len("_start")]
-            starts[clip_name] = marker.frame
-        elif name.endswith("_end"):
-            clip_name = name[:-len("_end")]
-            ends[clip_name] = marker.frame
 
-    clips = []
+def collect_export_geometry(eval_obj, eval_mesh):
+    eval_mesh.calc_loop_triangles()
 
-    for clip_name, start_frame in starts.items():
-        if clip_name not in ends:
-            raise RuntimeError(f"Missing marker: {clip_name}_end")
+    export_vertices = []
+    export_indices = []
+    vertex_map = {}
 
-        end_frame = ends[clip_name]
+    for tri in eval_mesh.loop_triangles:
+        polygon = eval_mesh.polygons[tri.polygon_index]
+        color = get_polygon_material_color(eval_obj, polygon)
 
-        if end_frame < start_frame:
-            raise RuntimeError(
-                f"Invalid animation range for {clip_name}: "
-                f"{start_frame} to {end_frame}"
-            )
+        tri_indices = []
 
-        clips.append((clip_name, start_frame, end_frame))
+        for source_vertex_index in tri.vertices:
+            key = (source_vertex_index, color)
 
-    if not clips:
+            if key not in vertex_map:
+                export_index = len(export_vertices)
+                vertex_map[key] = export_index
+
+                pos = eval_mesh.vertices[source_vertex_index].co.copy()
+                export_vertices.append((source_vertex_index, pos, color))
+
+            tri_indices.append(vertex_map[key])
+
+        export_indices.append(tuple(tri_indices))
+
+    return export_vertices, export_indices
+
+
+def get_animation_owner(obj):
+    if obj.parent is not None and obj.parent.type == "ARMATURE":
+        return obj.parent
+
+    for modifier in obj.modifiers:
+        if modifier.type == "ARMATURE" and modifier.object is not None:
+            return modifier.object
+
+    return obj
+
+
+def ensure_animation_data(owner):
+    if owner.animation_data is None:
+        owner.animation_data_create()
+
+
+def action_has_animation(action):
+    if hasattr(action, "is_empty"):
+        return not action.is_empty
+
+    if hasattr(action, "fcurves"):
+        return len(action.fcurves) > 0
+
+    if hasattr(action, "layers"):
+        return len(action.layers) > 0
+
+    return True
+
+
+def action_has_compatible_slot(action, owner):
+    if not hasattr(action, "slots"):
+        return True
+
+    if len(action.slots) == 0:
+        return True
+
+    owner_id_type = getattr(owner, "id_type", None)
+
+    for slot in action.slots:
+        slot_id_type = getattr(slot, "target_id_type", None)
+        if slot_id_type is None or owner_id_type is None or slot_id_type == owner_id_type:
+            return True
+
+    return False
+
+
+def collect_actions(owner):
+    actions = [
+        action
+        for action in bpy.data.actions
+        if action_has_animation(action) and action_has_compatible_slot(action, owner)
+    ]
+
+    if not actions:
         raise RuntimeError(
-            "No animation markers found. Expected markers like idle_start and idle_end."
+            f"No compatible actions found for animation owner '{owner.name}'. "
+            "Create one Blender Action per animation clip."
         )
 
-    clips.sort(key=lambda item: item[1])
-    return clips
+    actions.sort(key=lambda action: action.name)
+    return actions
+
+
+def find_compatible_action_slot(action, owner):
+    if not hasattr(action, "slots"):
+        return None
+
+    if len(action.slots) == 0:
+        return None
+
+    owner_id_type = getattr(owner, "id_type", None)
+    compatible_slots = []
+
+    for slot in action.slots:
+        slot_id_type = getattr(slot, "target_id_type", None)
+
+        if slot_id_type is not None and owner_id_type is not None:
+            if slot_id_type not in (owner_id_type, "UNSPECIFIED"):
+                continue
+
+        compatible_slots.append(slot)
+
+    if not compatible_slots:
+        return None
+
+    for slot in compatible_slots:
+        slot_name = getattr(slot, "name_display", "")
+        slot_identifier = getattr(slot, "identifier", "")
+
+        if slot_name == owner.name or slot_identifier.endswith(owner.name):
+            return slot
+
+    return compatible_slots[0]
+
+
+def assign_action(owner, action):
+    ensure_animation_data(owner)
+
+    animation_data = owner.animation_data
+    animation_data.action = action
+
+    slot = find_compatible_action_slot(action, owner)
+    if slot is not None and hasattr(animation_data, "action_slot"):
+        animation_data.action_slot = slot
+
+
+def get_action_frame_range(action):
+    start, end = action.frame_range
+    start_frame = int(start)
+    end_frame = int(end)
+
+    if end_frame < start_frame:
+        raise RuntimeError(
+            f"Invalid frame range for action '{action.name}': "
+            f"{start_frame} to {end_frame}"
+        )
+
+    return start_frame, end_frame
 
 
 def export_spaceguy_3d(filepath, obj=None):
@@ -86,22 +194,17 @@ def export_spaceguy_3d(filepath, obj=None):
     scene = bpy.context.scene
     depsgraph = bpy.context.evaluated_depsgraph_get()
 
-    clips = collect_animation_ranges(scene)
+    animation_owner = get_animation_owner(obj)
+    ensure_animation_data(animation_owner)
+
+    actions = collect_actions(animation_owner)
 
     eval_obj = obj.evaluated_get(depsgraph)
     eval_mesh = eval_obj.to_mesh()
-    eval_mesh.calc_loop_triangles()
 
-    color_attr = get_active_color_attribute(eval_mesh)
-
-    base_vertex_count = len(eval_mesh.vertices)
-    triangles = [tuple(tri.vertices) for tri in eval_mesh.loop_triangles]
-
-    base_positions = [v.co.copy() for v in eval_mesh.vertices]
-    base_colors = [
-        get_vertex_color(eval_mesh, color_attr, i)
-        for i in range(base_vertex_count)
-    ]
+    source_vertex_count = len(eval_mesh.vertices)
+    export_vertices, export_indices = collect_export_geometry(
+        eval_obj, eval_mesh)
 
     eval_obj.to_mesh_clear()
 
@@ -109,19 +212,24 @@ def export_spaceguy_3d(filepath, obj=None):
     filepath = Path(filepath)
 
     original_frame = scene.frame_current
+    original_action = animation_owner.animation_data.action
+    original_action_slot = None
+
+    if hasattr(animation_owner.animation_data, "action_slot"):
+        original_action_slot = animation_owner.animation_data.action_slot
 
     with filepath.open("w", encoding="utf-8") as file:
         file.write("spaceguy_3d 1\n")
-        file.write(f"object_name {obj.name}\n")
+        file.write(f"object_name {safe_filename(obj.name)}\n")
         file.write(f"fps {fps:.6f}\n")
-        file.write(f"vertex_count {base_vertex_count}\n")
-        file.write(f"index_count {len(triangles) * 3}\n")
-        file.write(f"animation_count {len(clips)}\n")
+        file.write(f"vertex_count {len(export_vertices)}\n")
+        file.write(f"index_count {len(export_indices) * 3}\n")
+        file.write(f"animation_count {len(actions)}\n")
         file.write("\n")
 
         file.write("vertices\n")
         file.write("# x y z r g b\n")
-        for pos, color in zip(base_positions, base_colors):
+        for _source_vertex_index, pos, color in export_vertices:
             r, g, b = color
             file.write(
                 f"{pos.x:.9f} {pos.y:.9f} {pos.z:.9f} "
@@ -131,18 +239,21 @@ def export_spaceguy_3d(filepath, obj=None):
         file.write("\n")
         file.write("indices\n")
         file.write("# i0 i1 i2\n")
-        for i0, i1, i2 in triangles:
+        for i0, i1, i2 in export_indices:
             file.write(f"{i0} {i1} {i2}\n")
 
         file.write("\n")
         file.write("animations\n")
 
         try:
-            for clip_name, start_frame, end_frame in clips:
+            for action in actions:
+                start_frame, end_frame = get_action_frame_range(action)
                 frame_count = end_frame - start_frame + 1
 
+                assign_action(animation_owner, action)
+
                 file.write("\n")
-                file.write(f"animation {clip_name}\n")
+                file.write(f"animation {safe_filename(action.name)}\n")
                 file.write(f"start_frame {start_frame}\n")
                 file.write(f"end_frame {end_frame}\n")
                 file.write(f"frame_count {frame_count}\n")
@@ -155,29 +266,37 @@ def export_spaceguy_3d(filepath, obj=None):
                     eval_obj = obj.evaluated_get(depsgraph)
                     eval_mesh = eval_obj.to_mesh()
 
-                    if len(eval_mesh.vertices) != base_vertex_count:
+                    if len(eval_mesh.vertices) != source_vertex_count:
                         eval_obj.to_mesh_clear()
                         raise RuntimeError(
-                            f"Animation {clip_name}, frame {frame} has "
+                            f"Animation {action.name}, frame {frame} has "
                             f"{len(eval_mesh.vertices)} vertices, expected "
-                            f"{base_vertex_count}. Animated topology is not supported."
+                            f"{source_vertex_count}. Animated topology is not supported."
                         )
 
                     file.write(f"\nframe {frame}\n")
-                    for vertex in eval_mesh.vertices:
+                    for source_vertex_index, _base_pos, _color in export_vertices:
+                        vertex = eval_mesh.vertices[source_vertex_index]
                         write_vec3(file, vertex.co)
 
                     eval_obj.to_mesh_clear()
 
         finally:
+            animation_owner.animation_data.action = original_action
+
+            if hasattr(animation_owner.animation_data, "action_slot"):
+                animation_owner.animation_data.action_slot = original_action_slot
+
             scene.frame_set(original_frame)
+            bpy.context.view_layer.update()
 
     print(f"Exported {filepath}")
-    print(f"Vertices: {base_vertex_count}")
-    print(f"Indices: {len(triangles) * 3}")
+    print(f"Vertices: {len(export_vertices)}")
+    print(f"Indices: {len(export_indices) * 3}")
     print("Animations:")
-    for clip_name, start_frame, end_frame in clips:
-        print(f"  {clip_name}: {start_frame} -> {end_frame}")
+    for action in actions:
+        start_frame, end_frame = get_action_frame_range(action)
+        print(f"  {action.name}: {start_frame} -> {end_frame}")
 
 
 def safe_filename(name):

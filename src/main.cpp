@@ -27,49 +27,108 @@ void cleanup()
     glfwTerminate();
 }
 
+bool keyPressedOnce(int key)
+{
+    static bool keyWasDown[GLFW_KEY_LAST + 1]{};
+
+    const bool isDown = glfwGetKey(vulkanContext.window, key) == GLFW_PRESS;
+    const bool pressed = isDown && !keyWasDown[key];
+
+    keyWasDown[key] = isDown;
+
+    return pressed;
+}
+
+void handleAnimationInput()
+{
+    if (vulkanRendererContext.objects.empty())
+    {
+        return;
+    }
+
+    Object3D &object = vulkanRendererContext.objects[0];
+
+    if (object.renderKind != ObjectRenderKind::Animated || object.animatedMesh == nullptr)
+    {
+        return;
+    }
+
+    const AnimationClipGpu &clip =
+        object.animatedMesh->animations[object.activeAnimation];
+
+    if (clip.frameCount == 0)
+    {
+        return;
+    }
+
+    if (keyPressedOnce(GLFW_KEY_RIGHT))
+    {
+        object.activeFrame = (object.activeFrame + 1) % clip.frameCount;
+        std::cout << "Frame: " << object.activeFrame << "\n";
+    }
+
+    if (keyPressedOnce(GLFW_KEY_LEFT))
+    {
+        object.activeFrame =
+            object.activeFrame == 0 ? clip.frameCount - 1 : object.activeFrame - 1;
+
+        std::cout << "Frame: " << object.activeFrame << "\n";
+    }
+}
+
 int main()
 {
     setupVulkan();
 
-    setupRenderer();
+    setupRendererCore();
 
     std::cout << "Spaceguy running\n";
 
-    std::cout << "Loading assets/Cube.3d...\n";
-    Mesh modelMesh;
+    std::cout << "Loading assets/Wizzard_4.3d...\n";
+    AnimatedMesh animatedMesh;
+    std::vector<glm::vec4> animationPositions;
 
-    try
+    BlenderModel model = loadModel("assets/Wizzard_4.3d");
+
+    std::cout << "Loaded object: " << model.name << "\n";
+    std::cout << "Vertices: " << model.vertices.size() << "\n";
+    std::cout << "Indices: " << model.indices.size() << "\n";
+    std::cout << "Animations: " << model.animations.size() << "\n";
+
+    for (const AnimationClip &clip : model.animations)
     {
-        BlenderModel model = loadModel("assets/Cube.3d");
-
-        std::cout << "Loaded object: " << model.name << "\n";
-        std::cout << "Vertices: " << model.vertices.size() << "\n";
-        std::cout << "Indices: " << model.indices.size() << "\n";
-        std::cout << "Animations: " << model.animations.size() << "\n";
-
-        modelMesh = generateMesh(model.vertices, model.indices);
-    }
-    catch (const std::exception &error)
-    {
-        std::cerr << "Failed to load model: " << error.what() << "\n";
+        for (const AnimationFrame &frame : clip.frames)
+        {
+            for (const glm::vec3 &pos : frame.positions)
+            {
+                animationPositions.push_back(glm::vec4(pos, 1.0f));
+            }
+        }
     }
 
-    std::cout << "Mesh: " << "indices: " << modelMesh.indexCount << " vertices: " << modelMesh.vertexCount << std::endl;
+    uploadAnimationPositions(animationPositions);
+
+    animatedMesh = generateAnimatedMesh(model, 0);
+
+    std::cout << "Mesh: indices: "
+              << animatedMesh.mesh.indexCount
+              << " vertices: "
+              << animatedMesh.mesh.vertexCount
+              << std::endl;
+
+    setupRendererAfterAssetsLoaded();
 
     vulkanRendererContext.objects.push_back(Object3D{
-        .mesh = &modelMesh,
-        .model = glm::translate(glm::mat4(1.0f), glm::vec3(-0.75f, 0.0f, 0.0f)) *
-                 glm::scale(glm::mat4(1.0f), glm::vec3(0.5f))});
-
-    vulkanRendererContext.objects.push_back(Object3D{
-        .mesh = &modelMesh,
-        .model =
-            glm::translate(glm::mat4(1.0f), glm::vec3(0.75f, 0.0f, 0.0f)) *
-            glm::scale(glm::mat4(1.0f), glm::vec3(0.5f))});
+        .renderKind = ObjectRenderKind::Animated,
+        .animatedMesh = &animatedMesh,
+        .model = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f)),
+        .activeAnimation = 0,
+        .activeFrame = 0});
 
     while (!glfwWindowShouldClose(vulkanContext.window))
     {
         glfwPollEvents();
+        handleAnimationInput();
         drawFrame();
     }
 

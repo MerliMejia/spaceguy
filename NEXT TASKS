@@ -1,29 +1,62 @@
-3D Exporter
+Frame by Frame visualizer
 
-[] Vertex positions (with indices?)
-[] Vertex color
-[] Frame data (frame count?)
-[] Per animation, per frame vertex data (positions for now)
+[] Find a way to upload all the animation data per model where is easy to know which object is drawing and access the corresponding index for position.
 
-This should generate a .3d file that can be something like:
+[] Be able to draw a mesh and manually show the different frames (maybe by a key press)
+
+[] Have multiple objects with multiple different animations and be able to select each object and play each frame of each animation of that object.
+
+Technical stuff:
+
+We need 2 Graphics Pipelines one for static mesh and one for animated mesh.
+
+the current vertex shader is
 
 ```
-object_name <value>
-fps <value>
-animation_count <value>
+layout(location = 0) in vec3 inPosition;
+layout(location = 1) in vec3 inColor;
 
-vertex-data
-<value>
-value here is:
-(default vertex positions (vec3)
-vertex colors (vec3))[]
+layout(location = 0) out vec3 fragColor;
 
-animations
-(animation_1(the name of the animation)
-<value>
-value here is:
-frame_1
-<value>
-value here is:
-vertex position for the frame (vec3)[])[]
+layout(binding = 0) uniform CameraBufferObject {
+    mat4 view;
+    mat4 proj;
+} camera;
 ```
+
+That's the static vertex.
+
+For the animated one we can do something like:
+
+```
+layout(location = 1) in vec3 inColor;
+
+layout(binding = 0) uniform CameraBufferObject {
+    mat4 view;
+    mat4 proj;
+} camera;
+layout(std430, set = 0, binding = 1) readonly buffer Models {
+    GpuAnimationModel models[];
+};
+layout(std430, set = 0, binding = 2) readonly buffer Clips {
+    GpuAnimationClip clips[];
+};
+layout(std430, set = 0, binding = 3) readonly buffer Frames {
+    GpuAnimationFrame frames[];
+};
+layout(std430, set = 0, binding = 4) readonly buffer Positions {
+    vec4 positions[];
+};
+
+layout(location = 0) out vec3 fragColor;
+
+GpuAnimationModel model = models[modelIndex];
+GpuAnimationClip clip = clips[model.clipOffset + clipIndex];
+GpuAnimationFrame frame = frames[clip.frameOffset + frameIndex];
+
+vec3 animatedPosition =
+    positions[frame.positionOffset + vertexIndex].xyz;
+```
+
+So Vertex for this animated shader should only have the inColor. It can be called "AnimatedVertex"
+
