@@ -2,6 +2,7 @@
 
 layout(location = 0) in vec3 inColor;
 layout(location = 0) out vec3 fragColor;
+layout(location = 1) out vec3 outWorldPos;
 
 layout(binding = 0) uniform CameraBufferObject {
     mat4 view;
@@ -22,6 +23,7 @@ layout(push_constant) uniform AnimatedObjectPushConstants {
 } objectData;
 
 void main() {
+
     uint vertexIndex = uint(gl_VertexIndex);
 
     vec3 previousPos =
@@ -31,6 +33,9 @@ void main() {
         animationData.positions[objectData.nextPositionOffset + vertexIndex].xyz;
 
     vec3 pos = mix(previousPos, nextPos, objectData.interpolation);
+
+    vec4 worldPos = objectData.model * vec4(pos, 1.0);
+    outWorldPos = worldPos.xyz;
 
     gl_Position = camera.proj * camera.view * objectData.model * vec4(pos, 1.0);
     fragColor = inColor;
