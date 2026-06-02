@@ -3,6 +3,7 @@
 #include "./predefined/vulkanGraphicPipelines.h"
 #include "./vulkanBackend.h"
 #include "../utils/buffers.h"
+#include "../systems/animationSystem.h"
 
 VulkanRendererContext vulkanRendererContext{};
 
@@ -375,48 +376,13 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
                 *vulkanRendererContext.animatedDescriptorSets[frameIndex],
                 nullptr);
 
-            const AnimationClipGpu &clip =
-                object.animatedMesh->animations[object.activeAnimation];
-
-            const uint32_t first = clip.firstKeyPose;
-            const uint32_t count = clip.keyPoseCount;
-
-            uint32_t previousIndex = 0;
-            uint32_t nextIndex = 0;
-
-            for (uint32_t i = 0; i < count; ++i)
-            {
-                const AnimationKeyPoseGpu &pose = object.animatedMesh->keyPoses[first + i];
-
-                if (pose.blenderFrame <= object.activeFrame)
-                {
-                    previousIndex = i;
-                }
-
-                if (pose.blenderFrame >= object.activeFrame)
-                {
-                    nextIndex = i;
-                    break;
-                }
-            }
-
-            const AnimationKeyPoseGpu &previousPose = object.animatedMesh->keyPoses[first + previousIndex];
-            const AnimationKeyPoseGpu &nextPose = object.animatedMesh->keyPoses[first + nextIndex];
-
-            float interpolation = 0.0f;
-
-            if (nextPose.blenderFrame != previousPose.blenderFrame)
-            {
-                interpolation =
-                    static_cast<float>(object.activeFrame - previousPose.blenderFrame) /
-                    static_cast<float>(nextPose.blenderFrame - previousPose.blenderFrame);
-            }
+            AnimationDataFromObject animationData = getAnimationDataFromObject(object);
 
             AnimatedObjectPushConstants pushConstants{
                 .model = object.model,
-                .previousPositionOffset = previousPose.positionOffset,
-                .nextPositionOffset = nextPose.positionOffset,
-                .interpolation = interpolation,
+                .previousPositionOffset = animationData.previousPositionOffset,
+                .nextPositionOffset = animationData.nextPositionOffset,
+                .interpolation = animationData.interpolation,
                 .vertexCount = object.animatedMesh->mesh.vertexCount,
             };
 

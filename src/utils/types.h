@@ -50,6 +50,7 @@ struct AnimationClipGpu
 struct AnimatedMesh
 {
     Mesh mesh;
+    float fps = 60.0f;
     std::vector<AnimationClipGpu> animations;
     std::vector<AnimationKeyPoseGpu> keyPoses;
 };

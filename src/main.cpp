@@ -13,6 +13,8 @@
 #include "engine/vulkanGlobals.h"
 #include "engine/blender/importer.h"
 #include "utils/generators.h"
+#include "utils/time.h"
+#include "systems/animationSystem.h"
 
 void cleanup()
 {
@@ -25,62 +27,6 @@ void cleanup()
 
     glfwDestroyWindow(vulkanContext.window);
     glfwTerminate();
-}
-
-bool keyPressedOnce(int key)
-{
-    static bool keyWasDown[GLFW_KEY_LAST + 1]{};
-
-    const bool isDown = glfwGetKey(vulkanContext.window, key) == GLFW_PRESS;
-    const bool pressed = isDown && !keyWasDown[key];
-
-    keyWasDown[key] = isDown;
-
-    return pressed;
-}
-
-void handleAnimationInput()
-{
-    if (vulkanRendererContext.objects.empty())
-    {
-        return;
-    }
-
-    Object3D &object = vulkanRendererContext.objects[0];
-
-    if (object.renderKind != ObjectRenderKind::Animated || object.animatedMesh == nullptr)
-    {
-        return;
-    }
-
-    const AnimationClipGpu &clip =
-        object.animatedMesh->animations[object.activeAnimation];
-
-    if (clip.keyPoseCount == 0)
-    {
-        return;
-    }
-
-    if (keyPressedOnce(GLFW_KEY_RIGHT))
-    {
-        object.activeFrame++;
-        if (object.activeFrame > clip.endFrame)
-        {
-            object.activeFrame = clip.startFrame;
-        }
-    }
-
-    if (keyPressedOnce(GLFW_KEY_LEFT))
-    {
-        if (object.activeFrame <= clip.startFrame)
-        {
-            object.activeFrame = clip.startFrame;
-        }
-        else
-        {
-            object.activeFrame--;
-        }
-    }
 }
 
 int main()
@@ -135,7 +81,8 @@ int main()
     while (!glfwWindowShouldClose(vulkanContext.window))
     {
         glfwPollEvents();
-        handleAnimationInput();
+        updateTime();
+        updateAnimations();
         drawFrame();
     }
 

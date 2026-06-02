@@ -25,6 +25,9 @@ add_executable(spaceguy
     src/engine/predefined/vulkanDescriptorSetLayouts.cpp
     src/engine/blender/importer.cpp
     src/utils/buffers.cpp
+    src/systems/animationSystem.cpp
+    src/utils/input.cpp
+    src/utils/time.cpp
 )
 
 target_compile_features(spaceguy PRIVATE cxx_std_20)

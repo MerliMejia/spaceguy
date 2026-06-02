@@ -28,6 +28,9 @@ struct Object3D
 
     uint32_t activeAnimation = 0;
     uint32_t activeFrame = 0;
+
+    float animationTimeSeconds = 0.0f;
+    float animationPlaySpeed = 1.0f;
 };
 
 // Will store/handle every vulkan stuff that can change depending of how we decide that the renderer

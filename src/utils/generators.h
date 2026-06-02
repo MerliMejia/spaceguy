@@ -49,6 +49,7 @@ AnimatedMesh generateAnimatedMesh(
     uint32_t firstGlobalPositionOffset)
 {
     AnimatedMesh animated{};
+    animated.fps = model.fps;
 
     std::vector<AnimatedVertex> vertices;
     vertices.reserve(model.vertices.size());
