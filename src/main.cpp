@@ -56,23 +56,30 @@ void handleAnimationInput()
     const AnimationClipGpu &clip =
         object.animatedMesh->animations[object.activeAnimation];
 
-    if (clip.frameCount == 0)
+    if (clip.keyPoseCount == 0)
     {
         return;
     }
 
     if (keyPressedOnce(GLFW_KEY_RIGHT))
     {
-        object.activeFrame = (object.activeFrame + 1) % clip.frameCount;
-        std::cout << "Frame: " << object.activeFrame << "\n";
+        object.activeFrame++;
+        if (object.activeFrame > clip.endFrame)
+        {
+            object.activeFrame = clip.startFrame;
+        }
     }
 
     if (keyPressedOnce(GLFW_KEY_LEFT))
     {
-        object.activeFrame =
-            object.activeFrame == 0 ? clip.frameCount - 1 : object.activeFrame - 1;
-
-        std::cout << "Frame: " << object.activeFrame << "\n";
+        if (object.activeFrame <= clip.startFrame)
+        {
+            object.activeFrame = clip.startFrame;
+        }
+        else
+        {
+            object.activeFrame--;
+        }
     }
 }
 
@@ -97,9 +104,9 @@ int main()
 
     for (const AnimationClip &clip : model.animations)
     {
-        for (const AnimationFrame &frame : clip.frames)
+        for (const AnimationKeyPose &keyPoses : clip.keyPoses)
         {
-            for (const glm::vec3 &pos : frame.positions)
+            for (const glm::vec3 &pos : keyPoses.positions)
             {
                 animationPositions.push_back(glm::vec4(pos, 1.0f));
             }

@@ -25,10 +25,10 @@ struct ObjectPushConstants
 struct AnimatedObjectPushConstants
 {
     glm::mat4 model;
-    uint32_t animationPositionOffset;
+    uint32_t previousPositionOffset;
+    uint32_t nextPositionOffset;
+    float interpolation;
     uint32_t vertexCount;
-    uint32_t _pad0;
-    uint32_t _pad1;
 };
 
 // Different command buffer recordings.

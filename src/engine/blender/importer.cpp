@@ -92,7 +92,7 @@ BlenderModel loadModel(const std::string &path)
 
     const int version = readInt();
 
-    if (version != 1)
+    if (version != 2)
     {
         throw std::runtime_error("Unsupported .3d version");
     }
@@ -153,19 +153,19 @@ BlenderModel loadModel(const std::string &path)
         expect("end_frame");
         clip.endFrame = readInt();
 
-        expect("frame_count");
+        expect("key_pose_count");
         const std::size_t frameCount = readSize();
 
-        clip.frames.resize(frameCount);
+        clip.keyPoses.resize(frameCount);
 
-        for (auto &frame : clip.frames)
+        for (auto &keyPose : clip.keyPoses)
         {
-            expect("frame");
-            frame.blenderFrame = readInt();
+            expect("key_pose");
+            keyPose.blenderFrame = readInt();
 
-            frame.positions.resize(vertexCount);
+            keyPose.positions.resize(vertexCount);
 
-            for (auto &pos : frame.positions)
+            for (auto &pos : keyPose.positions)
             {
                 pos.x = readFloat();
                 pos.y = readFloat();

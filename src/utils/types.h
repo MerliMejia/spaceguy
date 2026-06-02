@@ -32,7 +32,7 @@ struct Mesh
     uint32_t indexCount = 0;
 };
 
-struct AnimationFrameGpu
+struct AnimationKeyPoseGpu
 {
     uint32_t positionOffset = 0;
     int blenderFrame = 0;
@@ -41,13 +41,15 @@ struct AnimationFrameGpu
 struct AnimationClipGpu
 {
     std::string name;
-    uint32_t firstFrame = 0;
-    uint32_t frameCount = 0;
+    int startFrame = 0;
+    int endFrame = 0;
+    uint32_t firstKeyPose = 0;
+    uint32_t keyPoseCount = 0;
 };
 
 struct AnimatedMesh
 {
     Mesh mesh;
     std::vector<AnimationClipGpu> animations;
-    std::vector<AnimationFrameGpu> frames;
+    std::vector<AnimationKeyPoseGpu> keyPoses;
 };

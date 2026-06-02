@@ -77,17 +77,29 @@ def ensure_animation_data(owner):
         owner.animation_data_create()
 
 
+def iter_action_fcurves(action):
+    if hasattr(action, "fcurves"):
+        for fcurve in action.fcurves:
+            yield fcurve
+
+    if not hasattr(action, "layers"):
+        return
+
+    for layer in action.layers:
+        for strip in getattr(layer, "strips", []):
+            for channelbag in getattr(strip, "channelbags", []):
+                for fcurve in getattr(channelbag, "fcurves", []):
+                    yield fcurve
+
+
 def action_has_animation(action):
     if hasattr(action, "is_empty"):
         return not action.is_empty
 
-    if hasattr(action, "fcurves"):
-        return len(action.fcurves) > 0
+    for _fcurve in iter_action_fcurves(action):
+        return True
 
-    if hasattr(action, "layers"):
-        return len(action.layers) > 0
-
-    return True
+    return False
 
 
 def action_has_compatible_slot(action, owner):
@@ -167,18 +179,23 @@ def assign_action(owner, action):
         animation_data.action_slot = slot
 
 
-def get_action_frame_range(action):
-    start, end = action.frame_range
-    start_frame = int(start)
-    end_frame = int(end)
+def get_action_key_pose_frames(action):
+    frames = set()
 
-    if end_frame < start_frame:
+    for fcurve in iter_action_fcurves(action):
+        for keyframe in fcurve.keyframe_points:
+            frames.add(int(round(keyframe.co.x)))
+
+    if not frames:
         raise RuntimeError(
-            f"Invalid frame range for action '{action.name}': "
-            f"{start_frame} to {end_frame}"
+            f"Action '{action.name}' has no keyframes to export as key poses."
         )
 
-    return start_frame, end_frame
+    return sorted(frames)
+
+
+def get_key_pose_frame_range(key_pose_frames):
+    return key_pose_frames[0], key_pose_frames[-1]
 
 
 def export_spaceguy_3d(filepath, obj=None):
@@ -219,7 +236,7 @@ def export_spaceguy_3d(filepath, obj=None):
         original_action_slot = animation_owner.animation_data.action_slot
 
     with filepath.open("w", encoding="utf-8") as file:
-        file.write("spaceguy_3d 1\n")
+        file.write("spaceguy_3d 2\n")
         file.write(f"object_name {safe_filename(obj.name)}\n")
         file.write(f"fps {fps:.6f}\n")
         file.write(f"vertex_count {len(export_vertices)}\n")
@@ -247,8 +264,9 @@ def export_spaceguy_3d(filepath, obj=None):
 
         try:
             for action in actions:
-                start_frame, end_frame = get_action_frame_range(action)
-                frame_count = end_frame - start_frame + 1
+                key_pose_frames = get_action_key_pose_frames(action)
+                start_frame, end_frame = get_key_pose_frame_range(
+                    key_pose_frames)
 
                 assign_action(animation_owner, action)
 
@@ -256,9 +274,9 @@ def export_spaceguy_3d(filepath, obj=None):
                 file.write(f"animation {safe_filename(action.name)}\n")
                 file.write(f"start_frame {start_frame}\n")
                 file.write(f"end_frame {end_frame}\n")
-                file.write(f"frame_count {frame_count}\n")
+                file.write(f"key_pose_count {len(key_pose_frames)}\n")
 
-                for frame in range(start_frame, end_frame + 1):
+                for frame in key_pose_frames:
                     scene.frame_set(frame)
                     bpy.context.view_layer.update()
 
@@ -269,12 +287,12 @@ def export_spaceguy_3d(filepath, obj=None):
                     if len(eval_mesh.vertices) != source_vertex_count:
                         eval_obj.to_mesh_clear()
                         raise RuntimeError(
-                            f"Animation {action.name}, frame {frame} has "
+                            f"Animation {action.name}, key pose frame {frame} has "
                             f"{len(eval_mesh.vertices)} vertices, expected "
                             f"{source_vertex_count}. Animated topology is not supported."
                         )
 
-                    file.write(f"\nframe {frame}\n")
+                    file.write(f"\nkey_pose {frame}\n")
                     for source_vertex_index, _base_pos, _color in export_vertices:
                         vertex = eval_mesh.vertices[source_vertex_index]
                         write_vec3(file, vertex.co)
@@ -295,8 +313,12 @@ def export_spaceguy_3d(filepath, obj=None):
     print(f"Indices: {len(export_indices) * 3}")
     print("Animations:")
     for action in actions:
-        start_frame, end_frame = get_action_frame_range(action)
-        print(f"  {action.name}: {start_frame} -> {end_frame}")
+        key_pose_frames = get_action_key_pose_frames(action)
+        start_frame, end_frame = get_key_pose_frame_range(key_pose_frames)
+        print(
+            f"  {action.name}: {start_frame} -> {end_frame}, "
+            f"{len(key_pose_frames)} key poses: {key_pose_frames}"
+        )
 
 
 def safe_filename(name):

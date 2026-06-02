@@ -5,7 +5,6 @@
 
 #include <cstring>
 
-
 Mesh generateMesh(const std::vector<Vertex> &vertices, const std::vector<uint16_t> &indices)
 {
     Mesh mesh{};
@@ -93,28 +92,29 @@ AnimatedMesh generateAnimatedMesh(
     animated.mesh.indexDeviceMemory = std::move(indexBuffer.memory);
     animated.mesh.indexCount = static_cast<uint32_t>(model.indices.size());
 
-    uint32_t runningFrameIndex = 0;
+    uint32_t runningKeyPoseIndex = 0;
     uint32_t runningPositionOffset = firstGlobalPositionOffset;
 
     for (const AnimationClip &clip : model.animations)
     {
         AnimationClipGpu gpuClip{
             .name = clip.name,
-            .firstFrame = runningFrameIndex,
-            .frameCount = static_cast<uint32_t>(clip.frames.size()),
-        };
+            .startFrame = clip.startFrame,
+            .endFrame = clip.endFrame,
+            .firstKeyPose = runningKeyPoseIndex,
+            .keyPoseCount = static_cast<uint32_t>(clip.keyPoses.size())};
 
         animated.animations.push_back(gpuClip);
 
-        for (const AnimationFrame &frame : clip.frames)
+        for (const AnimationKeyPose &keyPose : clip.keyPoses)
         {
-            animated.frames.push_back(AnimationFrameGpu{
+            animated.keyPoses.push_back(AnimationKeyPoseGpu{
                 .positionOffset = runningPositionOffset,
-                .blenderFrame = frame.blenderFrame,
+                .blenderFrame = keyPose.blenderFrame,
             });
 
-            runningPositionOffset += static_cast<uint32_t>(frame.positions.size());
-            runningFrameIndex++;
+            runningPositionOffset += static_cast<uint32_t>(keyPose.positions.size());
+            runningKeyPoseIndex++;
         }
     }
 

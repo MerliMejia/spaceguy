@@ -378,16 +378,47 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
             const AnimationClipGpu &clip =
                 object.animatedMesh->animations[object.activeAnimation];
 
-            const uint32_t localFrame =
-                object.activeFrame % clip.frameCount;
+            const uint32_t first = clip.firstKeyPose;
+            const uint32_t count = clip.keyPoseCount;
 
-            const AnimationFrameGpu &frame =
-                object.animatedMesh->frames[clip.firstFrame + localFrame];
+            uint32_t previousIndex = 0;
+            uint32_t nextIndex = 0;
+
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                const AnimationKeyPoseGpu &pose = object.animatedMesh->keyPoses[first + i];
+
+                if (pose.blenderFrame <= object.activeFrame)
+                {
+                    previousIndex = i;
+                }
+
+                if (pose.blenderFrame >= object.activeFrame)
+                {
+                    nextIndex = i;
+                    break;
+                }
+            }
+
+            const AnimationKeyPoseGpu &previousPose = object.animatedMesh->keyPoses[first + previousIndex];
+            const AnimationKeyPoseGpu &nextPose = object.animatedMesh->keyPoses[first + nextIndex];
+
+            float interpolation = 0.0f;
+
+            if (nextPose.blenderFrame != previousPose.blenderFrame)
+            {
+                interpolation =
+                    static_cast<float>(object.activeFrame - previousPose.blenderFrame) /
+                    static_cast<float>(nextPose.blenderFrame - previousPose.blenderFrame);
+            }
 
             AnimatedObjectPushConstants pushConstants{
                 .model = object.model,
-                .animationPositionOffset = frame.positionOffset,
-                .vertexCount = object.animatedMesh->mesh.vertexCount};
+                .previousPositionOffset = previousPose.positionOffset,
+                .nextPositionOffset = nextPose.positionOffset,
+                .interpolation = interpolation,
+                .vertexCount = object.animatedMesh->mesh.vertexCount,
+            };
 
             commandBuffer.pushConstants<AnimatedObjectPushConstants>(
                 *vulkanRendererContext.animatedPipelineLayout,

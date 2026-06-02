@@ -14,7 +14,7 @@
 #include <istream>
 #include "../../utils/types.h"
 
-struct AnimationFrame
+struct AnimationKeyPose
 {
     int blenderFrame = 0;
     std::vector<glm::vec3> positions;
@@ -25,7 +25,7 @@ struct AnimationClip
     std::string name;
     int startFrame = 0;
     int endFrame = 0;
-    std::vector<AnimationFrame> frames;
+    std::vector<AnimationKeyPose> keyPoses;
 };
 
 struct BlenderModel

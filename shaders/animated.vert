@@ -9,22 +9,29 @@ layout(binding = 0) uniform CameraBufferObject {
 } camera;
 
 layout(std430, binding = 1) readonly buffer AnimationPositions {
-vec4 positions[];
+    vec4 positions[];
 }
 animationData;
 
 layout(push_constant) uniform AnimatedObjectPushConstants {
-mat4 model;
-uint animationPositionOffset;
-uint vertexCount;
-uint _pad0;
-uint _pad1;
-}
-objectData;
+    mat4 model;
+    uint previousPositionOffset;
+    uint nextPositionOffset;
+    float interpolation;
+    uint vertexCount;
+} objectData;
 
 void main() {
-vec3 pos = animationData.positions[objectData.animationPositionOffset + uint(gl_VertexIndex)].xyz;
+    uint vertexIndex = uint(gl_VertexIndex);
 
-gl_Position = camera.proj * camera.view * objectData.model * vec4(pos, 1.0);
-fragColor = inColor;
+    vec3 previousPos =
+        animationData.positions[objectData.previousPositionOffset + vertexIndex].xyz;
+
+    vec3 nextPos =
+        animationData.positions[objectData.nextPositionOffset + vertexIndex].xyz;
+
+    vec3 pos = mix(previousPos, nextPos, objectData.interpolation);
+
+    gl_Position = camera.proj * camera.view * objectData.model * vec4(pos, 1.0);
+    fragColor = inColor;
 }
