@@ -236,7 +236,10 @@ void setupRendererAfterAssetsLoaded()
     createGraphicsPipeline();
     createDescriptorPool();
     createStaticDescriptorSets();
-    createAnimatedDescriptorSets();
+    if (vulkanRendererContext.animationPositionCount > 0)
+    {
+        createAnimatedDescriptorSets();
+    }
 }
 
 void transitionImageLayout(
@@ -465,16 +468,32 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex)
     commandBuffer.end();
 }
 
+// Need to update this
 void updateUniformBuffer(uint32_t currentImage)
 {
     CameraBufferObject camera{};
 
-    camera.view = glm::lookAt(
-        glm::vec3(0.0f, -2.0f, 0.0f),
-        glm::vec3(0.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 0.0f, 1.0f));
+    const glm::vec3 cameraPosition{
+        10.178586960f,
+        -16.072929382f,
+        5.269010067f};
 
-    camera.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(vulkanContext.swapchainExtent.width) / static_cast<float>(vulkanContext.swapchainExtent.height), 0.1f, 10.0f);
+    const glm::vec3 lookDirection{
+        -0.514451504f,
+        0.814035237f,
+        -0.269604117f};
+
+    camera.view = glm::lookAt(
+        cameraPosition,
+        cameraPosition + lookDirection,
+        glm::vec3{0.0f, 0.0f, 1.0f});
+
+    camera.proj = glm::perspective(
+        glm::radians(45.0f),
+        static_cast<float>(vulkanContext.swapchainExtent.width) /
+            static_cast<float>(vulkanContext.swapchainExtent.height),
+        0.1f,
+        100.0f);
 
     camera.proj[1][1] *= -1.0f;
 

@@ -37,4 +37,31 @@ struct BlenderModel
     std::vector<AnimationClip> animations;
 };
 
+struct Transform
+{
+    glm::vec3 position;
+    glm::vec3 rotation;
+    glm::vec3 scale;
+};
+
+struct Camera
+{
+    Transform transform;
+    glm::vec3 direction;
+};
+
+struct Wizards
+{
+    int count;
+    std::vector<glm::vec3> positions;
+};
+
+struct WorldData
+{
+    Transform floor;
+    Camera camera;
+    Wizards wizards;
+};
+
 BlenderModel loadModel(const std::string &path);
+WorldData loadWorldData();

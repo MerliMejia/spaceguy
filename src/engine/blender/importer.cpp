@@ -178,3 +178,76 @@ BlenderModel loadModel(const std::string &path)
 
     return model;
 }
+
+static glm::vec3 readVec3()
+{
+    glm::vec3 value{};
+    value.x = readFloat();
+    value.y = readFloat();
+    value.z = readFloat();
+    return value;
+}
+
+static Transform readTransform()
+{
+    Transform transform{};
+
+    expect("position");
+    transform.position = readVec3();
+
+    expect("rotation");
+    transform.rotation = readVec3();
+
+    expect("scale");
+    transform.scale = readVec3();
+
+    return transform;
+}
+
+WorldData loadWorldData()
+{
+    std::ifstream file("assets/world.world");
+
+    if (!file)
+    {
+        throw std::runtime_error("Could not open file: assets/world.world");
+    }
+
+    currentTokens.clear();
+    cursor = 0;
+    currentTokens = readTokensIgnoringComments(file);
+
+    WorldData data{};
+
+    expect("spaceguy_world");
+
+    const int version = readInt();
+
+    if (version != 1)
+    {
+        throw std::runtime_error("Unsupported .world version");
+    }
+
+    expect("floor");
+    data.floor = readTransform();
+
+    expect("camera");
+    data.camera.transform = readTransform();
+
+    expect("look_direction");
+    data.camera.direction = readVec3();
+
+    expect("wizards");
+
+    expect("wizard_count");
+    data.wizards.count = readInt();
+
+    data.wizards.positions.resize(static_cast<std::size_t>(data.wizards.count));
+
+    for (glm::vec3 &position : data.wizards.positions)
+    {
+        position = readVec3();
+    }
+
+    return data;
+}

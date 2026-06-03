@@ -1,23 +1,22 @@
-Animation And Time Playback System
+World generation
 
-Time:
+Use Blender as the "editor"
 
-[] Have a place where the time logic exists. Things like delta time (using std::kronos).
+[] Pre-defined object types:
+    - Floor: The floor where objects are placed.
+    - Camera: The position and direction where the camera is looking at
+    - Wizard: Position of where the files Wizzard_4.3d are.
 
+[] Create an exporter for worlds. Can use similar reading format as the 3d object exporter.
+    - Should find the object named "floor".
+        - Exports:
+            - transform (position, scale, rotation)
+    - Should find the object named "camera".
+        - Exports:
+            - transform
+            - looking at direction
+    - Should find a collection named "wizards"
+        - Exports:
+            - Array of positions of all the wizards
 
-Animations
-
-[] It should store the animation states used for all the animation calculations:
-    - playbackSpeed
-
-[] It should use the logic for time.
-
-[] Have a function (maybe something that generates these:
-
-```
-.previousPositionOffset = previousPose.positionOffset,
-                .nextPositionOffset = nextPose.positionOffset,
-                .interpolation = interpolation,
-```
-
-) that can be called getAnimationDataFromObject(3DObject). It should calculate the blender frame float, use it to interpolate between frames and generate the data.
+[] Create an importer based on this kind of file

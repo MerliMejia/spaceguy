@@ -120,17 +120,14 @@ def action_has_compatible_slot(action, owner):
 
 
 def collect_actions(owner):
+    if owner.animation_data is None:
+        return []
+
     actions = [
         action
         for action in bpy.data.actions
         if action_has_animation(action) and action_has_compatible_slot(action, owner)
     ]
-
-    if not actions:
-        raise RuntimeError(
-            f"No compatible actions found for animation owner '{owner.name}'. "
-            "Create one Blender Action per animation clip."
-        )
 
     actions.sort(key=lambda action: action.name)
     return actions
@@ -212,8 +209,6 @@ def export_spaceguy_3d(filepath, obj=None):
     depsgraph = bpy.context.evaluated_depsgraph_get()
 
     animation_owner = get_animation_owner(obj)
-    ensure_animation_data(animation_owner)
-
     actions = collect_actions(animation_owner)
 
     eval_obj = obj.evaluated_get(depsgraph)
@@ -229,11 +224,14 @@ def export_spaceguy_3d(filepath, obj=None):
     filepath = Path(filepath)
 
     original_frame = scene.frame_current
-    original_action = animation_owner.animation_data.action
+    original_action = None
     original_action_slot = None
 
-    if hasattr(animation_owner.animation_data, "action_slot"):
-        original_action_slot = animation_owner.animation_data.action_slot
+    if animation_owner.animation_data is not None:
+        original_action = animation_owner.animation_data.action
+
+        if hasattr(animation_owner.animation_data, "action_slot"):
+            original_action_slot = animation_owner.animation_data.action_slot
 
     with filepath.open("w", encoding="utf-8") as file:
         file.write("spaceguy_3d 2\n")
@@ -300,10 +298,11 @@ def export_spaceguy_3d(filepath, obj=None):
                     eval_obj.to_mesh_clear()
 
         finally:
-            animation_owner.animation_data.action = original_action
+            if animation_owner.animation_data is not None:
+                animation_owner.animation_data.action = original_action
 
-            if hasattr(animation_owner.animation_data, "action_slot"):
-                animation_owner.animation_data.action_slot = original_action_slot
+                if hasattr(animation_owner.animation_data, "action_slot"):
+                    animation_owner.animation_data.action_slot = original_action_slot
 
             scene.frame_set(original_frame)
             bpy.context.view_layer.update()
@@ -312,6 +311,10 @@ def export_spaceguy_3d(filepath, obj=None):
     print(f"Vertices: {len(export_vertices)}")
     print(f"Indices: {len(export_indices) * 3}")
     print("Animations:")
+
+    if not actions:
+        print("  none")
+
     for action in actions:
         key_pose_frames = get_action_key_pose_frames(action)
         start_frame, end_frame = get_key_pose_frame_range(key_pose_frames)
