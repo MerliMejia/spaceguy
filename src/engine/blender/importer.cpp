@@ -147,6 +147,9 @@ BlenderModel loadModel(const std::string &path)
         expect("animation");
         clip.name = readString();
 
+        expect("loop");
+        clip.loop = readString() == "true";
+
         expect("start_frame");
         clip.startFrame = readInt();
 

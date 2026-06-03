@@ -103,7 +103,8 @@ AnimatedMesh generateAnimatedMesh(
             .startFrame = clip.startFrame,
             .endFrame = clip.endFrame,
             .firstKeyPose = runningKeyPoseIndex,
-            .keyPoseCount = static_cast<uint32_t>(clip.keyPoses.size())};
+            .keyPoseCount = static_cast<uint32_t>(clip.keyPoses.size()),
+            .loop = clip.loop};
 
         animated.animations.push_back(gpuClip);
 

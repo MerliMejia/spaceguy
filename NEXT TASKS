@@ -1,22 +1,9 @@
-World generation
+Wizard behavior
 
-Use Blender as the "editor"
+[x] Create better idle animation
+[x] Create running animation
+[x] Create kicking animation
+[x] Create attacking animation
+[x] Have a wizard able to change animations by command
 
-[] Pre-defined object types:
-    - Floor: The floor where objects are placed.
-    - Camera: The position and direction where the camera is looking at
-    - Wizard: Position of where the files Wizzard_4.3d are.
-
-[] Create an exporter for worlds. Can use similar reading format as the 3d object exporter.
-    - Should find the object named "floor".
-        - Exports:
-            - transform (position, scale, rotation)
-    - Should find the object named "camera".
-        - Exports:
-            - transform
-            - looking at direction
-    - Should find a collection named "wizards"
-        - Exports:
-            - Array of positions of all the wizards
-
-[] Create an importer based on this kind of file
+[] Implement behavior tree.

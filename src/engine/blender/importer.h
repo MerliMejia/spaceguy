@@ -26,6 +26,7 @@ struct AnimationClip
     int startFrame = 0;
     int endFrame = 0;
     std::vector<AnimationKeyPose> keyPoses;
+    bool loop = false;
 };
 
 struct BlenderModel

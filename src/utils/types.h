@@ -45,6 +45,7 @@ struct AnimationClipGpu
     int endFrame = 0;
     uint32_t firstKeyPose = 0;
     uint32_t keyPoseCount = 0;
+    bool loop = false;
 };
 
 struct AnimatedMesh

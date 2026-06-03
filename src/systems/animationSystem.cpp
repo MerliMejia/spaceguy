@@ -39,14 +39,29 @@ static void updateAnimation(Object3D &object)
     object.animationTimeSeconds +=
         timeState.deltaTime * object.animationPlaySpeed;
 
-    while (object.animationTimeSeconds >= durationSeconds)
+    if (clip.loop)
     {
-        object.animationTimeSeconds -= durationSeconds;
-    }
+        while (object.animationTimeSeconds >= durationSeconds)
+        {
+            object.animationTimeSeconds -= durationSeconds;
+        }
 
-    while (object.animationTimeSeconds < 0.0f)
+        while (object.animationTimeSeconds < 0.0f)
+        {
+            object.animationTimeSeconds += durationSeconds;
+        }
+    }
+    else
     {
-        object.animationTimeSeconds += durationSeconds;
+        if (object.animationTimeSeconds >= durationSeconds)
+        {
+            object.animationTimeSeconds = durationSeconds;
+        }
+
+        if (object.animationTimeSeconds < 0.0f)
+        {
+            object.animationTimeSeconds = 0.0f;
+        }
     }
 
     const float currentFrame = getCurrentBlenderFrame(object, clip);

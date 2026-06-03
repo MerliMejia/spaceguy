@@ -13,11 +13,3 @@ bool keyPressedOnce(int key)
 
     return pressed;
 }
-
-void handleAnimationInput()
-{
-    if (vulkanRendererContext.objects.empty())
-    {
-        return;
-    }
-}

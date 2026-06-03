@@ -15,6 +15,7 @@
 #include "utils/generators.h"
 #include "utils/time.h"
 #include "systems/animationSystem.h"
+#include "utils/input.h"
 
 void cleanup()
 {
@@ -27,6 +28,40 @@ void cleanup()
 
     glfwDestroyWindow(vulkanContext.window);
     glfwTerminate();
+}
+
+void setAnimation(Object3D &object, uint32_t animationIndex)
+{
+    if (object.animatedMesh == nullptr ||
+        animationIndex >= object.animatedMesh->animations.size())
+    {
+        return;
+    }
+
+    object.activeAnimation = animationIndex;
+    object.animationTimeSeconds = 0.0f;
+    object.activeFrame =
+        static_cast<uint32_t>(object.animatedMesh->animations[animationIndex].startFrame);
+}
+
+void handleAnimationChangeTest(Object3D &object)
+{
+    if (keyPressedOnce(GLFW_KEY_0))
+    {
+        setAnimation(object, 0);
+    }
+    else if (keyPressedOnce(GLFW_KEY_1))
+    {
+        setAnimation(object, 1);
+    }
+    else if (keyPressedOnce(GLFW_KEY_2))
+    {
+        setAnimation(object, 2);
+    }
+    else if (keyPressedOnce(GLFW_KEY_3))
+    {
+        setAnimation(object, 3);
+    }
 }
 
 int main()
@@ -97,6 +132,7 @@ int main()
     {
         glfwPollEvents();
         updateTime();
+        handleAnimationChangeTest(vulkanRendererContext.objects[1]);
         updateAnimations();
         drawFrame();
     }

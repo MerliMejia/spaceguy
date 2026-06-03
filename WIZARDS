@@ -1,0 +1,30 @@
+Wizard behavior
+
+What would a wizard be doing if the player don't exists?
+
+- Initial 2 wizards
+    - They will be throwing the magic giant dice.
+    - Each dice roll will provide something to however did the dice roll.
+    - You will see the sequence of one of the wizards defeating the other wizard by doing this.
+    - After wizard 1 defeats wizard 2, he will try to defeat you.
+
+
+Mechanics
+
+- Primitives
+    - Stay still (Need better idle animation).
+    - Move to diferent positions (Running animation + Rotating and Movements).
+    - Kick (Used to roll the dice and to send enemies that are too close away).
+    - Activate spell.
+    - Jump?????.
+
+- Behavior
+    - Before entering in contact with the player, they should be doing something (figthing with other wizards, <think about more suff later>).
+    
+    - Attacking behavior
+        - Think for a couple of seconds in iddle.
+        - Decide if need to move or attack or roll the dice.
+            - Is the enemy thowing an attack: Move
+            - Is the enemy getting too close: Move
+            - Is the enemy far enough and not attacking: attack.
+            - Is the dice here: Always try to get another spell.

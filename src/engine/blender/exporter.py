@@ -270,6 +270,8 @@ def export_spaceguy_3d(filepath, obj=None):
 
                 file.write("\n")
                 file.write(f"animation {safe_filename(action.name)}\n")
+                loop = bool(action.get("loop", False))
+                file.write(f"loop {'true' if loop else 'false'}\n")
                 file.write(f"start_frame {start_frame}\n")
                 file.write(f"end_frame {end_frame}\n")
                 file.write(f"key_pose_count {len(key_pose_frames)}\n")
