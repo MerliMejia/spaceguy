@@ -1,0 +1,15 @@
+#pragma once
+
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+struct WorldContext
+{
+    // Camera
+    glm::vec3 cameraPosition;
+    glm::vec3 cameraLookAt;
+};
+
+extern WorldContext worldContext;

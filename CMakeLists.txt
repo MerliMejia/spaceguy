@@ -28,6 +28,7 @@ add_executable(spaceguy
     src/systems/animationSystem.cpp
     src/utils/input.cpp
     src/utils/time.cpp
+    src/systems/worldSystem.cpp
 )
 
 target_compile_features(spaceguy PRIVATE cxx_std_20)

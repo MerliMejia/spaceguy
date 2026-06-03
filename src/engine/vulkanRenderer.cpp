@@ -4,6 +4,7 @@
 #include "./vulkanBackend.h"
 #include "../utils/buffers.h"
 #include "../systems/animationSystem.h"
+#include "../systems/worldSystem.h"
 
 VulkanRendererContext vulkanRendererContext{};
 
@@ -473,19 +474,9 @@ void updateUniformBuffer(uint32_t currentImage)
 {
     CameraBufferObject camera{};
 
-    const glm::vec3 cameraPosition{
-        10.178586960f,
-        -16.072929382f,
-        5.269010067f};
-
-    const glm::vec3 lookDirection{
-        -0.514451504f,
-        0.814035237f,
-        -0.269604117f};
-
     camera.view = glm::lookAt(
-        cameraPosition,
-        cameraPosition + lookDirection,
+        worldContext.cameraPosition,
+        worldContext.cameraPosition + worldContext.cameraLookAt,
         glm::vec3{0.0f, 0.0f, 1.0f});
 
     camera.proj = glm::perspective(

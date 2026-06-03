@@ -16,6 +16,7 @@
 #include "utils/time.h"
 #include "systems/animationSystem.h"
 #include "utils/input.h"
+#include "systems/worldSystem.h"
 
 void cleanup()
 {
@@ -74,6 +75,9 @@ int main()
 
     std::cout << "Loading world data...\n";
     auto worldData = loadWorldData();
+
+    worldContext.cameraPosition = worldData.camera.transform.position;
+    worldContext.cameraLookAt = worldData.camera.direction;
 
     BlenderModel floorModel = loadModel("assets/floor.3d");
     Mesh floorMesh = generateMesh(floorModel.vertices, floorModel.indices);
