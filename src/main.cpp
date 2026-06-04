@@ -7,110 +7,105 @@
 
 #include <iostream>
 
+#include "behaviors/wizardBehavior.h"
+#include "engine/blender/importer.h"
 #include "engine/vulkanBackend.h"
 #include "engine/vulkanRenderer.h"
-#include "engine/predefined/vulkanGraphicPipelines.h"
-#include "engine/vulkanGlobals.h"
-#include "engine/blender/importer.h"
+#include "systems/animationSystem.h"
+#include "systems/worldSystem.h"
 #include "utils/generators.h"
 #include "utils/time.h"
-#include "systems/animationSystem.h"
-#include "utils/input.h"
-#include "systems/worldSystem.h"
-#include "behaviors/wizardBehavior.h"
 
-void cleanup()
-{
-    vulkanContext.device.waitIdle();
+void cleanup() {
+  vulkanContext.device.waitIdle();
 
-    // since the device is in a global object, we need to manually clear?
-    vulkanRendererContext.inFlightFences.clear();
-    vulkanRendererContext.imageAvailableSemaphores.clear();
-    vulkanRendererContext.renderFinishedSemaphores.clear();
+  // since the device is in a global object, we need to manually clear?
+  vulkanRendererContext.inFlightFences.clear();
+  vulkanRendererContext.imageAvailableSemaphores.clear();
+  vulkanRendererContext.renderFinishedSemaphores.clear();
 
-    glfwDestroyWindow(vulkanContext.window);
-    glfwTerminate();
+  glfwDestroyWindow(vulkanContext.window);
+  glfwTerminate();
 }
 
-int main()
-{
-    setupVulkan();
+int main() {
+  setupVulkan();
 
-    setupRendererCore();
+  setupRendererCore();
 
-    std::cout << "Spaceguy running\n";
+  std::cout << "Spaceguy running\n";
 
-    std::cout << "Loading world data...\n";
-    auto worldData = loadWorldData();
+  std::cout << "Loading world data...\n";
+  auto worldData = loadWorldData();
 
-    worldContext.cameraPosition = worldData.camera.transform.position;
-    worldContext.cameraLookAt = worldData.camera.direction;
+  worldContext.cameraPosition = worldData.camera.transform.position;
+  worldContext.cameraLookAt = worldData.camera.direction;
+  worldContext.cameraFovY = worldData.camera.fovY;
+  worldContext.cameraClipStart = worldData.camera.clipStart;
+  worldContext.cameraClipEnd = worldData.camera.clipEnd;
 
-    BlenderModel floorModel = loadModel("assets/floor.3d");
-    Mesh floorMesh = generateMesh(floorModel.vertices, floorModel.indices);
+  BlenderModel floorModel = loadModel("assets/floor.3d");
+  Mesh floorMesh = generateMesh(floorModel.vertices, floorModel.indices);
 
-    glm::vec3 rotation = glm::radians(worldData.floor.rotation);
+  glm::vec3 rotation = glm::radians(worldData.floor.rotation);
 
-    glm::mat4 model{1.0f};
-    model = glm::translate(model, worldData.floor.position);
-    model = glm::rotate(model, rotation.x, glm::vec3{1.0f, 0.0f, 0.0f});
-    model = glm::rotate(model, rotation.y, glm::vec3{0.0f, 1.0f, 0.0f});
-    model = glm::rotate(model, rotation.z, glm::vec3{0.0f, 0.0f, 1.0f});
-    model = glm::scale(model, worldData.floor.scale);
+  glm::mat4 model{1.0f};
+  model = glm::translate(model, worldData.floor.position);
+  model = glm::rotate(model, rotation.x, glm::vec3{1.0f, 0.0f, 0.0f});
+  model = glm::rotate(model, rotation.y, glm::vec3{0.0f, 1.0f, 0.0f});
+  model = glm::rotate(model, rotation.z, glm::vec3{0.0f, 0.0f, 1.0f});
+  model = glm::scale(model, worldData.floor.scale);
+
+  vulkanRendererContext.objects.push_back(
+      Object3D{.mesh = &floorMesh,
+               .renderKind = ObjectRenderKind::Static,
+               .worldKind = ObjectWorldKind::Floor,
+               .model = model});
+
+  std::vector<glm::vec4> animationPositions;
+
+  BlenderModel wizardModel = loadModel("assets/Wizzard_4.3d");
+
+  for (const AnimationClip &clip : wizardModel.animations) {
+    for (const AnimationKeyPose &keyPoses : clip.keyPoses) {
+      for (const glm::vec3 &pos : keyPoses.positions) {
+        animationPositions.push_back(glm::vec4(pos, 1.0f));
+      }
+    }
+  }
+
+  uploadAnimationPositions(animationPositions);
+
+  setupRendererAfterAssetsLoaded();
+
+  AnimatedMesh animatedMesh = generateAnimatedMesh(wizardModel, 0);
+
+  for (const glm::vec3 &wizardPosition : worldData.wizards.positions) {
+    glm::mat4 wizardModelMatrix{1.0f};
+    wizardModelMatrix = glm::translate(wizardModelMatrix, wizardPosition);
 
     vulkanRendererContext.objects.push_back(Object3D{
-        .mesh = &floorMesh,
-        .renderKind = ObjectRenderKind::Static,
-        .model = model});
+        .renderKind = ObjectRenderKind::Animated,
+        .worldKind = ObjectWorldKind::Wizard,
+        .mesh = nullptr,
+        .animatedMesh = &animatedMesh,
+        .model = wizardModelMatrix,
+        .activeAnimation = 0,
+        .activeFrame = 0,
+    });
+  }
 
-    std::vector<glm::vec4> animationPositions;
+  WizardBehavior wizardBehavior{};
 
-    BlenderModel wizardModel = loadModel("assets/Wizzard_4.3d");
+  while (!glfwWindowShouldClose(vulkanContext.window)) {
+    glfwPollEvents();
+    updateTime();
+    updateBehaviors();
+    updateAnimations();
+    drawFrame();
+  }
 
-    for (const AnimationClip &clip : wizardModel.animations)
-    {
-        for (const AnimationKeyPose &keyPoses : clip.keyPoses)
-        {
-            for (const glm::vec3 &pos : keyPoses.positions)
-            {
-                animationPositions.push_back(glm::vec4(pos, 1.0f));
-            }
-        }
-    }
+  cleanup();
 
-    uploadAnimationPositions(animationPositions);
-
-    setupRendererAfterAssetsLoaded();
-
-    AnimatedMesh animatedMesh = generateAnimatedMesh(wizardModel, 0);
-
-    for (const glm::vec3 &wizardPosition : worldData.wizards.positions)
-    {
-        glm::mat4 wizardModelMatrix{1.0f};
-        wizardModelMatrix = glm::translate(wizardModelMatrix, wizardPosition);
-
-        vulkanRendererContext.objects.push_back(Object3D{
-            .renderKind = ObjectRenderKind::Animated,
-            .mesh = nullptr,
-            .animatedMesh = &animatedMesh,
-            .model = wizardModelMatrix,
-            .activeAnimation = 0,
-            .activeFrame = 0,
-        });
-    }
-
-    WizardBehavior wizardBehavior{};
-
-    while (!glfwWindowShouldClose(vulkanContext.window))
-    {
-        glfwPollEvents();
-        updateTime();
-        behaveLikeWizzard(vulkanRendererContext.objects[1], wizardBehavior);
-        updateAnimations();
-        drawFrame();
-    }
-
-    cleanup();
-
-    return 0;
+  return 0;
 }

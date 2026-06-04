@@ -19,6 +19,13 @@ enum class ObjectRenderKind
     Animated
 };
 
+enum class ObjectWorldKind
+{
+    None,
+    Floor,
+    Wizard
+};
+
 struct Object3D
 {
     ObjectRenderKind renderKind = ObjectRenderKind::Static;
@@ -31,6 +38,8 @@ struct Object3D
 
     float animationTimeSeconds = 0.0f;
     float animationPlaySpeed = 1.0f;
+
+    ObjectWorldKind worldKind = ObjectWorldKind::None;
 };
 
 // Will store/handle every vulkan stuff that can change depending of how we decide that the renderer

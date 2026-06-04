@@ -26,9 +26,14 @@ static void initWindow()
 {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-    vulkanContext.window = glfwCreateWindow(800, 600, "Spaceguy", nullptr, nullptr);
+    GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+
+    vulkanContext.window = glfwCreateWindow(mode->width, mode->height, "Spaceguy", monitor, nullptr);
+
+    // We need to code ESC to close or something.
+    glfwSetWindowMonitor(vulkanContext.window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
 }
 
 static void createInstance()

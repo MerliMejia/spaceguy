@@ -240,6 +240,15 @@ WorldData loadWorldData()
     expect("look_direction");
     data.camera.direction = readVec3();
 
+    expect("fov_y");
+    data.camera.fovY = readFloat();
+
+    expect("clip_start");
+    data.camera.clipStart = readFloat();
+
+    expect("clip_end");
+    data.camera.clipEnd = readFloat();
+
     expect("wizards");
 
     expect("wizard_count");

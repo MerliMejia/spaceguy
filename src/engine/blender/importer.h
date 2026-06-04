@@ -49,6 +49,9 @@ struct Camera
 {
     Transform transform;
     glm::vec3 direction;
+    float fovY = glm::radians(45.0f);
+    float clipStart = 0.1f;
+    float clipEnd = 100.0f;
 };
 
 struct Wizards

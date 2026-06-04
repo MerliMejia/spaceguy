@@ -480,11 +480,11 @@ void updateUniformBuffer(uint32_t currentImage)
         glm::vec3{0.0f, 0.0f, 1.0f});
 
     camera.proj = glm::perspective(
-        glm::radians(45.0f),
+        worldContext.cameraFovY,
         static_cast<float>(vulkanContext.swapchainExtent.width) /
             static_cast<float>(vulkanContext.swapchainExtent.height),
-        0.1f,
-        100.0f);
+        worldContext.cameraClipStart,
+        worldContext.cameraClipEnd);
 
     camera.proj[1][1] *= -1.0f;
 

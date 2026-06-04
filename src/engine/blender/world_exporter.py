@@ -71,6 +71,9 @@ def export_spaceguy_world(filepath):
         write_transform(file, camera)
         file.write("look_direction ")
         write_vec3(file, get_camera_look_direction(camera))
+        file.write(f"fov_y {camera.data.angle_y:.9f}\n")
+        file.write(f"clip_start {camera.data.clip_start:.9f}\n")
+        file.write(f"clip_end {camera.data.clip_end:.9f}\n")
         file.write("\n")
 
         file.write("wizards\n")
