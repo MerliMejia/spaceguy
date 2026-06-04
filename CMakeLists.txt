@@ -29,6 +29,8 @@ add_executable(spaceguy
     src/utils/input.cpp
     src/utils/time.cpp
     src/systems/worldSystem.cpp
+    src/behaviors/wizardBehavior.cpp
+    src/utils/math.cpp
 )
 
 target_compile_features(spaceguy PRIVATE cxx_std_20)

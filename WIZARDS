@@ -14,6 +14,9 @@ Mechanics
 - Primitives
     - Stay still (Need better idle animation).
     - Move to diferent positions (Running animation + Rotating and Movements).
+        - Translates on a X and Y coordinates.
+        - Uses a Radius of some value (10?) to determinate a random place were to move next.
+        - After the next moving spot is chosen, it moves a a <speed> to that position.
     - Kick (Used to roll the dice and to send enemies that are too close away).
     - Activate spell.
     - Jump?????.
