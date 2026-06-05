@@ -10,12 +10,10 @@ void evaluateDecisionTree(DecisionNode *node) {
     return;
   }
 
-  bool isYes = true;
-  for (bool condition : node->conditions) {
-    if (!condition) {
-      isYes = false;
-      break;
-    }
+  bool isYes = false;
+
+  if (node->conditions) {
+    isYes = node->conditions();
   }
 
   evaluateDecisionTree(isYes ? node->yes : node->no);

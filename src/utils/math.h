@@ -6,8 +6,15 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+struct Transform {
+  glm::vec3 position;
+  glm::vec3 scale;
+  glm::quat rotation;
+};
+
 glm::mat4 transformToModel(glm::vec3 position, glm::vec3 rotation,
                            glm::vec3 scale);
+Transform modelToTransform(glm::mat4 &model);
 glm::vec3 randomPointInCircleXY(const glm::vec3 &center, float radius);
 
 inline constexpr float CHECK_RADIUS = 5.0f;

@@ -7,7 +7,6 @@
 
 #include <iostream>
 
-#include "behaviors/wizardBehavior.h"
 #include "engine/blender/importer.h"
 #include "engine/vulkanBackend.h"
 #include "engine/vulkanRenderer.h"
@@ -38,64 +37,69 @@ int main() {
   std::cout << "Loading world data...\n";
   auto worldData = loadWorldData();
 
-  worldContext.cameraPosition = worldData.camera.transform.position;
-  worldContext.cameraLookAt = worldData.camera.direction;
-  worldContext.cameraFovY = worldData.camera.fovY;
-  worldContext.cameraClipStart = worldData.camera.clipStart;
-  worldContext.cameraClipEnd = worldData.camera.clipEnd;
+  Mesh floorMesh;
+  AnimatedMesh animatedMesh;
 
-  BlenderModel floorModel = loadModel("assets/floor.3d");
-  Mesh floorMesh = generateMesh(floorModel.vertices, floorModel.indices);
+  {
+    worldContext.cameraPosition = worldData.camera.transform.position;
+    worldContext.cameraLookAt = worldData.camera.direction;
+    worldContext.cameraFovY = worldData.camera.fovY;
+    worldContext.cameraClipStart = worldData.camera.clipStart;
+    worldContext.cameraClipEnd = worldData.camera.clipEnd;
 
-  glm::vec3 rotation = glm::radians(worldData.floor.rotation);
+    BlenderModel floorModel = loadModel("assets/floor.3d");
+    floorMesh = generateMesh(floorModel.vertices, floorModel.indices);
 
-  glm::mat4 model{1.0f};
-  model = glm::translate(model, worldData.floor.position);
-  model = glm::rotate(model, rotation.x, glm::vec3{1.0f, 0.0f, 0.0f});
-  model = glm::rotate(model, rotation.y, glm::vec3{0.0f, 1.0f, 0.0f});
-  model = glm::rotate(model, rotation.z, glm::vec3{0.0f, 0.0f, 1.0f});
-  model = glm::scale(model, worldData.floor.scale);
+    glm::vec3 rotation = glm::radians(worldData.floor.rotation);
 
-  vulkanRendererContext.objects.push_back(
-      Object3D{.mesh = &floorMesh,
-               .renderKind = ObjectRenderKind::Static,
-               .worldKind = ObjectWorldKind::Floor,
-               .model = model});
+    glm::mat4 model{1.0f};
+    model = glm::translate(model, worldData.floor.position);
+    model = glm::rotate(model, rotation.x, glm::vec3{1.0f, 0.0f, 0.0f});
+    model = glm::rotate(model, rotation.y, glm::vec3{0.0f, 1.0f, 0.0f});
+    model = glm::rotate(model, rotation.z, glm::vec3{0.0f, 0.0f, 1.0f});
+    model = glm::scale(model, worldData.floor.scale);
 
-  std::vector<glm::vec4> animationPositions;
+    vulkanRendererContext.objects.push_back(
+        Object3D{.mesh = &floorMesh,
+                 .renderKind = ObjectRenderKind::Static,
+                 .worldKind = ObjectWorldKind::Floor,
+                 .model = model});
 
-  BlenderModel wizardModel = loadModel("assets/Wizzard_4.3d");
+    std::vector<glm::vec4> animationPositions;
 
-  for (const AnimationClip &clip : wizardModel.animations) {
-    for (const AnimationKeyPose &keyPoses : clip.keyPoses) {
-      for (const glm::vec3 &pos : keyPoses.positions) {
-        animationPositions.push_back(glm::vec4(pos, 1.0f));
+    BlenderModel wizardModel = loadModel("assets/Wizzard_4.3d");
+
+    for (const AnimationClip &clip : wizardModel.animations) {
+      for (const AnimationKeyPose &keyPoses : clip.keyPoses) {
+        for (const glm::vec3 &pos : keyPoses.positions) {
+          animationPositions.push_back(glm::vec4(pos, 1.0f));
+        }
       }
+    }
+
+    uploadAnimationPositions(animationPositions);
+
+    setupRendererAfterAssetsLoaded();
+
+    animatedMesh = generateAnimatedMesh(wizardModel, 0);
+
+    for (const glm::vec3 &wizardPosition : worldData.wizards.positions) {
+      glm::mat4 wizardModelMatrix{1.0f};
+      wizardModelMatrix = glm::translate(wizardModelMatrix, wizardPosition);
+
+      vulkanRendererContext.objects.push_back(Object3D{
+          .renderKind = ObjectRenderKind::Animated,
+          .worldKind = ObjectWorldKind::Wizard,
+          .mesh = nullptr,
+          .animatedMesh = &animatedMesh,
+          .model = wizardModelMatrix,
+          .activeAnimation = 0,
+          .activeFrame = 0,
+      });
     }
   }
 
-  uploadAnimationPositions(animationPositions);
-
-  setupRendererAfterAssetsLoaded();
-
-  AnimatedMesh animatedMesh = generateAnimatedMesh(wizardModel, 0);
-
-  for (const glm::vec3 &wizardPosition : worldData.wizards.positions) {
-    glm::mat4 wizardModelMatrix{1.0f};
-    wizardModelMatrix = glm::translate(wizardModelMatrix, wizardPosition);
-
-    vulkanRendererContext.objects.push_back(Object3D{
-        .renderKind = ObjectRenderKind::Animated,
-        .worldKind = ObjectWorldKind::Wizard,
-        .mesh = nullptr,
-        .animatedMesh = &animatedMesh,
-        .model = wizardModelMatrix,
-        .activeAnimation = 0,
-        .activeFrame = 0,
-    });
-  }
-
-  WizardBehavior wizardBehavior{};
+  initializeBehaviors();
 
   while (!glfwWindowShouldClose(vulkanContext.window)) {
     glfwPollEvents();

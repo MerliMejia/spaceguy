@@ -4,29 +4,44 @@
 #include "../behaviors/wizardBehavior.h"
 
 static std::vector<WizardBehavior> wizardBehaviors;
-static bool wasBehaviorsInitialized = false;
 
 WorldContext worldContext;
 
-void updateBehaviors() {
-  if (!wasBehaviorsInitialized) {
-    for (Object3D &object : vulkanRendererContext.objects) {
-      wizardBehaviors.push_back({});
+void initializeBehaviors() {
+  std::size_t wizardCount = 0;
+
+  for (const Object3D &object : vulkanRendererContext.objects) {
+    if (object.worldKind == ObjectWorldKind::Wizard) {
+      wizardCount++;
     }
-    wasBehaviorsInitialized = true;
   }
 
+  wizardBehaviors.reserve(wizardCount);
+
+  for (Object3D &object : vulkanRendererContext.objects) {
+    if (object.worldKind != ObjectWorldKind::Wizard) {
+      continue;
+    }
+
+    WizardBehavior &behavior = wizardBehaviors.emplace_back();
+    initializeWizardDecisionTree(object, behavior);
+  }
+}
+
+void updateBehaviors() {
+  std::size_t wizardIndex = 0;
   for (int i = 0; i < vulkanRendererContext.objects.size(); i++) {
     Object3D &object = vulkanRendererContext.objects[i];
-    WizardBehavior &behavior = wizardBehaviors[i];
 
     switch (object.worldKind) {
     case ObjectWorldKind::None:
       break;
     case ObjectWorldKind::Floor:
       break;
-    case ObjectWorldKind::Wizard:
+    case ObjectWorldKind::Wizard: {
+      WizardBehavior &behavior = wizardBehaviors[wizardIndex++];
       behaveLikeWizzard(object, behavior);
+    }
     }
   }
 }

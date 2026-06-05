@@ -1,9 +1,5 @@
 Wizard behavior
 
-[x] Create better idle animation
-[x] Create running animation
-[x] Create kicking animation
-[x] Create attacking animation
-[x] Have a wizard able to change animations by command
+Currently the wizard decision trees are being built on each frame.
 
-[] Implement behavior tree.
+We can build the tree once and pass the updated conditions on each frame.

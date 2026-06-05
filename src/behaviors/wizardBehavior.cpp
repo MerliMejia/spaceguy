@@ -3,7 +3,7 @@
 #include "../utils/time.h"
 #include "./decisionTree.h"
 
-void attackExecute(Object3D &object, WizardBehavior &behavior) {
+static void wizardAttackExecute(Object3D &object, WizardBehavior &behavior) {
   if (behavior.state != WizardState::Attacking) {
     object.activeAnimation = 0;
     object.animationTimeSeconds = 0;
@@ -18,8 +18,9 @@ void attackExecute(Object3D &object, WizardBehavior &behavior) {
     behavior.moves = 0;
   }
 }
-void moveExecute(Object3D &object, WizardBehavior &behavior,
-                 glm::vec3 &objectPosition, glm::vec3 &objectScale) {
+static void wizardMoveExecute(Object3D &object, WizardBehavior &behavior) {
+
+  auto transform = modelToTransform(object.model);
 
   if (behavior.state != WizardState::Moving) {
     // The center should be "the position 0,0 of the current scene when the
@@ -31,7 +32,7 @@ void moveExecute(Object3D &object, WizardBehavior &behavior,
     object.activeAnimation = 3;
   }
 
-  glm::vec2 a{objectPosition.x, objectPosition.y};
+  glm::vec2 a{transform.position.x, transform.position.y};
   glm::vec2 b{behavior.nextMovePoint.x, behavior.nextMovePoint.y};
   glm::vec2 delta = b - a;
 
@@ -46,14 +47,14 @@ void moveExecute(Object3D &object, WizardBehavior &behavior,
     float step = glm::min(behavior.speed * timeState.deltaTime, distance);
     a += direction * step;
 
-    objectPosition.x = a.x;
-    objectPosition.y = a.y;
+    transform.position.x = a.x;
+    transform.position.y = a.y;
 
     glm::mat4 model{1.0f};
-    model = glm::translate(model, objectPosition);
+    model = glm::translate(model, transform.position);
     model = glm::rotate(model, yawDelta, glm::vec3{0.0f, 0.0f, 1.0f});
     model = model * behavior.initialRotation;
-    model = glm::scale(model, objectScale);
+    model = glm::scale(model, transform.scale);
 
     object.model = model;
   } else {
@@ -64,13 +65,13 @@ void moveExecute(Object3D &object, WizardBehavior &behavior,
     behavior.attacks = 0;
   }
 }
-void thinkingExecute(Object3D &object, WizardBehavior &behavior) {
+static void wizardThinkingExecute(Object3D &object, WizardBehavior &behavior) {
   behavior.state = WizardState::Thinking;
   // Should definetly map animations
   object.activeAnimation = 1;
 }
 
-bool isSomeoneClose(const Object3D &self) {
+static bool wizardIsSomeoneClose(const Object3D &self) {
   const glm::vec3 selfPosition = glm::vec3(self.model[3]);
 
   for (const Object3D &other : vulkanRendererContext.objects) {
@@ -99,14 +100,52 @@ bool isSomeoneClose(const Object3D &self) {
   return false;
 }
 
+void initializeWizardDecisionTree(Object3D &object, WizardBehavior &behavior) {
+
+  behavior.attackNode.execute = [&object, &behavior]() {
+    wizardAttackExecute(object, behavior);
+  };
+
+  behavior.moveNode.execute = [&object, &behavior]() {
+    wizardMoveExecute(object, behavior);
+  };
+
+  behavior.thinkingNode.execute = [&object, &behavior]() {
+    wizardThinkingExecute(object, behavior);
+  };
+
+  behavior.tooManyMovesNode.conditions = [&behavior]() {
+    return behavior.moves >= 2;
+  };
+
+  behavior.tooManyAttacksNode.conditions = [&behavior]() {
+    return behavior.attacks >= 2;
+  };
+
+  behavior.someoneIsCloseNode.conditions = [&object]() {
+    return wizardIsSomeoneClose(object);
+  };
+
+  behavior.decisionTree.conditions = [&behavior]() {
+    return behavior.tick > behavior.thinkingTime;
+  };
+
+  behavior.tooManyMovesNode.yes = &behavior.attackNode;
+  behavior.tooManyMovesNode.no = &behavior.moveNode;
+
+  behavior.tooManyAttacksNode.yes = &behavior.moveNode;
+  behavior.tooManyAttacksNode.no = &behavior.attackNode;
+
+  behavior.someoneIsCloseNode.yes = &behavior.tooManyMovesNode;
+  behavior.someoneIsCloseNode.no = &behavior.tooManyAttacksNode;
+
+  behavior.decisionTree.yes = &behavior.someoneIsCloseNode;
+  behavior.decisionTree.no = &behavior.thinkingNode;
+}
+
 void behaveLikeWizzard(Object3D &object, WizardBehavior &currentBehavior) {
 
   currentBehavior.tick += timeState.deltaTime;
-
-  glm::vec3 objectPosition = glm::vec3(object.model[3]);
-  glm::vec3 objectScale = glm::vec3{glm::length(glm::vec3(object.model[0])),
-                                    glm::length(glm::vec3(object.model[1])),
-                                    glm::length(glm::vec3(object.model[2]))};
 
   if (!currentBehavior.hasInitialRotation) {
     glm::mat4 initialRotation{1.0f};
@@ -129,37 +168,5 @@ void behaveLikeWizzard(Object3D &object, WizardBehavior &currentBehavior) {
     currentBehavior.hasInitialRotation = true;
   }
 
-  DecisionNode attackNode{
-      .execute = [&]() { attackExecute(object, currentBehavior); }};
-
-  DecisionNode moveNode{.execute = [&]() {
-    moveExecute(object, currentBehavior, objectPosition, objectScale);
-  }};
-
-  DecisionNode someoneIscloseNode;
-
-  DecisionNode tooManyMovesNode;
-  tooManyMovesNode.yes = &attackNode;
-  tooManyMovesNode.no = &moveNode;
-  tooManyMovesNode.conditions = {currentBehavior.moves >= 2};
-
-  DecisionNode tooManyAttacksNode;
-  tooManyAttacksNode.yes = &moveNode;
-  tooManyAttacksNode.no = &attackNode;
-  tooManyAttacksNode.conditions = {currentBehavior.attacks >= 2};
-
-  someoneIscloseNode.conditions = {isSomeoneClose(object)};
-  someoneIscloseNode.yes = &tooManyMovesNode;
-  someoneIscloseNode.no = &tooManyAttacksNode;
-
-  DecisionNode thinkingNode;
-  thinkingNode.execute = [&]() { thinkingExecute(object, currentBehavior); };
-
-  DecisionNode hasToughtEnoughNode;
-  hasToughtEnoughNode.conditions = {currentBehavior.tick >
-                                    currentBehavior.thinkingTime};
-  hasToughtEnoughNode.yes = &someoneIscloseNode;
-  hasToughtEnoughNode.no = &thinkingNode;
-
-  evaluateDecisionTree(&hasToughtEnoughNode);
+  evaluateDecisionTree(&currentBehavior.decisionTree);
 }

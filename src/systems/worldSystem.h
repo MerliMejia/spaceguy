@@ -17,3 +17,4 @@ struct WorldContext {
 extern WorldContext worldContext;
 
 void updateBehaviors();
+void initializeBehaviors();

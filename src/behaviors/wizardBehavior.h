@@ -1,9 +1,11 @@
 #pragma once
 
+#include "decisionTree.h"
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "../engine/vulkanRenderer.h"
 #include "../utils/math.h"
+#include <functional>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -25,6 +27,23 @@ struct WizardBehavior {
   // Accomulators
   int moves = 0;
   int attacks = 0;
+
+  // Validators
+  std::function<bool()> hasToughtEnoug;
+  std::function<bool()> someoneIsClose;
+  std::function<bool()> tooManyAttacks;
+  std::function<bool()> tooManyMoves;
+
+  // Decision tree nodes
+  DecisionNode attackNode;
+  DecisionNode moveNode;
+  DecisionNode someoneIsCloseNode;
+  DecisionNode tooManyMovesNode;
+  DecisionNode tooManyAttacksNode;
+  DecisionNode thinkingNode;
+  DecisionNode decisionTree;
 };
 
+void initializeWizardDecisionTree(Object3D &object,
+                                  WizardBehavior &currentBehavior);
 void behaveLikeWizzard(Object3D &object, WizardBehavior &currentBehavior);
