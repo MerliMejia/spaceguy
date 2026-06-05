@@ -13,6 +13,7 @@ void updateBehaviors() {
     for (Object3D &object : vulkanRendererContext.objects) {
       wizardBehaviors.push_back({});
     }
+    wasBehaviorsInitialized = true;
   }
 
   for (int i = 0; i < vulkanRendererContext.objects.size(); i++) {
