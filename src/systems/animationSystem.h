@@ -16,3 +16,4 @@ struct AnimationDataFromObject
 void updateAnimations();
 
 AnimationDataFromObject getAnimationDataFromObject(const Object3D &object);
+bool hasActiveAnimationEnded(const Object3D& object);
