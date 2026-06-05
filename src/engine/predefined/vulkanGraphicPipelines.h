@@ -9,6 +9,7 @@
 // Different graphic pipelines.
 extern void DEFAULT_GRAPHICS_PIPELINE();
 extern void ANIMATED_GRAPHICS_PIPELINE();
+extern void DEBUG_GRAPHICS_PIPELINE();
 
 // Different uniform buffers and push constants
 struct CameraBufferObject

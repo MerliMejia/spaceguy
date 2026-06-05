@@ -104,6 +104,9 @@ int main() {
   while (!glfwWindowShouldClose(vulkanContext.window)) {
     glfwPollEvents();
     updateTime();
+    if (vulkanRendererContext.isDebug) {
+      clearDebugShapes();
+    }
     updateBehaviors();
     updateAnimations();
     drawFrame();

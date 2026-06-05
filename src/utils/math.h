@@ -17,5 +17,5 @@ glm::mat4 transformToModel(glm::vec3 position, glm::vec3 rotation,
 Transform modelToTransform(glm::mat4 &model);
 glm::vec3 randomPointInCircleXY(const glm::vec3 &center, float radius);
 
-inline constexpr float CHECK_RADIUS = 5.0f;
+inline constexpr float CHECK_RADIUS = 8.0f;
 inline constexpr float RADIUS_SQ = CHECK_RADIUS * CHECK_RADIUS;

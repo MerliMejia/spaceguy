@@ -7,6 +7,50 @@ static std::vector<WizardBehavior> wizardBehaviors;
 
 WorldContext worldContext;
 
+static glm::vec4 debugColorForWizardState(WizardState state) {
+  switch (state) {
+  case WizardState::Thinking:
+    return glm::vec4{0.25f, 0.45f, 1.0f, 1.0f};
+  case WizardState::Moving:
+    return glm::vec4{0.0f, 0.85f, 1.0f, 1.0f};
+  case WizardState::Attacking:
+    return glm::vec4{1.0f, 0.05f, 0.05f, 1.0f};
+  }
+
+  return glm::vec4{1.0f, 1.0f, 1.0f, 1.0f};
+}
+
+static void drawWizardDebug(const Object3D &object,
+                            const WizardBehavior &behavior) {
+  const glm::vec3 position = glm::vec3(object.model[3]);
+  const bool someoneIsClose = behavior.someoneIsClose();
+
+  const glm::vec4 radiusColor = someoneIsClose
+                                    ? glm::vec4{1.0f, 0.05f, 0.05f, 1.0f}
+                                    : glm::vec4{0.25f, 0.45f, 1.0f, 1.0f};
+
+  addDebugDiskXY(position, CHECK_RADIUS, radiusColor);
+
+  const glm::vec3 forward = glm::normalize(
+      glm::vec3(object.model * glm::vec4{0.0f, -1.0f, 0.0f, 0.0f}));
+  addDebugLine(position, position + forward * 2.0f,
+               glm::vec4{1.0f, 0.0f, 0.85f, 1.0f});
+
+  if (behavior.state == WizardState::Moving) {
+    addDebugCube(behavior.nextMovePoint, 0.75f,
+                 glm::vec4{1.0f, 0.45f, 0.0f, 1.0f});
+
+    addDebugLine(position, behavior.nextMovePoint,
+                 glm::vec4{1.0f, 0.45f, 0.0f, 1.0f});
+  }
+
+  glm::vec3 closestWizardPosition{};
+  if (findClosestWizardInRange(object, closestWizardPosition)) {
+    addDebugLine(position, closestWizardPosition,
+                 glm::vec4{1.0f, 0.0f, 0.0f, 1.0f});
+  }
+}
+
 void initializeBehaviors() {
   std::size_t wizardCount = 0;
 
@@ -41,6 +85,9 @@ void updateBehaviors() {
     case ObjectWorldKind::Wizard: {
       WizardBehavior &behavior = wizardBehaviors[wizardIndex++];
       behaveLikeWizzard(object, behavior);
+      if (vulkanRendererContext.isDebug) {
+        drawWizardDebug(object, behavior);
+      }
     }
     }
   }

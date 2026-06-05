@@ -12,38 +12,43 @@
 enum class WizardState { Thinking, Moving, Attacking };
 
 struct WizardBehavior {
+  // Tuning
   float speed = 5.0f;
-  float moveToRadius = 10.0f;
-  float thinkingTime = 3.0f;
+  float moveToRadius = CHECK_RADIUS * 2;
+  float thinkingTime = 0.2f;
   float tick = 0.0f;
 
-  glm::vec3 nextMovePoint;
+  // Current action state
   WizardState state = WizardState::Thinking;
+  glm::vec3 nextMovePoint;
 
+  // Orientation captured from the imported model the first time it updates.
   bool hasInitialRotation = false;
   glm::mat4 initialRotation{1.0f};
   float initialForwardYaw = 0.0f;
 
-  // Accomulators
+  // Consecutive action counters
   int moves = 0;
   int attacks = 0;
 
-  // Validators
-  std::function<bool()> hasToughtEnoug;
+  // Shared condition used by the tree and debug drawing.
   std::function<bool()> someoneIsClose;
-  std::function<bool()> tooManyAttacks;
-  std::function<bool()> tooManyMoves;
 
-  // Decision tree nodes
+  // Decision tree action leaves
   DecisionNode attackNode;
   DecisionNode moveNode;
+  DecisionNode thinkingNode;
+  DecisionNode continueActionNode;
+
+  // Decision tree branches
+  DecisionNode actionInProgressNode;
+  DecisionNode thoughtEnoughNode;
   DecisionNode someoneIsCloseNode;
   DecisionNode tooManyMovesNode;
   DecisionNode tooManyAttacksNode;
-  DecisionNode thinkingNode;
-  DecisionNode decisionTree;
 };
 
 void initializeWizardDecisionTree(Object3D &object,
                                   WizardBehavior &currentBehavior);
 void behaveLikeWizzard(Object3D &object, WizardBehavior &currentBehavior);
+bool findClosestWizardInRange(const Object3D &self, glm::vec3 &closestPosition);
