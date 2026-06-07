@@ -14,6 +14,76 @@ static bool isActionInProgress(const WizardBehavior &behavior) {
          behavior.state == WizardState::Kicking;
 }
 
+static bool wizardLookAtPoint(Object3D &object, const WizardBehavior &behavior,
+                              const glm::vec3 &targetPoint) {
+  auto transform = modelToTransform(object.model);
+
+  glm::vec2 a{transform.position.x, transform.position.y};
+  glm::vec2 b{targetPoint.x, targetPoint.y};
+  glm::vec2 delta = b - a;
+
+  float distance = glm::length(delta);
+
+  if (distance <= MOVE_TARGET_EPSILON) {
+    return false;
+  }
+
+  glm::vec2 direction = delta / distance;
+  float targetYaw = std::atan2(direction.y, direction.x);
+  float yawDelta = targetYaw - behavior.initialForwardYaw;
+
+  glm::mat4 model{1.0f};
+  model = glm::translate(model, transform.position);
+  model = glm::rotate(model, yawDelta, glm::vec3{0.0f, 0.0f, 1.0f});
+  model = model * behavior.initialRotation;
+  model = glm::scale(model, transform.scale);
+
+  object.model = model;
+  return true;
+}
+
+static void applyWizardTransformFacing(Object3D &object,
+                                       const WizardBehavior &behavior,
+                                       const Transform &transform,
+                                       const glm::vec3 &targetPoint) {
+  glm::vec2 a{transform.position.x, transform.position.y};
+  glm::vec2 b{targetPoint.x, targetPoint.y};
+  glm::vec2 delta = b - a;
+
+  float distance = glm::length(delta);
+  if (distance <= MOVE_TARGET_EPSILON) {
+    return;
+  }
+
+  glm::vec2 direction = delta / distance;
+  float targetYaw = std::atan2(direction.y, direction.x);
+  float yawDelta = targetYaw - behavior.initialForwardYaw;
+
+  glm::mat4 model{1.0f};
+  model = glm::translate(model, transform.position);
+  model = glm::rotate(model, yawDelta, glm::vec3{0.0f, 0.0f, 1.0f});
+  model = model * behavior.initialRotation;
+  model = glm::scale(model, transform.scale);
+
+  object.model = model;
+}
+
+static void applyWizardTransformFacingDirection(Object3D &object,
+                                                const WizardBehavior &behavior,
+                                                const Transform &transform,
+                                                const glm::vec2 &direction) {
+  float targetYaw = std::atan2(direction.y, direction.x);
+  float yawDelta = targetYaw - behavior.initialForwardYaw;
+
+  glm::mat4 model{1.0f};
+  model = glm::translate(model, transform.position);
+  model = glm::rotate(model, yawDelta, glm::vec3{0.0f, 0.0f, 1.0f});
+  model = model * behavior.initialRotation;
+  model = glm::scale(model, transform.scale);
+
+  object.model = model;
+}
+
 static glm::vec3 chooseMovePoint(const WizardBehavior &behavior) {
   // Movement currently stays inside the play area centered at world origin.
   return randomPointInCircleXY(glm::vec3{0.0f}, behavior.moveToRadius);
@@ -105,44 +175,36 @@ static void wizardMoveExecute(Object3D &object, WizardBehavior &behavior) {
     object.activeAnimation = 3;
   }
 
-  glm::vec2 a{transform.position.x, transform.position.y};
-  glm::vec2 b{behavior.nextMovePoint.x, behavior.nextMovePoint.y};
-  glm::vec2 delta = b - a;
+  glm::vec2 currentPosition{transform.position.x, transform.position.y};
+  glm::vec2 targetPosition{behavior.nextMovePoint.x, behavior.nextMovePoint.y};
+  glm::vec2 delta = targetPosition - currentPosition;
 
   float distance = glm::length(delta);
 
   if (distance > MOVE_TARGET_EPSILON) {
     glm::vec2 direction = delta / distance;
 
-    float targetYaw = std::atan2(direction.y, direction.x);
-    float yawDelta = targetYaw - behavior.initialForwardYaw;
-
     float step = glm::min(behavior.speed * timeState.deltaTime, distance);
-    a += direction * step;
+    currentPosition += direction * step;
 
-    transform.position.x = a.x;
-    transform.position.y = a.y;
+    transform.position.x = currentPosition.x;
+    transform.position.y = currentPosition.y;
 
-    glm::mat4 model{1.0f};
-    model = glm::translate(model, transform.position);
-    model = glm::rotate(model, yawDelta, glm::vec3{0.0f, 0.0f, 1.0f});
-    model = model * behavior.initialRotation;
-    model = glm::scale(model, transform.scale);
-
-    object.model = model;
-  } else {
-    if (wizardIsSomeoneClose(object)) {
-      behavior.nextMovePoint = chooseMovePoint(behavior);
-      return;
-    }
-
-    behavior.tick = 0.0f;
-    behavior.state = WizardState::Thinking;
-    object.activeAnimation = 1;
-    behavior.moves++;
-    behavior.attacks = 0;
-    behavior.kicks = 0;
+    applyWizardTransformFacingDirection(object, behavior, transform, direction);
+    return;
   }
+
+  if (wizardIsSomeoneClose(object)) {
+    behavior.nextMovePoint = chooseMovePoint(behavior);
+    return;
+  }
+
+  behavior.tick = 0.0f;
+  behavior.state = WizardState::Thinking;
+  object.activeAnimation = 1;
+  behavior.moves++;
+  behavior.attacks = 0;
+  behavior.kicks = 0;
 }
 
 static void wizardThinkingExecute(Object3D &object, WizardBehavior &behavior) {
@@ -163,28 +225,11 @@ static void wizardKickExecute(Object3D &object, WizardBehavior &behavior) {
         object.animatedMesh->fps;
     behavior.state = WizardState::Kicking;
   }
-  auto transform = modelToTransform(object.model);
 
-  glm::vec2 a{transform.position.x, transform.position.y};
-  glm::vec2 b{behavior.kickingObject.x, behavior.kickingObject.y};
+  Transform transform = modelToTransform(object.model);
 
-  glm::vec2 delta = b - a;
-
-  float distance = glm::length(delta);
-
-  if (distance > MOVE_TARGET_EPSILON) {
-    glm::vec2 direction = delta / distance;
-    float targetYaw = std::atan2(direction.y, direction.x);
-    float yawDelta = targetYaw - behavior.initialForwardYaw;
-
-    glm::mat4 model{1.0f};
-    model = glm::translate(model, transform.position);
-    model = glm::rotate(model, yawDelta, glm::vec3{0.0f, 0.0f, 1.0f});
-    model = model * behavior.initialRotation;
-    model = glm::scale(model, transform.scale);
-
-    object.model = model;
-  }
+  applyWizardTransformFacing(object, behavior, transform,
+                             behavior.kickingObject);
 
   if (hasActiveAnimationEnded(object)) {
     object.activeAnimation = 1;
