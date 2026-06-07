@@ -15,6 +15,8 @@ static glm::vec4 debugColorForWizardState(WizardState state) {
     return glm::vec4{0.0f, 0.85f, 1.0f, 1.0f};
   case WizardState::Attacking:
     return glm::vec4{1.0f, 0.05f, 0.05f, 1.0f};
+  case WizardState::Kicking:
+    return glm::vec4{1.0f, 0.75f, 0.05f, 1.0f};
   }
 
   return glm::vec4{1.0f, 1.0f, 1.0f, 1.0f};
@@ -24,12 +26,17 @@ static void drawWizardDebug(const Object3D &object,
                             const WizardBehavior &behavior) {
   const glm::vec3 position = glm::vec3(object.model[3]);
   const bool someoneIsClose = behavior.someoneIsClose();
+  const bool someoneIsSuperClose = behavior.someoneIsSuperClose();
 
   const glm::vec4 radiusColor = someoneIsClose
                                     ? glm::vec4{1.0f, 0.05f, 0.05f, 1.0f}
                                     : glm::vec4{0.25f, 0.45f, 1.0f, 1.0f};
+  const glm::vec4 superCloseRadiusColor =
+      someoneIsSuperClose ? glm::vec4{1.0f, 0.05f, 0.05f, 1.0f}
+                          : glm::vec4{0.25f, 0.45f, 1.0f, 1.0f};
 
   addDebugDiskXY(position, CHECK_RADIUS, radiusColor);
+  addDebugDiskXY(position, SUPER_CLOSE_RADIUS, superCloseRadiusColor);
 
   const glm::vec3 forward = glm::normalize(
       glm::vec3(object.model * glm::vec4{0.0f, -1.0f, 0.0f, 0.0f}));

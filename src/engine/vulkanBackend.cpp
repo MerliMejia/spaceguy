@@ -24,10 +24,10 @@ static void initWindow() {
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
   GLFWmonitor *monitor = glfwGetPrimaryMonitor();
-  // const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+  const GLFWvidmode *mode = glfwGetVideoMode(monitor);
 
   vulkanContext.window =
-      glfwCreateWindow(1280, 720, "Spaceguy", nullptr, nullptr);
+      glfwCreateWindow(mode->width, mode->height, "Spaceguy", nullptr, nullptr);
   // vulkanContext.window = glfwCreateWindow(mode->width, mode->height,
   // "Spaceguy", monitor, nullptr);
 

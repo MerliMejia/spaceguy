@@ -5,11 +5,13 @@
 
 static constexpr int MAX_CONSECUTIVE_MOVES = 2;
 static constexpr int MAX_CONSECUTIVE_ATTACKS = 2;
+static constexpr int MAX_CONSECUTIVE_KICKS = 2;
 static constexpr float MOVE_TARGET_EPSILON = 0.000001f;
 
 static bool isActionInProgress(const WizardBehavior &behavior) {
   return behavior.state == WizardState::Moving ||
-         behavior.state == WizardState::Attacking;
+         behavior.state == WizardState::Attacking ||
+         behavior.state == WizardState::Kicking;
 }
 
 static glm::vec3 chooseMovePoint(const WizardBehavior &behavior) {
@@ -52,12 +54,13 @@ static void wizardAttackExecute(Object3D &object, WizardBehavior &behavior) {
     behavior.tick = 0;
     behavior.attacks++;
     behavior.moves = 0;
+    behavior.kicks = 0;
   }
 }
 
-bool findClosestWizardInRange(const Object3D &self, glm::vec3 &closestPosition) {
+bool findClosestWizardInRange(const Object3D &self, glm::vec3 &closestPosition,
+                              float closestDistanceSquared) {
   const glm::vec3 selfPosition = glm::vec3(self.model[3]);
-  float closestDistanceSquared = RADIUS_SQ;
   bool foundWizard = false;
 
   for (const Object3D &other : vulkanRendererContext.objects) {
@@ -138,6 +141,7 @@ static void wizardMoveExecute(Object3D &object, WizardBehavior &behavior) {
     object.activeAnimation = 1;
     behavior.moves++;
     behavior.attacks = 0;
+    behavior.kicks = 0;
   }
 }
 
@@ -145,6 +149,51 @@ static void wizardThinkingExecute(Object3D &object, WizardBehavior &behavior) {
   behavior.state = WizardState::Thinking;
   // Should definetly map animations
   object.activeAnimation = 1;
+}
+
+static void wizardKickExecute(Object3D &object, WizardBehavior &behavior) {
+  if (behavior.state != WizardState::Kicking) {
+    object.activeAnimation = 2;
+    const AnimationClipGpu &clip =
+        object.animatedMesh->animations[object.activeAnimation];
+
+    const int halfFrame = 45;
+    object.animationTimeSeconds =
+        static_cast<float>(halfFrame - clip.startFrame) /
+        object.animatedMesh->fps;
+    behavior.state = WizardState::Kicking;
+  }
+  auto transform = modelToTransform(object.model);
+
+  glm::vec2 a{transform.position.x, transform.position.y};
+  glm::vec2 b{behavior.kickingObject.x, behavior.kickingObject.y};
+
+  glm::vec2 delta = b - a;
+
+  float distance = glm::length(delta);
+
+  if (distance > MOVE_TARGET_EPSILON) {
+    glm::vec2 direction = delta / distance;
+    float targetYaw = std::atan2(direction.y, direction.x);
+    float yawDelta = targetYaw - behavior.initialForwardYaw;
+
+    glm::mat4 model{1.0f};
+    model = glm::translate(model, transform.position);
+    model = glm::rotate(model, yawDelta, glm::vec3{0.0f, 0.0f, 1.0f});
+    model = model * behavior.initialRotation;
+    model = glm::scale(model, transform.scale);
+
+    object.model = model;
+  }
+
+  if (hasActiveAnimationEnded(object)) {
+    object.activeAnimation = 1;
+    behavior.state = WizardState::Thinking;
+    behavior.tick = 0;
+    behavior.kicks++;
+    behavior.moves = 0;
+    behavior.attacks = 0;
+  }
 }
 
 static void continueCurrentAction(Object3D &object, WizardBehavior &behavior) {
@@ -158,12 +207,33 @@ static void continueCurrentAction(Object3D &object, WizardBehavior &behavior) {
   case WizardState::Thinking:
     wizardThinkingExecute(object, behavior);
     break;
+  case WizardState::Kicking:
+    wizardKickExecute(object, behavior);
+    break;
   }
+}
+
+static bool wizardSomeoneIsSuperClose(const Object3D &self,
+                                      WizardBehavior &behavior) {
+  glm::vec3 closestPosition{};
+  bool isInRange =
+      findClosestWizardInRange(self, closestPosition, SUPER_CLOSE_RADIUS_SQ);
+
+  if (isInRange) {
+    behavior.kickingObject = closestPosition;
+    return true;
+  }
+
+  return false;
 }
 
 static void initializeActionNodes(Object3D &object, WizardBehavior &behavior) {
   behavior.attackNode.execute = [&object, &behavior]() {
     wizardAttackExecute(object, behavior);
+  };
+
+  behavior.kickNode.execute = [&object, &behavior]() {
+    wizardKickExecute(object, behavior);
   };
 
   behavior.moveNode.execute = [&object, &behavior]() {
@@ -185,6 +255,10 @@ static void initializeConditionNodes(Object3D &object,
     return wizardIsSomeoneClose(object);
   };
 
+  behavior.someoneIsSuperClose = [&object, &behavior]() {
+    return wizardSomeoneIsSuperClose(object, behavior);
+  };
+
   behavior.actionInProgressNode.conditions = [&behavior]() {
     return isActionInProgress(behavior);
   };
@@ -195,6 +269,8 @@ static void initializeConditionNodes(Object3D &object,
 
   behavior.someoneIsCloseNode.conditions = behavior.someoneIsClose;
 
+  behavior.someoneIsSuperCloseNode.conditions = behavior.someoneIsSuperClose;
+
   behavior.tooManyMovesNode.conditions = [&behavior]() {
     return behavior.moves >= MAX_CONSECUTIVE_MOVES;
   };
@@ -202,9 +278,19 @@ static void initializeConditionNodes(Object3D &object,
   behavior.tooManyAttacksNode.conditions = [&behavior]() {
     return behavior.attacks >= MAX_CONSECUTIVE_ATTACKS;
   };
+
+  behavior.tooManyKicksNode.conditions = [&behavior]() {
+    return behavior.kicks >= MAX_CONSECUTIVE_KICKS;
+  };
 }
 
 static void connectDecisionTree(WizardBehavior &behavior) {
+  behavior.someoneIsSuperCloseNode.yes = &behavior.tooManyKicksNode;
+  behavior.someoneIsSuperCloseNode.no = &behavior.actionInProgressNode;
+
+  behavior.tooManyKicksNode.yes = &behavior.moveNode;
+  behavior.tooManyKicksNode.no = &behavior.kickNode;
+
   behavior.actionInProgressNode.yes = &behavior.continueActionNode;
   behavior.actionInProgressNode.no = &behavior.thoughtEnoughNode;
 
@@ -237,5 +323,5 @@ void behaveLikeWizzard(Object3D &object, WizardBehavior &currentBehavior) {
     currentBehavior.hasInitialRotation = true;
   }
 
-  evaluateDecisionTree(&currentBehavior.actionInProgressNode);
+  evaluateDecisionTree(&currentBehavior.someoneIsSuperCloseNode);
 }

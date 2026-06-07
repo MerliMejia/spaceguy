@@ -40,7 +40,7 @@ void main() {
     // Define styled shifts
     // Highlight: Shift hue toward yellow, boost saturation, lower value slightly
     float hueYellow = 0.02;
-    vec3 lightHSV = baseHSV + vec3(hueYellow, 0.15, -0.10); 
+    vec3 lightHSV = baseHSV + vec3(hueYellow, 0.15, -0.10);
 
     // Shadow: Shift hue toward blue, lower saturation, boost value/brightness
     float hueBlue = -0.04;

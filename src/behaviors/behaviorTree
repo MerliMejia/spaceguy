@@ -1,0 +1,15 @@
+actionInProgress?
+├─ yes -> continue current action
+└─ no  -> thought enough?
+          ├─ no  -> thinking
+          └─ yes -> someone is super close?
+                    ├─ yes -> has kicked 2 times or more?
+                    │         ├─ yes -> move
+                    │         └─ no  -> kick
+                    └─ no  -> someone close?
+                              ├─ yes -> too many moves?
+                              │         ├─ yes -> attack
+                              │         └─ no  -> move
+                              └─ no  -> too many attacks?
+                                        ├─ yes -> move
+                                        └─ no  -> attack

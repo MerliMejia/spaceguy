@@ -1,4 +1,5 @@
 #include "math.h"
+#include "glm/fwd.hpp"
 #include <cmath>
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
