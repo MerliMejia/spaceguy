@@ -56,6 +56,9 @@ static void drawWizardDebug(const Object3D &object,
     addDebugLine(position, closestWizardPosition,
                  glm::vec4{1.0f, 0.0f, 0.0f, 1.0f});
   }
+
+  addDebugLine(position, position + glm::vec3(0, 0, 5),
+               debugColorForWizardState(behavior.state));
 }
 
 void initializeBehaviors() {
