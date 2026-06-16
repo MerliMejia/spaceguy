@@ -1,15 +1,17 @@
-someone is super close?
-├─ yes -> has kicked 2 times or more?
-│         ├─ yes -> move
-│         └─ no  -> kick
-└─ no  -> action in progress?
-          ├─ yes -> continue current action
-          └─ no  -> thought enough?
-                    ├─ no  -> thinking
-                    └─ yes -> someone close?
-                              ├─ yes -> has moved 2 times or more?
-                              │         ├─ yes -> attack
-                              │         └─ no  -> move
-                              └─ no  -> has attacked 2 times or more?
-                                        ├─ yes -> move
-                                        └─ no  -> attack
+wizard being attacked?
+├─ yes -> execute being attacked logic node
+└─ no  -> someone is super close?
+          ├─ yes -> has kicked 2 times or more?
+          │         ├─ yes -> move
+          │         └─ no  -> kick
+          └─ no  -> action in progress?
+                    ├─ yes -> continue current action
+                    └─ no  -> thought enough?
+                              ├─ no  -> thinking
+                              └─ yes -> someone close?
+                                        ├─ yes -> has moved 2 times or more?
+                                        │         ├─ yes -> attack
+                                        │         └─ no  -> move
+                                        └─ no  -> has attacked 2 times or more?
+                                                  ├─ yes -> move
+                                                  └─ no  -> attack

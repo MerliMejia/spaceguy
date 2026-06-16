@@ -169,8 +169,8 @@ static glm::vec3 readVec3() {
   return value;
 }
 
-static Transform readTransform() {
-  Transform transform{};
+static ImporterTransform readTransform() {
+  ImporterTransform transform{};
 
   expect("position");
   transform.position = readVec3();

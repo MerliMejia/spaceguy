@@ -3,7 +3,6 @@
 #include <cmath>
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
-#include <random>
 
 glm::mat4 transformToModel(glm::vec3 position, glm::vec3 rotation,
                            glm::vec3 scale) {

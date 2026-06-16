@@ -30,6 +30,7 @@ struct Object3D {
   float animationPlaySpeed = 1.0f;
 
   ObjectWorldKind worldKind = ObjectWorldKind::None;
+  int entityId = -1;
 };
 
 // Will store/handle every vulkan stuff that can change depending of how we
@@ -49,7 +50,7 @@ struct VulkanRendererContext {
   vk::raii::PipelineLayout animatedPipelineLayout = nullptr;
   vk::raii::Pipeline animatedGraphicsPipeline = nullptr;
   // Debug
-  bool isDebug = true;
+  bool isDebug = false;
   vk::raii::PipelineLayout debugPipelineLayout = nullptr;
   vk::raii::Pipeline debugGraphicsPipeline = nullptr;
   std::vector<DebugFrameData> debugFrames;

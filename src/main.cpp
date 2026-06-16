@@ -93,7 +93,7 @@ int main() {
           .mesh = nullptr,
           .animatedMesh = &animatedMesh,
           .model = wizardModelMatrix,
-          .activeAnimation = 0,
+          .activeAnimation = WizardAnimationMapping::Iddle,
           .activeFrame = 0,
       });
     }

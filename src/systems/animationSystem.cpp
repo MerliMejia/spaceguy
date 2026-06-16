@@ -15,7 +15,7 @@ static void updateAnimation(Object3D &object) {
   }
 
   if (object.activeAnimation >= object.animatedMesh->animations.size()) {
-    object.activeAnimation = 0;
+    object.activeAnimation = WizardAnimationMapping::Iddle;
     object.animationTimeSeconds = 0.0f;
   }
 

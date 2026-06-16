@@ -2,8 +2,11 @@
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include "unordered_map"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+#include "../behaviors/wizardBehavior.h"
 
 struct WorldContext {
   // Camera
@@ -12,6 +15,10 @@ struct WorldContext {
   float cameraFovY = glm::radians(45.0f);
   float cameraClipStart = 0.1f;
   float cameraClipEnd = 100.0f;
+
+  // Wizards
+  std::vector<WizardBehavior> wizardBehaviors;
+  std::unordered_map<int, int> wizzardAttacking;
 };
 
 extern WorldContext worldContext;

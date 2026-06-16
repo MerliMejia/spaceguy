@@ -61,3 +61,11 @@ struct AnimatedMesh {
   std::vector<AnimationClipGpu> animations;
   std::vector<AnimationKeyPoseGpu> keyPoses;
 };
+
+enum WizardAnimationMapping : uint32_t {
+  Attacking = 0,
+  BeingAttacked = 1,
+  Iddle = 2,
+  Kicking = 3,
+  Running = 4
+};

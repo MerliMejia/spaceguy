@@ -5,13 +5,17 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "../engine/vulkanRenderer.h"
 #include "../utils/math.h"
+#include <cstdint>
 #include <functional>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-enum class WizardState { Thinking, Moving, Attacking, Kicking };
+enum class WizardState { Thinking, Moving, Attacking, Kicking, BeingAttacked };
 
 struct WizardBehavior {
+  // For external use
+  int id;
+
   // Tuning
   float speed = 3.0f;
   float moveToRadius = CHECK_RADIUS * 4;
@@ -22,6 +26,7 @@ struct WizardBehavior {
   WizardState state = WizardState::Thinking;
   glm::vec3 nextMovePoint;
   glm::vec3 kickingObject;
+  size_t currentAttackingIndex = SIZE_MAX;
 
   // Orientation captured from the imported model the first time it updates.
   bool hasInitialRotation = false;
@@ -38,12 +43,14 @@ struct WizardBehavior {
   std::function<bool()> someoneIsSuperClose;
 
   // Decision tree action leaves
+  DecisionNode executeBeingAttackedLogic;
   DecisionNode attackNode;
   DecisionNode moveNode;
   DecisionNode thinkingNode;
   DecisionNode continueActionNode;
 
   // Decision tree interrup nodes
+  DecisionNode beingAttackedNode;
   DecisionNode kickNode;
 
   // Decision tree branches
@@ -59,5 +66,12 @@ struct WizardBehavior {
 void initializeWizardDecisionTree(Object3D &object,
                                   WizardBehavior &currentBehavior);
 void behaveLikeWizzard(Object3D &object, WizardBehavior &currentBehavior);
-bool findClosestWizardInRange(const Object3D &self, glm::vec3 &closestPosition,
-                              float closestDistanceSquared = RADIUS_SQ);
+
+struct FindClosestWizardInRangeReturn {
+  bool found;
+  size_t otherIndex;
+};
+
+FindClosestWizardInRangeReturn
+findClosestWizardInRange(const Object3D &self, glm::vec3 &closestPosition,
+                         float closestDistanceSquared = RADIUS_SQ);
