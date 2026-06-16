@@ -13,7 +13,7 @@
 #include "../utils/types.h"
 #include "vulkanGlobals.h"
 
-enum class ObjectRenderKind { Static, Animated };
+enum class ObjectRenderKind { Static, Animated, TransformAnimated };
 
 enum class ObjectWorldKind { None, Floor, Wizard };
 
@@ -21,7 +21,9 @@ struct Object3D {
   ObjectRenderKind renderKind = ObjectRenderKind::Static;
   const Mesh *mesh = nullptr;
   const AnimatedMesh *animatedMesh = nullptr;
+  const TransformAnimatedMesh *transformAnimatedMesh = nullptr;
   glm::mat4 model;
+  glm::mat4 baseModel{1.0f}; // For transform animations
 
   uint32_t activeAnimation = 0;
   uint32_t activeFrame = 0;
@@ -50,7 +52,7 @@ struct VulkanRendererContext {
   vk::raii::PipelineLayout animatedPipelineLayout = nullptr;
   vk::raii::Pipeline animatedGraphicsPipeline = nullptr;
   // Debug
-  bool isDebug = false;
+  bool isDebug = true;
   vk::raii::PipelineLayout debugPipelineLayout = nullptr;
   vk::raii::Pipeline debugGraphicsPipeline = nullptr;
   std::vector<DebugFrameData> debugFrames;

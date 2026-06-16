@@ -1,9 +1,11 @@
 #pragma once
 
+#include "glm/fwd.hpp"
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include "../../utils/types.h"
 #include <cstdint>
@@ -60,5 +62,29 @@ struct WorldData {
   Wizards wizards;
 };
 
+struct TransformAnimationKeyPose {
+  int blenderFrame = 0;
+  glm::vec3 location{};
+  glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+  glm::vec3 scale{1.0f};
+};
+
+struct TransformAnimationClip {
+  std::string name;
+  int startFrame = 0;
+  int endFrame = 0;
+  std::vector<TransformAnimationKeyPose> keyPoses;
+  bool loop = false;
+};
+
+struct BlenderTransformModel {
+  std::string name;
+  float fps = 24.0f;
+  std::vector<Vertex> vertices;
+  std::vector<std::uint16_t> indices;
+  std::vector<TransformAnimationClip> animations;
+};
+
 BlenderModel loadModel(const std::string &path);
+BlenderTransformModel loadTransformModel(const std::string &path);
 WorldData loadWorldData();

@@ -393,6 +393,35 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
 
       commandBuffer.drawIndexed(object.animatedMesh->mesh.indexCount, 1, 0, 0,
                                 0);
+    } else if (object.renderKind == ObjectRenderKind::TransformAnimated) {
+      commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,
+                                 *vulkanRendererContext.graphicsPipeline);
+
+      commandBuffer.bindDescriptorSets(
+          vk::PipelineBindPoint::eGraphics,
+          *vulkanRendererContext.pipelineLayout, 0,
+          *vulkanRendererContext.descriptorSets[frameIndex], nullptr);
+
+      ObjectPushConstants pushConstants{
+          .model = object.model,
+      };
+
+      commandBuffer.pushConstants<ObjectPushConstants>(
+          *vulkanRendererContext.pipelineLayout,
+          vk::ShaderStageFlagBits::eVertex, 0, pushConstants);
+
+      vk::Buffer vertexBuffers[] = {
+          *object.transformAnimatedMesh->mesh.vertexBuffer,
+      };
+      vk::DeviceSize offsets[] = {0};
+
+      commandBuffer.bindVertexBuffers(0, vertexBuffers, offsets);
+      commandBuffer.bindIndexBuffer(
+          *object.transformAnimatedMesh->mesh.indexBuffer, 0,
+          vk::IndexType::eUint16);
+
+      commandBuffer.drawIndexed(object.transformAnimatedMesh->mesh.indexCount,
+                                1, 0, 0, 0);
     } else {
       commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,
                                  *vulkanRendererContext.graphicsPipeline);

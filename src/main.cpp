@@ -1,3 +1,5 @@
+#include "glm/fwd.hpp"
+#include "utils/types.h"
 #include <GLFW/glfw3.h>
 
 #define GLM_FORCE_RADIANS
@@ -39,6 +41,7 @@ int main() {
 
   Mesh floorMesh;
   AnimatedMesh animatedMesh;
+  TransformAnimatedMesh transformAnimatedMesh;
 
   {
     worldContext.cameraPosition = worldData.camera.transform.position;
@@ -64,6 +67,21 @@ int main() {
                  .renderKind = ObjectRenderKind::Static,
                  .worldKind = ObjectWorldKind::Floor,
                  .model = model});
+
+    BlenderTransformModel transformModel =
+        loadTransformModel("assets/Wizard_Shooting_Effect_1.3d");
+
+    transformAnimatedMesh = generateTransformAnimatedMesh(transformModel);
+
+    glm::mat4 baseModel{1.0f};
+    baseModel = glm::translate(baseModel, glm::vec3{0.0f, 0.0f, 5.0f});
+
+    vulkanRendererContext.objects.push_back(Object3D{
+        .renderKind = ObjectRenderKind::TransformAnimated,
+        .transformAnimatedMesh = &transformAnimatedMesh,
+        .model = baseModel,
+        .baseModel = baseModel,
+    });
 
     std::vector<glm::vec4> animationPositions;
 

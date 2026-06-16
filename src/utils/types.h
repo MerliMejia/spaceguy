@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <string>
 #include <vector>
 
@@ -68,4 +69,18 @@ enum WizardAnimationMapping : uint32_t {
   Iddle = 2,
   Kicking = 3,
   Running = 4
+};
+
+struct TransformAnimationKeyPoseGPU {
+  glm::vec3 location{};
+  glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+  glm::vec3 scale{1.0f};
+  int blenderFrame = 0;
+};
+
+struct TransformAnimatedMesh {
+  Mesh mesh;
+  float fps = 60.0f;
+  std::vector<AnimationClipGpu> animations;
+  std::vector<TransformAnimationKeyPoseGPU> keyPoses;
 };
