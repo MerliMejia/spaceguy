@@ -40,8 +40,8 @@ int main() {
   auto worldData = loadWorldData();
 
   Mesh floorMesh;
-  AnimatedMesh animatedMesh;
-  TransformAnimatedMesh transformAnimatedMesh;
+  AnimatedMesh wizardAnimatedMesh;
+  TransformAnimatedMesh wizardShootEffectTransformAnimatedMesh;
 
   {
     worldContext.cameraPosition = worldData.camera.transform.position;
@@ -68,21 +68,6 @@ int main() {
                  .worldKind = ObjectWorldKind::Floor,
                  .model = model});
 
-    BlenderTransformModel transformModel =
-        loadTransformModel("assets/Wizard_Shooting_Effect_1.3d");
-
-    transformAnimatedMesh = generateTransformAnimatedMesh(transformModel);
-
-    glm::mat4 baseModel{1.0f};
-    baseModel = glm::translate(baseModel, glm::vec3{0.0f, 0.0f, 5.0f});
-
-    vulkanRendererContext.objects.push_back(Object3D{
-        .renderKind = ObjectRenderKind::TransformAnimated,
-        .transformAnimatedMesh = &transformAnimatedMesh,
-        .model = baseModel,
-        .baseModel = baseModel,
-    });
-
     std::vector<glm::vec4> animationPositions;
 
     BlenderModel wizardModel = loadModel("assets/Wizzard_4.3d");
@@ -99,7 +84,13 @@ int main() {
 
     setupRendererAfterAssetsLoaded();
 
-    animatedMesh = generateAnimatedMesh(wizardModel, 0);
+    wizardAnimatedMesh = generateAnimatedMesh(wizardModel, 0);
+
+    BlenderTransformModel wizardShootTransformModel =
+        loadTransformModel("assets/Wizard_Shooting_Effect_1.3d");
+
+    wizardShootEffectTransformAnimatedMesh =
+        generateTransformAnimatedMesh(wizardShootTransformModel);
 
     for (const glm::vec3 &wizardPosition : worldData.wizards.positions) {
       glm::mat4 wizardModelMatrix{1.0f};
@@ -109,11 +100,18 @@ int main() {
           .renderKind = ObjectRenderKind::Animated,
           .worldKind = ObjectWorldKind::Wizard,
           .mesh = nullptr,
-          .animatedMesh = &animatedMesh,
+          .animatedMesh = &wizardAnimatedMesh,
           .model = wizardModelMatrix,
           .activeAnimation = WizardAnimationMapping::Iddle,
           .activeFrame = 0,
       });
+
+      vulkanRendererContext.objects.push_back(Object3D{
+          .renderKind = ObjectRenderKind::TransformAnimated,
+          .transformAnimatedMesh = &wizardShootEffectTransformAnimatedMesh,
+          .model = glm::mat4{1.0f},
+          .baseModel = wizardModelMatrix,
+          .enabled = true});
     }
   }
 

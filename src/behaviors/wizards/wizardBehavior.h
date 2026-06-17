@@ -1,10 +1,10 @@
 #pragma once
 
-#include "decisionTree.h"
+#include "../decisionTree.h"
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include "../engine/vulkanRenderer.h"
-#include "../utils/math.h"
+#include "../../engine/vulkanRenderer.h"
+#include "../../utils/math.h"
 #include <cstdint>
 #include <functional>
 #include <glm/glm.hpp>

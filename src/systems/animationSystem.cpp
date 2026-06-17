@@ -190,6 +190,8 @@ static void updateTransformAnimation(Object3D &object) {
 
 void updateAnimations() {
   for (Object3D &object : vulkanRendererContext.objects) {
+    if (!object.enabled)
+      continue;
     updateAnimation(object);
     updateTransformAnimation(object);
   }

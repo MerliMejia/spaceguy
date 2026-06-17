@@ -30,7 +30,7 @@ add_executable(spaceguy
     src/utils/input.cpp
     src/utils/time.cpp
     src/systems/worldSystem.cpp
-    src/behaviors/wizardBehavior.cpp
+    src/behaviors/wizards/wizardBehavior.cpp
     src/utils/math.cpp
     src/behaviors/decisionTree.cpp
 )

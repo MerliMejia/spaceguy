@@ -33,6 +33,7 @@ struct Object3D {
 
   ObjectWorldKind worldKind = ObjectWorldKind::None;
   int entityId = -1;
+  bool enabled = true;
 };
 
 // Will store/handle every vulkan stuff that can change depending of how we

@@ -82,6 +82,8 @@ void initializeBehaviors() {
   std::size_t wizardCount = 0;
 
   for (const Object3D &object : vulkanRendererContext.objects) {
+    if (!object.enabled)
+      continue;
     if (object.worldKind == ObjectWorldKind::Wizard) {
       wizardCount++;
     }
@@ -108,6 +110,9 @@ void updateBehaviors() {
   std::size_t wizardIndex = 0;
   for (int i = 0; i < vulkanRendererContext.objects.size(); i++) {
     Object3D &object = vulkanRendererContext.objects[i];
+
+    if (!object.enabled)
+      continue;
 
     switch (object.worldKind) {
     case ObjectWorldKind::None:
