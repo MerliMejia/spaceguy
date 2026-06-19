@@ -81,6 +81,8 @@ inline float getForwardYaw(const glm::mat4 &rotation) {
 
 inline void wizardAttackExecute(Object3D &object, WizardBehavior &behavior) {
   auto transform = modelToTransform(object.model);
+  Object3D &shootingEffectObject =
+      vulkanRendererContext.objects[object.index + 1];
 
   if (behavior.state != WizardState::Attacking) {
     if (worldContext.wizardBehaviors.size() < 2) {
@@ -106,6 +108,9 @@ inline void wizardAttackExecute(Object3D &object, WizardBehavior &behavior) {
     // Who are we attacking?
     worldContext.wizzardAttacking[selected.id] = behavior.id;
     behavior.currentAttackingIndex = randomIndex;
+
+    shootingEffectObject.enabled = true;
+    shootingEffectObject.animationTimeSeconds = 0;
   }
 
   if (behavior.currentAttackingIndex >= worldContext.wizardBehaviors.size()) {
@@ -139,6 +144,9 @@ inline void wizardAttackExecute(Object3D &object, WizardBehavior &behavior) {
     behavior.moves = 0;
     behavior.kicks = 0;
 
+    shootingEffectObject.enabled = false;
+    shootingEffectObject.animationTimeSeconds = 0;
+
     worldContext.wizzardAttacking.erase(targetBehavior.id);
     behavior.currentAttackingIndex = SIZE_MAX;
   }
@@ -151,6 +159,9 @@ inline bool wizardIsSomeoneClose(const Object3D &self) {
 
 inline void wizardMoveExecute(Object3D &object, WizardBehavior &behavior) {
   auto transform = modelToTransform(object.model);
+  Object3D &shootingEffectObject =
+      vulkanRendererContext.objects[object.index + 1];
+  shootingEffectObject.enabled = false;
 
   if (behavior.state != WizardState::Moving) {
     behavior.nextMovePoint = chooseMovePoint(behavior);
@@ -193,9 +204,16 @@ inline void wizardMoveExecute(Object3D &object, WizardBehavior &behavior) {
 inline void wizardThinkingExecute(Object3D &object, WizardBehavior &behavior) {
   behavior.state = WizardState::Thinking;
   object.activeAnimation = WizardAnimationMapping::Iddle;
+  Object3D &shootingEffectObject =
+      vulkanRendererContext.objects[object.index + 1];
+  shootingEffectObject.enabled = false;
 }
 
 inline void wizardKickExecute(Object3D &object, WizardBehavior &behavior) {
+  Object3D &shootingEffectObject =
+      vulkanRendererContext.objects[object.index + 1];
+  shootingEffectObject.enabled = false;
+
   if (behavior.state != WizardState::Kicking) {
     object.activeAnimation = WizardAnimationMapping::Kicking;
     const AnimationClipGpu &clip =

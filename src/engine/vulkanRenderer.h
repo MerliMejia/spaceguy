@@ -18,6 +18,7 @@ enum class ObjectRenderKind { Static, Animated, TransformAnimated };
 enum class ObjectWorldKind { None, Floor, Wizard };
 
 struct Object3D {
+  int index = -1;
   ObjectRenderKind renderKind = ObjectRenderKind::Static;
   const Mesh *mesh = nullptr;
   const AnimatedMesh *animatedMesh = nullptr;
@@ -53,7 +54,7 @@ struct VulkanRendererContext {
   vk::raii::PipelineLayout animatedPipelineLayout = nullptr;
   vk::raii::Pipeline animatedGraphicsPipeline = nullptr;
   // Debug
-  bool isDebug = true;
+  bool isDebug = false;
   vk::raii::PipelineLayout debugPipelineLayout = nullptr;
   vk::raii::Pipeline debugGraphicsPipeline = nullptr;
   std::vector<DebugFrameData> debugFrames;

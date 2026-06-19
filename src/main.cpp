@@ -63,7 +63,8 @@ int main() {
     model = glm::scale(model, worldData.floor.scale);
 
     vulkanRendererContext.objects.push_back(
-        Object3D{.mesh = &floorMesh,
+        Object3D{.index = 0,
+                 .mesh = &floorMesh,
                  .renderKind = ObjectRenderKind::Static,
                  .worldKind = ObjectWorldKind::Floor,
                  .model = model});
@@ -98,6 +99,7 @@ int main() {
 
       int wizardIndex = vulkanRendererContext.objects.size();
       vulkanRendererContext.objects.push_back(Object3D{
+          .index = wizardIndex,
           .renderKind = ObjectRenderKind::Animated,
           .worldKind = ObjectWorldKind::Wizard,
           .mesh = nullptr,
@@ -109,11 +111,12 @@ int main() {
 
       int wizardEffectIndex = vulkanRendererContext.objects.size();
       vulkanRendererContext.objects.push_back(Object3D{
+          .index = wizardEffectIndex,
           .renderKind = ObjectRenderKind::TransformAnimated,
           .transformAnimatedMesh = &wizardShootEffectTransformAnimatedMesh,
           .model = glm::mat4{1.0f},
           .baseModel = wizardModelMatrix,
-          .enabled = true});
+          .enabled = false});
 
       worldContext.wizardShootingEffects.push_back(WizardShootEffect{
           .wizardObjectIndex = wizardIndex, .objectIndex = wizardEffectIndex});

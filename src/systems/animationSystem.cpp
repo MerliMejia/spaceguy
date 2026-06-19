@@ -254,23 +254,48 @@ AnimationDataFromObject getAnimationDataFromObject(const Object3D &object) {
 }
 
 bool hasActiveAnimationEnded(const Object3D &object) {
-  if (object.renderKind != ObjectRenderKind::Animated ||
-      object.animatedMesh == nullptr ||
-      object.animatedMesh->animations.empty() ||
-      object.activeAnimation >= object.animatedMesh->animations.size()) {
-    return false;
+  if (object.renderKind == ObjectRenderKind::Animated) {
+    if (object.animatedMesh == nullptr ||
+        object.animatedMesh->animations.empty() ||
+        object.activeAnimation >= object.animatedMesh->animations.size()) {
+      return false;
+    }
+
+    const AnimationClipGpu &clip =
+        object.animatedMesh->animations[object.activeAnimation];
+
+    if (clip.loop) {
+      return false;
+    }
+
+    const float durationSeconds =
+        static_cast<float>(clip.endFrame - clip.startFrame) /
+        object.animatedMesh->fps;
+
+    return object.animationTimeSeconds >= durationSeconds;
   }
 
-  const AnimationClipGpu &clip =
-      object.animatedMesh->animations[object.activeAnimation];
+  if (object.renderKind == ObjectRenderKind::TransformAnimated) {
+    if (object.transformAnimatedMesh == nullptr ||
+        object.transformAnimatedMesh->animations.empty() ||
+        object.activeAnimation >=
+            object.transformAnimatedMesh->animations.size()) {
+      return false;
+    }
 
-  if (clip.loop) {
-    return false;
+    const AnimationClipGpu &clip =
+        object.transformAnimatedMesh->animations[object.activeAnimation];
+
+    if (clip.loop) {
+      return false;
+    }
+
+    const float durationSeconds =
+        static_cast<float>(clip.endFrame - clip.startFrame) /
+        object.transformAnimatedMesh->fps;
+
+    return object.animationTimeSeconds >= durationSeconds;
   }
 
-  const float durationSeconds =
-      static_cast<float>(clip.endFrame - clip.startFrame) /
-      object.animatedMesh->fps;
-
-  return object.animationTimeSeconds >= durationSeconds;
+  return false;
 }

@@ -12,3 +12,13 @@ WizardShootEffect can be then:
 wizardObjectIndex,
 objectIndex
 }
+
+Every time a wizard executes the attacking node it should:
+
+- Enable the current wizard effect.
+    - How do we find the effect of that wizard?
+        - We can have another vector (wizardToShootingEffect) that stores the indices of it's effect.
+        - We can just asume that the wizard effect will be exactly 1 position more in the objects array.
+- Set the current animation seconds to 0.
+- Wait for the animation to finish.
+- Disable the effect object.
