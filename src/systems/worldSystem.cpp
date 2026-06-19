@@ -1,4 +1,6 @@
 #include "worldSystem.h"
+#include "../behaviors/wizards/wizardBehaviorUtils.h"
+#include <cstddef>
 #include <vector>
 
 WorldContext worldContext;
@@ -127,5 +129,11 @@ void updateBehaviors() {
       }
     }
     }
+  }
+}
+
+void updateWizardEffects() {
+  for (WizardShootEffect &shootingEffect : worldContext.wizardShootingEffects) {
+    updateWizardShootingEffect(shootingEffect);
   }
 }

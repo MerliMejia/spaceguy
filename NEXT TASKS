@@ -1,35 +1,14 @@
-Wizards attacking / Receiving an attack
+Effects for wizards
 
-Right now wizards have 2 attaks and when they decide that they need to use them they just do
-it. They should also detect that they're already being attacked and
-that is not their turn to attack. Also, when being attacked, they should definetly
-show some animation of they being attacked.
+Each effect is an Object3D, which means it has an index inside vulkanRenderer.objects.
 
-Impl
+We need to know the index of the wizard object and the index of the actual effect object.
 
-Before any attackNode, moveNode, or kickNode, check if they're currently being attacked.
+This can be created when creating the wizard objects (because is the only point where we have both the object indices).
 
-How?
+WizardShootEffect can be then:
 
-- New state: BeingAttacked.
-- Have access to a list of attackers and can know if someone is attackin them.
-
-There's a list of attacks being saved/updated of wizards that are attacking other
-wizards (Can be extended to other type of objects later).
-
-Before attacking (attack or kick node), the wizard will ask the list if is already
-being attacked. If yes, run being attack node. If no, continue attacking node.
-
-Every time a wizard attacks (with the kick node or the attack node), it adds itself
-and the attacking wizard to a list. (attackList?) also sets itself as.
-
-
-So, something like:
-
-- WizardBehavior now has id.
-- The attacking list is an unordered_map of int and int.
-- Before anything, we check if the wizard is receving damage.
-- If the wizard is attacking, we add the wizard being attacked id.
-- At the end of the attacking animation, we remove the wizard being attacked from the list.
-
-How to set who we're attacking?
+{
+wizardObjectIndex,
+objectIndex
+}

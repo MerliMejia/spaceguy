@@ -96,6 +96,7 @@ int main() {
       glm::mat4 wizardModelMatrix{1.0f};
       wizardModelMatrix = glm::translate(wizardModelMatrix, wizardPosition);
 
+      int wizardIndex = vulkanRendererContext.objects.size();
       vulkanRendererContext.objects.push_back(Object3D{
           .renderKind = ObjectRenderKind::Animated,
           .worldKind = ObjectWorldKind::Wizard,
@@ -106,12 +107,16 @@ int main() {
           .activeFrame = 0,
       });
 
+      int wizardEffectIndex = vulkanRendererContext.objects.size();
       vulkanRendererContext.objects.push_back(Object3D{
           .renderKind = ObjectRenderKind::TransformAnimated,
           .transformAnimatedMesh = &wizardShootEffectTransformAnimatedMesh,
           .model = glm::mat4{1.0f},
           .baseModel = wizardModelMatrix,
           .enabled = true});
+
+      worldContext.wizardShootingEffects.push_back(WizardShootEffect{
+          .wizardObjectIndex = wizardIndex, .objectIndex = wizardEffectIndex});
     }
   }
 
@@ -124,6 +129,7 @@ int main() {
       clearDebugShapes();
     }
     updateBehaviors();
+    updateWizardEffects();
     updateAnimations();
     drawFrame();
   }

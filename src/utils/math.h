@@ -14,7 +14,7 @@ struct Transform {
   glm::quat rotation;
 };
 
-glm::mat4 transformToModel(glm::vec3 position, glm::vec3 rotation,
+glm::mat4 transformToModel(glm::vec3 position, glm::quat rotation,
                            glm::vec3 scale);
 Transform modelToTransform(glm::mat4 &model);
 glm::vec3 randomPointInCircleXY(const glm::vec3 &center, float radius);

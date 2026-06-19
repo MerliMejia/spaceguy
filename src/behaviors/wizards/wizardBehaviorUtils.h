@@ -2,6 +2,7 @@
 
 #include "../../systems/animationSystem.h"
 #include "../../systems/worldSystem.h"
+#include "glm/fwd.hpp"
 #include <cstdint>
 
 constexpr int MAX_CONSECUTIVE_MOVES = 2;
@@ -295,4 +296,12 @@ inline bool wizardSomeoneIsSuperClose(const Object3D &self,
   }
 
   return false;
+}
+
+inline void updateWizardShootingEffect(WizardShootEffect &shootEffect) {
+  Object3D &wizard =
+      vulkanRendererContext.objects[shootEffect.wizardObjectIndex];
+  Object3D &effect = vulkanRendererContext.objects[shootEffect.objectIndex];
+
+  effect.baseModel = wizard.model;
 }

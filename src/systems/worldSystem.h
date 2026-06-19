@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "unordered_map"
@@ -7,6 +8,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "../behaviors/wizards/wizardBehavior.h"
+
+struct WizardShootEffect {
+  int wizardObjectIndex;
+  int objectIndex;
+};
 
 struct WorldContext {
   // Camera
@@ -19,9 +25,11 @@ struct WorldContext {
   // Wizards
   std::vector<WizardBehavior> wizardBehaviors;
   std::unordered_map<int, int> wizzardAttacking;
+  std::vector<WizardShootEffect> wizardShootingEffects;
 };
 
 extern WorldContext worldContext;
 
 void updateBehaviors();
+void updateWizardEffects();
 void initializeBehaviors();
