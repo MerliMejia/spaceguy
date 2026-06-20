@@ -33,6 +33,7 @@ add_executable(spaceguy
     src/behaviors/wizards/wizardBehavior.cpp
     src/utils/math.cpp
     src/behaviors/decisionTree.cpp
+    src/systems/resourceManagementSystem.cpp
 )
 
 target_compile_features(spaceguy PRIVATE cxx_std_20)

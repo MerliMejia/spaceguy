@@ -13,6 +13,7 @@
 #include "engine/vulkanBackend.h"
 #include "engine/vulkanRenderer.h"
 #include "systems/animationSystem.h"
+#include "systems/resourceManagementSystem.h"
 #include "systems/worldSystem.h"
 #include "utils/generators.h"
 #include "utils/time.h"
@@ -135,6 +136,7 @@ int main() {
     updateWizardEffects();
     updateAnimations();
     drawFrame();
+    processDestroyQueue();
   }
 
   cleanup();
