@@ -10,8 +10,8 @@
 #include "../behaviors/wizards/wizardBehavior.h"
 
 struct WizardShootEffect {
-  int wizardObjectIndex;
-  int objectIndex;
+  int wizardEntity;
+  int effectEntity;
 };
 
 struct WorldContext {

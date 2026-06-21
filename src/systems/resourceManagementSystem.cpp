@@ -6,6 +6,9 @@
 #include <vector>
 
 static std::unordered_map<int, int> entityToRenderables;
+static std::unordered_map<int, int> entityToTransforms;
+static std::unordered_map<int, int> entityToAnimations;
+static std::unordered_map<int, int> entityToWorlds;
 static int nextEntityId = 1;
 
 static std::unordered_set<int> alive;
@@ -19,6 +22,8 @@ int createEntity() {
 
   return next;
 }
+
+bool isEntityAlive(int entity) { return alive.contains(entity); }
 
 Renderable &addRenderable(int entity) {
   if (!alive.contains(entity)) {
@@ -48,6 +53,130 @@ Renderable &getRenderable(int entity) {
   throw std::runtime_error("Entity doesn't have a renderable");
 }
 
+Renderable *tryGetRenderable(int entity) {
+  auto r = entityToRenderables.find(entity);
+
+  if (r != entityToRenderables.end()) {
+    return &resources.renderables[r->second];
+  }
+
+  return nullptr;
+}
+
+TransformComponent &addTransform(int entity) {
+  if (!alive.contains(entity)) {
+    throw std::runtime_error("This entity doesn't live anymore");
+  }
+
+  auto it = entityToTransforms.find(entity);
+  if (it != entityToTransforms.end()) {
+    throw std::runtime_error("This entity already has a transform " +
+                             std::to_string(entity));
+  }
+
+  int transformIndex = resources.transforms.size();
+  resources.transforms.push_back(TransformComponent{.entity = entity});
+  entityToTransforms[entity] = transformIndex;
+
+  return resources.transforms[transformIndex];
+}
+
+TransformComponent &getTransform(int entity) {
+  auto r = entityToTransforms.find(entity);
+
+  if (r != entityToTransforms.end()) {
+    return resources.transforms[r->second];
+  }
+
+  throw std::runtime_error("Entity doesn't have a transform");
+}
+
+TransformComponent *tryGetTransform(int entity) {
+  auto r = entityToTransforms.find(entity);
+
+  if (r != entityToTransforms.end()) {
+    return &resources.transforms[r->second];
+  }
+
+  return nullptr;
+}
+
+AnimationComponent &addAnimation(int entity) {
+  if (!alive.contains(entity)) {
+    throw std::runtime_error("This entity doesn't live anymore");
+  }
+
+  auto it = entityToAnimations.find(entity);
+  if (it != entityToAnimations.end()) {
+    throw std::runtime_error("This entity already has an animation " +
+                             std::to_string(entity));
+  }
+
+  int animationIndex = resources.animations.size();
+  resources.animations.push_back(AnimationComponent{.entity = entity});
+  entityToAnimations[entity] = animationIndex;
+
+  return resources.animations[animationIndex];
+}
+
+AnimationComponent &getAnimation(int entity) {
+  auto r = entityToAnimations.find(entity);
+
+  if (r != entityToAnimations.end()) {
+    return resources.animations[r->second];
+  }
+
+  throw std::runtime_error("Entity doesn't have an animation");
+}
+
+AnimationComponent *tryGetAnimation(int entity) {
+  auto r = entityToAnimations.find(entity);
+
+  if (r != entityToAnimations.end()) {
+    return &resources.animations[r->second];
+  }
+
+  return nullptr;
+}
+
+WorldComponent &addWorld(int entity) {
+  if (!alive.contains(entity)) {
+    throw std::runtime_error("This entity doesn't live anymore");
+  }
+
+  auto it = entityToWorlds.find(entity);
+  if (it != entityToWorlds.end()) {
+    throw std::runtime_error("This entity already has a world component " +
+                             std::to_string(entity));
+  }
+
+  int worldIndex = resources.worlds.size();
+  resources.worlds.push_back(WorldComponent{.entity = entity});
+  entityToWorlds[entity] = worldIndex;
+
+  return resources.worlds[worldIndex];
+}
+
+WorldComponent &getWorld(int entity) {
+  auto r = entityToWorlds.find(entity);
+
+  if (r != entityToWorlds.end()) {
+    return resources.worlds[r->second];
+  }
+
+  throw std::runtime_error("Entity doesn't have a world component");
+}
+
+WorldComponent *tryGetWorld(int entity) {
+  auto r = entityToWorlds.find(entity);
+
+  if (r != entityToWorlds.end()) {
+    return &resources.worlds[r->second];
+  }
+
+  return nullptr;
+}
+
 void destroyEntity(int entity) { destroyQueue.push_back(entity); }
 
 static void destroyRenderable(int entity) {
@@ -69,12 +198,72 @@ static void destroyRenderable(int entity) {
   entityToRenderables.erase(entity);
 }
 
+static void destroyTransform(int entity) {
+  auto it = entityToTransforms.find(entity);
+  if (it == entityToTransforms.end()) {
+    return;
+  }
+  int indexToRemove = it->second;
+  int lastIndex = resources.transforms.size() - 1;
+
+  if (indexToRemove != lastIndex) {
+    TransformComponent moved = resources.transforms[lastIndex];
+
+    resources.transforms[indexToRemove] = moved;
+    entityToTransforms[moved.entity] = indexToRemove;
+  }
+
+  resources.transforms.pop_back();
+  entityToTransforms.erase(entity);
+}
+
+static void destroyAnimation(int entity) {
+  auto it = entityToAnimations.find(entity);
+  if (it == entityToAnimations.end()) {
+    return;
+  }
+  int indexToRemove = it->second;
+  int lastIndex = resources.animations.size() - 1;
+
+  if (indexToRemove != lastIndex) {
+    AnimationComponent moved = resources.animations[lastIndex];
+
+    resources.animations[indexToRemove] = moved;
+    entityToAnimations[moved.entity] = indexToRemove;
+  }
+
+  resources.animations.pop_back();
+  entityToAnimations.erase(entity);
+}
+
+static void destroyWorld(int entity) {
+  auto it = entityToWorlds.find(entity);
+  if (it == entityToWorlds.end()) {
+    return;
+  }
+  int indexToRemove = it->second;
+  int lastIndex = resources.worlds.size() - 1;
+
+  if (indexToRemove != lastIndex) {
+    WorldComponent moved = resources.worlds[lastIndex];
+
+    resources.worlds[indexToRemove] = moved;
+    entityToWorlds[moved.entity] = indexToRemove;
+  }
+
+  resources.worlds.pop_back();
+  entityToWorlds.erase(entity);
+}
+
 void processDestroyQueue() {
   for (int entity : destroyQueue) {
     if (!alive.contains(entity)) {
       continue;
     }
     destroyRenderable(entity);
+    destroyTransform(entity);
+    destroyAnimation(entity);
+    destroyWorld(entity);
     alive.erase(entity);
   }
 

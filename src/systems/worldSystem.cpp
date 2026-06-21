@@ -1,5 +1,6 @@
 #include "worldSystem.h"
 #include "../behaviors/wizards/wizardBehaviorUtils.h"
+#include "../engine/vulkanRenderer.h"
 #include "resourceManagementSystem.h"
 #include <cstddef>
 #include <vector>
@@ -23,13 +24,14 @@ static glm::vec4 debugColorForWizardState(WizardState state) {
   return glm::vec4{1.0f, 1.0f, 1.0f, 1.0f};
 }
 
-static void drawWizardDebug(const Object3D &object,
+static void drawWizardDebug(int entity,
                             const WizardBehavior &behavior) {
-  const glm::vec3 position = glm::vec3(object.model[3]);
+  const TransformComponent &transform = getTransform(entity);
+  const glm::vec3 position = glm::vec3(transform.model[3]);
   const bool someoneIsClose = behavior.someoneIsClose();
   glm::vec3 closestPosition{};
   const bool someoneIsSuperClose =
-      findClosestWizardInRange(object, closestPosition, SUPER_CLOSE_RADIUS_SQ)
+      findClosestWizardInRange(entity, closestPosition, SUPER_CLOSE_RADIUS_SQ)
           .found;
 
   const glm::vec4 radiusColor = someoneIsClose
@@ -43,7 +45,7 @@ static void drawWizardDebug(const Object3D &object,
   addDebugDiskXY(position, SUPER_CLOSE_RADIUS, superCloseRadiusColor);
 
   const glm::vec3 forward = glm::normalize(
-      glm::vec3(object.model * glm::vec4{0.0f, -1.0f, 0.0f, 0.0f}));
+      glm::vec3(transform.model * glm::vec4{0.0f, -1.0f, 0.0f, 0.0f}));
   addDebugLine(position, position + forward * 2.0f,
                glm::vec4{1.0f, 0.0f, 0.85f, 1.0f});
 
@@ -55,23 +57,20 @@ static void drawWizardDebug(const Object3D &object,
                  glm::vec4{1.0f, 0.45f, 0.0f, 1.0f});
   }
 
-  if (behavior.state == WizardState::Attacking) {
-    // How do we get the position of a wizard based on the behavior?
-    WizardBehavior &currentAttacking =
-        worldContext.wizardBehaviors[behavior.currentAttackingIndex];
-
-    Object3D &currentAttackingObject =
-        vulkanRendererContext.objects[currentAttacking.id];
+  if (behavior.state == WizardState::Attacking &&
+      behavior.currentAttackingEntity >= 0) {
+    const TransformComponent &currentAttackingTransform =
+        getTransform(behavior.currentAttackingEntity);
 
     const glm::vec3 currentAttackingPosition =
-        glm::vec3(currentAttackingObject.model[3]);
+        glm::vec3(currentAttackingTransform.model[3]);
 
     addDebugLine(position, currentAttackingPosition,
                  debugColorForWizardState(WizardState::Attacking));
   }
 
   glm::vec3 closestWizardPosition{};
-  auto foundInRange = findClosestWizardInRange(object, closestWizardPosition);
+  auto foundInRange = findClosestWizardInRange(entity, closestWizardPosition);
   if (foundInRange.found) {
     addDebugLine(position, closestWizardPosition,
                  glm::vec4{1.0f, 0.0f, 0.0f, 1.0f});
@@ -84,10 +83,12 @@ static void drawWizardDebug(const Object3D &object,
 void initializeBehaviors() {
   std::size_t wizardCount = 0;
 
-  for (const Object3D &object : vulkanRendererContext.objects) {
-    if (!object.enabled)
+  for (const WorldComponent &world : resources.worlds) {
+    const Renderable *renderable = tryGetRenderable(world.entity);
+    if (renderable == nullptr || !renderable->visible) {
       continue;
-    if (object.worldKind == ObjectWorldKind::Wizard) {
+    }
+    if (world.worldKind == ObjectWorldKind::Wizard) {
       wizardCount++;
     }
   }
@@ -95,40 +96,38 @@ void initializeBehaviors() {
   worldContext.wizardBehaviors.reserve(wizardCount);
   worldContext.wizzardAttacking.reserve(wizardCount);
 
-  for (int i = 0; i < vulkanRendererContext.objects.size(); i++) {
-    Object3D &object = vulkanRendererContext.objects[i];
-
-    if (object.worldKind != ObjectWorldKind::Wizard) {
+  for (WorldComponent &world : resources.worlds) {
+    if (world.worldKind != ObjectWorldKind::Wizard) {
       continue;
     }
 
-    Renderable &renderable = getRenderable(object.renderableEntity);
+    Renderable &renderable = getRenderable(world.entity);
 
     WizardBehavior &behavior = worldContext.wizardBehaviors.emplace_back();
-    behavior.id = i;
-    object.entityId = worldContext.wizardBehaviors.size() - 1;
-    initializeWizardDecisionTree(object, behavior, renderable);
+    behavior.id = world.entity;
+    world.worldEntityId = worldContext.wizardBehaviors.size() - 1;
+    initializeWizardDecisionTree(world.entity, behavior, renderable);
   }
 }
 
 void updateBehaviors() {
-  std::size_t wizardIndex = 0;
-  for (int i = 0; i < vulkanRendererContext.objects.size(); i++) {
-    Object3D &object = vulkanRendererContext.objects[i];
+  for (WorldComponent &world : resources.worlds) {
+    const Renderable *renderable = tryGetRenderable(world.entity);
 
-    if (!object.enabled)
+    if (renderable == nullptr || !renderable->visible)
       continue;
 
-    switch (object.worldKind) {
+    switch (world.worldKind) {
     case ObjectWorldKind::None:
       break;
     case ObjectWorldKind::Floor:
       break;
     case ObjectWorldKind::Wizard: {
-      WizardBehavior &behavior = worldContext.wizardBehaviors[wizardIndex++];
-      behaveLikeWizzard(object, behavior);
+      WizardBehavior &behavior =
+          worldContext.wizardBehaviors[world.worldEntityId];
+      behaveLikeWizzard(world.entity, behavior);
       if (vulkanRendererContext.isDebug) {
-        drawWizardDebug(object, behavior);
+        drawWizardDebug(world.entity, behavior);
       }
     }
     }

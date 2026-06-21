@@ -68,11 +68,11 @@ int main() {
     floorRenderable.mesh = &floorMesh;
     floorRenderable.renderKind = ObjectRenderKind::Static;
 
-    vulkanRendererContext.objects.push_back(
-        Object3D{.index = 0,
-                 .renderableEntity = floorEntity,
-                 .model = model,
-                 .worldKind = ObjectWorldKind::Floor});
+    TransformComponent &floorTransform = addTransform(floorEntity);
+    floorTransform.model = model;
+
+    WorldComponent &floorWorld = addWorld(floorEntity);
+    floorWorld.worldKind = ObjectWorldKind::Floor;
 
     std::vector<glm::vec4> animationPositions;
 
@@ -102,39 +102,36 @@ int main() {
       glm::mat4 wizardModelMatrix{1.0f};
       wizardModelMatrix = glm::translate(wizardModelMatrix, wizardPosition);
 
-      int wizardIndex = vulkanRendererContext.objects.size();
-
       int wizardEntity = createEntity();
       Renderable &wizardRenderable = addRenderable(wizardEntity);
       wizardRenderable.renderKind = ObjectRenderKind::Animated;
       wizardRenderable.animatedMesh = &wizardAnimatedMesh;
 
-      vulkanRendererContext.objects.push_back(Object3D{
-          .index = wizardIndex,
-          .renderableEntity = wizardEntity,
-          .model = wizardModelMatrix,
-          .activeAnimation = WizardAnimationMapping::Iddle,
-          .activeFrame = 0,
-          .worldKind = ObjectWorldKind::Wizard,
-      });
+      TransformComponent &wizardTransform = addTransform(wizardEntity);
+      wizardTransform.model = wizardModelMatrix;
 
-      int wizardEffectIndex = vulkanRendererContext.objects.size();
+      AnimationComponent &wizardAnimation = addAnimation(wizardEntity);
+      wizardAnimation.activeAnimation = WizardAnimationMapping::Iddle;
+
+      WorldComponent &wizardWorld = addWorld(wizardEntity);
+      wizardWorld.worldKind = ObjectWorldKind::Wizard;
 
       int wizardEffectEntity = createEntity();
       Renderable &wizardEffectRenderable = addRenderable(wizardEffectEntity);
       wizardEffectRenderable.renderKind = ObjectRenderKind::TransformAnimated;
       wizardEffectRenderable.transformAnimatedMesh =
           &wizardShootEffectTransformAnimatedMesh;
+      wizardEffectRenderable.visible = false;
 
-      vulkanRendererContext.objects.push_back(Object3D{
-          .index = wizardEffectIndex,
-          .renderableEntity = wizardEffectEntity,
-          .model = glm::mat4{1.0f},
-          .baseModel = wizardModelMatrix,
-          .enabled = false});
+      TransformComponent &wizardEffectTransform =
+          addTransform(wizardEffectEntity);
+      wizardEffectTransform.model = glm::mat4{1.0f};
+      wizardEffectTransform.baseModel = wizardModelMatrix;
+
+      addAnimation(wizardEffectEntity);
 
       worldContext.wizardShootingEffects.push_back(WizardShootEffect{
-          .wizardObjectIndex = wizardIndex, .objectIndex = wizardEffectIndex});
+          .wizardEntity = wizardEntity, .effectEntity = wizardEffectEntity});
     }
   }
 

@@ -359,13 +359,11 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
       vk::PipelineBindPoint::eGraphics, *vulkanRendererContext.pipelineLayout,
       0, *vulkanRendererContext.descriptorSets[frameIndex], nullptr);
 
-  for (int i = 0; i < vulkanRendererContext.objects.size(); i++) {
-    const Object3D &object = vulkanRendererContext.objects[i];
-
-    if (!object.enabled)
+  for (const Renderable &renderable : resources.renderables) {
+    if (!isEntityAlive(renderable.entity) || !renderable.visible)
       continue;
 
-    const Renderable &renderable = getRenderable(object.renderableEntity);
+    const TransformComponent &transform = getTransform(renderable.entity);
 
     if (renderable.renderKind == ObjectRenderKind::Animated) {
       commandBuffer.bindPipeline(
@@ -378,10 +376,10 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
           *vulkanRendererContext.animatedDescriptorSets[frameIndex], nullptr);
 
       AnimationDataFromObject animationData =
-          getAnimationDataFromObject(object);
+          getAnimationDataFromEntity(renderable.entity);
 
       AnimatedObjectPushConstants pushConstants{
-          .model = object.model,
+          .model = transform.model,
           .previousPositionOffset = animationData.previousPositionOffset,
           .nextPositionOffset = animationData.nextPositionOffset,
           .interpolation = animationData.interpolation,
@@ -412,7 +410,7 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
           *vulkanRendererContext.descriptorSets[frameIndex], nullptr);
 
       ObjectPushConstants pushConstants{
-          .model = object.model,
+          .model = transform.model,
       };
 
       commandBuffer.pushConstants<ObjectPushConstants>(
@@ -440,7 +438,7 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
           *vulkanRendererContext.pipelineLayout, 0,
           *vulkanRendererContext.descriptorSets[frameIndex], nullptr);
 
-      ObjectPushConstants pushConstants{.model = object.model};
+      ObjectPushConstants pushConstants{.model = transform.model};
 
       commandBuffer.pushConstants<ObjectPushConstants>(
           *vulkanRendererContext.pipelineLayout,

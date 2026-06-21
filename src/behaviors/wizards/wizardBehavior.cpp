@@ -3,30 +3,30 @@
 #include "../decisionTree.h"
 #include "wizardBehaviorUtils.h"
 
-static void initializeActionNodes(Object3D &object, WizardBehavior &behavior,
+static void initializeActionNodes(int entity, WizardBehavior &behavior,
                                   Renderable &renderable) {
-  behavior.attackNode.execute = [&object, &behavior]() {
-    wizardAttackExecute(object, behavior);
+  behavior.attackNode.execute = [entity, &behavior]() {
+    wizardAttackExecute(entity, behavior);
   };
 
-  behavior.kickNode.execute = [&object, &behavior, &renderable]() {
-    wizardKickExecute(object, behavior, renderable);
+  behavior.kickNode.execute = [entity, &behavior, &renderable]() {
+    wizardKickExecute(entity, behavior, renderable);
   };
 
-  behavior.moveNode.execute = [&object, &behavior]() {
-    wizardMoveExecute(object, behavior);
+  behavior.moveNode.execute = [entity, &behavior]() {
+    wizardMoveExecute(entity, behavior);
   };
 
-  behavior.thinkingNode.execute = [&object, &behavior]() {
-    wizardThinkingExecute(object, behavior);
+  behavior.thinkingNode.execute = [entity, &behavior]() {
+    wizardThinkingExecute(entity, behavior);
   };
 
-  behavior.continueActionNode.execute = [&object, &behavior, &renderable]() {
-    continueCurrentAction(object, behavior, renderable);
+  behavior.continueActionNode.execute = [entity, &behavior, &renderable]() {
+    continueCurrentAction(entity, behavior, renderable);
   };
 
-  behavior.executeBeingAttackedLogic.execute = [&object, &behavior]() {
-    wizardBeingAttackedExecute(object, behavior);
+  behavior.executeBeingAttackedLogic.execute = [entity, &behavior]() {
+    wizardBeingAttackedExecute(entity, behavior);
   };
 }
 
@@ -36,14 +36,14 @@ static bool isActionInProgress(const WizardBehavior &behavior) {
          behavior.state == WizardState::Kicking;
 }
 
-static void initializeConditionNodes(Object3D &object,
+static void initializeConditionNodes(int entity,
                                      WizardBehavior &behavior) {
-  behavior.someoneIsClose = [&object]() {
-    return wizardIsSomeoneClose(object);
+  behavior.someoneIsClose = [entity]() {
+    return wizardIsSomeoneClose(entity);
   };
 
-  behavior.someoneIsSuperClose = [&object, &behavior]() {
-    return wizardSomeoneIsSuperClose(object, behavior);
+  behavior.someoneIsSuperClose = [entity, &behavior]() {
+    return wizardSomeoneIsSuperClose(entity, behavior);
   };
 
   behavior.beingAttackedNode.conditions = [&behavior]() {
@@ -106,27 +106,29 @@ static void connectDecisionTree(WizardBehavior &behavior) {
 }
 
 FindClosestWizardInRangeReturn
-findClosestWizardInRange(const Object3D &self, glm::vec3 &closestPosition,
+findClosestWizardInRange(int selfEntity, glm::vec3 &closestPosition,
                          float closestDistanceSquared) {
-  const glm::vec3 selfPosition = glm::vec3(self.model[3]);
+  const TransformComponent &selfTransform = getTransform(selfEntity);
+  const glm::vec3 selfPosition = glm::vec3(selfTransform.model[3]);
   bool foundWizard = false;
-  size_t otherIndex = SIZE_MAX;
+  int otherEntity = -1;
 
-  for (int i = 0; i < vulkanRendererContext.objects.size(); i++) {
-    const Object3D &other = vulkanRendererContext.objects[i];
+  for (const WorldComponent &otherWorld : resources.worlds) {
+    const Renderable *otherRenderable = tryGetRenderable(otherWorld.entity);
 
-    if (!other.enabled)
+    if (otherRenderable == nullptr || !otherRenderable->visible)
       continue;
 
-    if (&other == &self) {
-      continue;
-    }
-
-    if (other.worldKind != ObjectWorldKind::Wizard) {
+    if (otherWorld.entity == selfEntity) {
       continue;
     }
 
-    const glm::vec3 otherPosition = glm::vec3(other.model[3]);
+    if (otherWorld.worldKind != ObjectWorldKind::Wizard) {
+      continue;
+    }
+
+    const TransformComponent &otherTransform = getTransform(otherWorld.entity);
+    const glm::vec3 otherPosition = glm::vec3(otherTransform.model[3]);
 
     const glm::vec2 delta{
         otherPosition.x - selfPosition.x,
@@ -139,26 +141,26 @@ findClosestWizardInRange(const Object3D &self, glm::vec3 &closestPosition,
       closestPosition = otherPosition;
       closestDistanceSquared = distanceSquared;
       foundWizard = true;
-      otherIndex = i;
+      otherEntity = otherWorld.entity;
     }
   }
 
   return FindClosestWizardInRangeReturn{.found = foundWizard,
-                                        .otherIndex = otherIndex};
+                                        .otherEntity = otherEntity};
 }
 
-void initializeWizardDecisionTree(Object3D &object, WizardBehavior &behavior,
+void initializeWizardDecisionTree(int entity, WizardBehavior &behavior,
                                   Renderable &renderable) {
-  initializeActionNodes(object, behavior, renderable);
-  initializeConditionNodes(object, behavior);
+  initializeActionNodes(entity, behavior, renderable);
+  initializeConditionNodes(entity, behavior);
   connectDecisionTree(behavior);
 }
 
-void behaveLikeWizzard(Object3D &object, WizardBehavior &currentBehavior) {
+void behaveLikeWizzard(int entity, WizardBehavior &currentBehavior) {
   currentBehavior.tick += timeState.deltaTime;
 
   if (!currentBehavior.hasInitialRotation) {
-    currentBehavior.initialRotation = captureInitialRotation(object);
+    currentBehavior.initialRotation = captureInitialRotation(entity);
     currentBehavior.initialForwardYaw =
         getForwardYaw(currentBehavior.initialRotation);
     currentBehavior.hasInitialRotation = true;

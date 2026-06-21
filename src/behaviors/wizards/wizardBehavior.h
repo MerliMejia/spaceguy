@@ -3,7 +3,6 @@
 #include "../decisionTree.h"
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include "../../engine/vulkanRenderer.h"
 #include "../../systems/resourceManagementSystem.h"
 #include "../../utils/math.h"
 #include <cstdint>
@@ -27,7 +26,7 @@ struct WizardBehavior {
   WizardState state = WizardState::Thinking;
   glm::vec3 nextMovePoint;
   glm::vec3 kickingObject;
-  size_t currentAttackingIndex = SIZE_MAX;
+  int currentAttackingEntity = -1;
 
   // Orientation captured from the imported model the first time it updates.
   bool hasInitialRotation = false;
@@ -64,16 +63,16 @@ struct WizardBehavior {
   DecisionNode tooManyKicksNode;
 };
 
-void initializeWizardDecisionTree(Object3D &object,
+void initializeWizardDecisionTree(int entity,
                                   WizardBehavior &currentBehavior,
                                   Renderable &renderable);
-void behaveLikeWizzard(Object3D &object, WizardBehavior &currentBehavior);
+void behaveLikeWizzard(int entity, WizardBehavior &currentBehavior);
 
 struct FindClosestWizardInRangeReturn {
   bool found;
-  size_t otherIndex;
+  int otherEntity;
 };
 
 FindClosestWizardInRangeReturn
-findClosestWizardInRange(const Object3D &self, glm::vec3 &closestPosition,
+findClosestWizardInRange(int selfEntity, glm::vec3 &closestPosition,
                          float closestDistanceSquared = RADIUS_SQ);

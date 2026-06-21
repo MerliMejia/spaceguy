@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../engine/vulkanRenderer.h"
+#include "resourceManagementSystem.h"
 #include "../utils/time.h"
 
 #include <cstdint>
@@ -20,5 +20,5 @@ struct TransformAnimationDataFromObject {
 
 void updateAnimations();
 
-AnimationDataFromObject getAnimationDataFromObject(const Object3D &object);
-bool hasActiveAnimationEnded(const Object3D &object);
+AnimationDataFromObject getAnimationDataFromEntity(int entity);
+bool hasActiveAnimationEnded(int entity);

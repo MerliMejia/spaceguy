@@ -13,27 +13,6 @@
 #include "../utils/types.h"
 #include "vulkanGlobals.h"
 
-enum class ObjectRenderKind { Static, Animated, TransformAnimated };
-
-enum class ObjectWorldKind { None, Floor, Wizard };
-
-struct Object3D {
-  int index = -1;
-  int renderableEntity = -1;
-  glm::mat4 model;
-  glm::mat4 baseModel{1.0f}; // For transform animations
-
-  uint32_t activeAnimation = 0;
-  uint32_t activeFrame = 0;
-
-  float animationTimeSeconds = 0.0f;
-  float animationPlaySpeed = 1.0f;
-
-  ObjectWorldKind worldKind = ObjectWorldKind::None;
-  int entityId = -1;
-  bool enabled = true;
-};
-
 // Will store/handle every vulkan stuff that can change depending of how we
 // decide that the renderer will render stuff.
 
@@ -74,9 +53,6 @@ struct VulkanRendererContext {
   vk::raii::Image depthImage = nullptr;
   vk::raii::DeviceMemory depthImageMemory = nullptr;
   vk::raii::ImageView depthImageView = nullptr;
-
-  // To actually draw
-  std::vector<Object3D> objects;
 
   // Animations
   vk::raii::Buffer animationPositionsBuffer = nullptr;
