@@ -35,11 +35,19 @@ struct WorldComponent {
   int worldEntityId = -1;
 };
 
+struct ProjectileComponent {
+  int entity = -1;
+  glm::vec3 direction{0.0f, -1.0f, 0.0f};
+  float speed = 20.0f;
+  float timeAlive = 0.0f;
+};
+
 struct Resources {
   std::vector<Renderable> renderables;
   std::vector<TransformComponent> transforms;
   std::vector<AnimationComponent> animations;
   std::vector<WorldComponent> worlds;
+  std::vector<ProjectileComponent> projectiles;
 };
 
 extern Resources resources;
@@ -62,6 +70,10 @@ AnimationComponent *tryGetAnimation(int entity);
 WorldComponent &addWorld(int entity);
 WorldComponent &getWorld(int entity);
 WorldComponent *tryGetWorld(int entity);
+
+ProjectileComponent &addProjectile(int entity);
+ProjectileComponent &getProjectile(int entity);
+ProjectileComponent *tryGetProjectile(int entity);
 
 void destroyEntity(int entity);
 void processDestroyQueue();

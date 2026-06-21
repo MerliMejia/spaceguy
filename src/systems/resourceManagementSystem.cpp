@@ -9,6 +9,7 @@ static std::unordered_map<int, int> entityToRenderables;
 static std::unordered_map<int, int> entityToTransforms;
 static std::unordered_map<int, int> entityToAnimations;
 static std::unordered_map<int, int> entityToWorlds;
+static std::unordered_map<int, int> entityToProjectiles;
 static int nextEntityId = 1;
 
 static std::unordered_set<int> alive;
@@ -177,6 +178,44 @@ WorldComponent *tryGetWorld(int entity) {
   return nullptr;
 }
 
+ProjectileComponent &addProjectile(int entity) {
+  if (!alive.contains(entity)) {
+    throw std::runtime_error("This entity doesn't live anymore");
+  }
+
+  auto it = entityToProjectiles.find(entity);
+  if (it != entityToProjectiles.end()) {
+    throw std::runtime_error("This entity already has a projectile component " +
+                             std::to_string(entity));
+  }
+
+  int projectileIndex = resources.projectiles.size();
+  resources.projectiles.push_back(ProjectileComponent{.entity = entity});
+  entityToProjectiles[entity] = projectileIndex;
+
+  return resources.projectiles[projectileIndex];
+}
+
+ProjectileComponent &getProjectile(int entity) {
+  auto r = entityToProjectiles.find(entity);
+
+  if (r != entityToProjectiles.end()) {
+    return resources.projectiles[r->second];
+  }
+
+  throw std::runtime_error("Entity doesn't have a projectile component");
+}
+
+ProjectileComponent *tryGetProjectile(int entity) {
+  auto r = entityToProjectiles.find(entity);
+
+  if (r != entityToProjectiles.end()) {
+    return &resources.projectiles[r->second];
+  }
+
+  return nullptr;
+}
+
 void destroyEntity(int entity) { destroyQueue.push_back(entity); }
 
 static void destroyRenderable(int entity) {
@@ -255,6 +294,25 @@ static void destroyWorld(int entity) {
   entityToWorlds.erase(entity);
 }
 
+static void destroyProjectile(int entity) {
+  auto it = entityToProjectiles.find(entity);
+  if (it == entityToProjectiles.end()) {
+    return;
+  }
+  int indexToRemove = it->second;
+  int lastIndex = resources.projectiles.size() - 1;
+
+  if (indexToRemove != lastIndex) {
+    ProjectileComponent moved = resources.projectiles[lastIndex];
+
+    resources.projectiles[indexToRemove] = moved;
+    entityToProjectiles[moved.entity] = indexToRemove;
+  }
+
+  resources.projectiles.pop_back();
+  entityToProjectiles.erase(entity);
+}
+
 void processDestroyQueue() {
   for (int entity : destroyQueue) {
     if (!alive.contains(entity)) {
@@ -264,6 +322,7 @@ void processDestroyQueue() {
     destroyTransform(entity);
     destroyAnimation(entity);
     destroyWorld(entity);
+    destroyProjectile(entity);
     alive.erase(entity);
   }
 

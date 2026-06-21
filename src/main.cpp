@@ -13,6 +13,7 @@
 #include "engine/vulkanBackend.h"
 #include "engine/vulkanRenderer.h"
 #include "systems/animationSystem.h"
+#include "systems/projectileSystem.h"
 #include "systems/resourceManagementSystem.h"
 #include "systems/worldSystem.h"
 #include "utils/generators.h"
@@ -136,6 +137,7 @@ int main() {
   }
 
   initializeBehaviors();
+  initializeProjectiles();
 
   while (!glfwWindowShouldClose(vulkanContext.window)) {
     glfwPollEvents();
@@ -145,6 +147,7 @@ int main() {
     }
     updateBehaviors();
     updateWizardEffects();
+    updateProjectiles();
     updateAnimations();
     drawFrame();
     processDestroyQueue();

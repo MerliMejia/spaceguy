@@ -1,5 +1,6 @@
-import bpy
 from pathlib import Path
+
+import bpy
 
 
 def write_vec3(file, v):
@@ -113,7 +114,11 @@ def action_has_compatible_slot(action, owner):
 
     for slot in action.slots:
         slot_id_type = getattr(slot, "target_id_type", None)
-        if slot_id_type is None or owner_id_type is None or slot_id_type == owner_id_type:
+        if (
+            slot_id_type is None
+            or owner_id_type is None
+            or slot_id_type == owner_id_type
+        ):
             return True
 
     return False
@@ -123,11 +128,27 @@ def collect_actions(owner):
     if owner.animation_data is None:
         return []
 
-    actions = [
-        action
-        for action in bpy.data.actions
-        if action_has_animation(action) and action_has_compatible_slot(action, owner)
-    ]
+    owned_actions = []
+
+    if owner.animation_data.action is not None:
+        owned_actions.append(owner.animation_data.action)
+
+    for track in owner.animation_data.nla_tracks:
+        for strip in track.strips:
+            if strip.action is not None:
+                owned_actions.append(strip.action)
+
+    actions = []
+    seen = set()
+
+    for action in owned_actions:
+        if action.name in seen:
+            continue
+
+        seen.add(action.name)
+
+        if action_has_animation(action) and action_has_compatible_slot(action, owner):
+            actions.append(action)
 
     actions.sort(key=lambda action: action.name)
     return actions
@@ -215,8 +236,7 @@ def export_spaceguy_3d(filepath, obj=None):
     eval_mesh = eval_obj.to_mesh()
 
     source_vertex_count = len(eval_mesh.vertices)
-    export_vertices, export_indices = collect_export_geometry(
-        eval_obj, eval_mesh)
+    export_vertices, export_indices = collect_export_geometry(eval_obj, eval_mesh)
 
     eval_obj.to_mesh_clear()
 
@@ -246,10 +266,7 @@ def export_spaceguy_3d(filepath, obj=None):
         file.write("# x y z r g b\n")
         for _source_vertex_index, pos, color in export_vertices:
             r, g, b = color
-            file.write(
-                f"{pos.x:.9f} {pos.y:.9f} {pos.z:.9f} "
-                f"{r:.6f} {g:.6f} {b:.6f}\n"
-            )
+            file.write(f"{pos.x:.9f} {pos.y:.9f} {pos.z:.9f} {r:.6f} {g:.6f} {b:.6f}\n")
 
         file.write("\n")
         file.write("indices\n")
@@ -263,8 +280,7 @@ def export_spaceguy_3d(filepath, obj=None):
         try:
             for action in actions:
                 key_pose_frames = get_action_key_pose_frames(action)
-                start_frame, end_frame = get_key_pose_frame_range(
-                    key_pose_frames)
+                start_frame, end_frame = get_key_pose_frame_range(key_pose_frames)
 
                 assign_action(animation_owner, action)
 

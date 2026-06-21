@@ -1,24 +1,11 @@
-Effects for wizards
+Wizards shooting
 
-Each effect is an Object3D, which means it has an index inside vulkanRenderer.objects.
+This can be a good oportunity to create a "proyectile system".
 
-We need to know the index of the wizard object and the index of the actual effect object.
+Basically something that takes any entity that is a proyectile and update it's transformation every frame.
 
-This can be created when creating the wizard objects (because is the only point where we have both the object indices).
+So a "projectile" in this case should start in an initial position, have a direction and a desired speed.
 
-WizardShootEffect can be then:
+Every frame the projectile will travel in that direction at that speed.
 
-{
-wizardObjectIndex,
-objectIndex
-}
-
-Every time a wizard executes the attacking node it should:
-
-- Enable the current wizard effect.
-    - How do we find the effect of that wizard?
-        - We can have another vector (wizardToShootingEffect) that stores the indices of it's effect.
-        - We can just asume that the wizard effect will be exactly 1 position more in the objects array.
-- Set the current animation seconds to 0.
-- Wait for the animation to finish.
-- Disable the effect object.
+At some point, the projectile should be destroyed. Maybe after certain time is reached. So maybe also have a life time constant.

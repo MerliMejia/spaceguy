@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../systems/animationSystem.h"
+#include "../../systems/projectileSystem.h"
 #include "../../systems/resourceManagementSystem.h"
 #include "../../systems/worldSystem.h"
 #include "glm/fwd.hpp"
@@ -12,7 +13,8 @@ constexpr int MAX_CONSECUTIVE_KICKS = 2;
 constexpr float MOVE_TARGET_EPSILON = 0.000001f;
 
 inline int findWizardShootingEffectEntity(int wizardEntity) {
-  for (const WizardShootEffect &shootEffect : worldContext.wizardShootingEffects) {
+  for (const WizardShootEffect &shootEffect :
+       worldContext.wizardShootingEffects) {
     if (shootEffect.wizardEntity == wizardEntity) {
       return shootEffect.effectEntity;
     }
@@ -176,6 +178,7 @@ inline void wizardAttackExecute(int entity, WizardBehavior &behavior) {
     behavior.moves = 0;
     behavior.kicks = 0;
 
+    spawnWizardProjectile(entity);
     setWizardShootingEffectVisible(entity, false);
     resetWizardShootingEffectAnimation(entity);
 
@@ -283,14 +286,13 @@ inline void wizardKickExecute(int entity, WizardBehavior &behavior,
   }
 }
 
-inline void wizardBeingAttackedExecute(int entity,
-                                       WizardBehavior &behavior) {
+inline void wizardBeingAttackedExecute(int entity, WizardBehavior &behavior) {
 
   // Super mega hyper edge case
   // if (!worldContext.wizzardAttacking.contains(behavior.id)) {
   //   behavior.state = WizardState::Thinking;
-  //   getAnimation(entity).activeAnimation = WizardAnimationMapping::BeingAttacked;
-  //   return;
+  //   getAnimation(entity).activeAnimation =
+  //   WizardAnimationMapping::BeingAttacked; return;
   // }
 
   if (behavior.state == WizardState::Attacking ||
@@ -300,7 +302,8 @@ inline void wizardBeingAttackedExecute(int entity,
 
   if (behavior.state != WizardState::BeingAttacked) {
     behavior.state = WizardState::BeingAttacked;
-    getAnimation(entity).activeAnimation = WizardAnimationMapping::BeingAttacked;
+    getAnimation(entity).activeAnimation =
+        WizardAnimationMapping::BeingAttacked;
   }
 }
 
@@ -325,8 +328,7 @@ inline void continueCurrentAction(int entity, WizardBehavior &behavior,
   }
 }
 
-inline bool wizardSomeoneIsSuperClose(int entity,
-                                      WizardBehavior &behavior) {
+inline bool wizardSomeoneIsSuperClose(int entity, WizardBehavior &behavior) {
   glm::vec3 closestPosition{};
   auto inRangeData =
       findClosestWizardInRange(entity, closestPosition, SUPER_CLOSE_RADIUS_SQ);

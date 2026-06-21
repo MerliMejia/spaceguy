@@ -5,8 +5,8 @@
 
 #include <cstring>
 
-Mesh generateMesh(const std::vector<Vertex> &vertices,
-                  const std::vector<uint16_t> &indices) {
+inline Mesh generateMesh(const std::vector<Vertex> &vertices,
+                         const std::vector<uint16_t> &indices) {
   Mesh mesh{};
 
   // Vertices
@@ -45,8 +45,8 @@ Mesh generateMesh(const std::vector<Vertex> &vertices,
   return mesh;
 }
 
-AnimatedMesh generateAnimatedMesh(const BlenderModel &model,
-                                  uint32_t firstGlobalPositionOffset) {
+inline AnimatedMesh generateAnimatedMesh(const BlenderModel &model,
+                                         uint32_t firstGlobalPositionOffset) {
   AnimatedMesh animated{};
   animated.fps = model.fps;
 
@@ -120,7 +120,7 @@ AnimatedMesh generateAnimatedMesh(const BlenderModel &model,
   return animated;
 }
 
-TransformAnimatedMesh
+inline TransformAnimatedMesh
 generateTransformAnimatedMesh(const BlenderTransformModel &model) {
   TransformAnimatedMesh animated{};
   animated.fps = model.fps;
