@@ -13,6 +13,12 @@ struct Renderable {
   const TransformAnimatedMesh *transformAnimatedMesh = nullptr;
 };
 
+struct Resources {
+  std::vector<Renderable> renderables;
+};
+
+extern Resources resources;
+
 int createEntity();
 Renderable &addRenderable(int entity);
 Renderable &getRenderable(int entity);

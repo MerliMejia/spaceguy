@@ -1,5 +1,6 @@
 #include "resourceManagementSystem.h"
 #include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -8,7 +9,7 @@ static std::unordered_map<int, int> entityToRenderables;
 static int nextEntityId = 1;
 
 static std::unordered_set<int> alive;
-static std::vector<Renderable> renderables;
+Resources resources{};
 
 static std::vector<int> destroyQueue;
 
@@ -26,21 +27,22 @@ Renderable &addRenderable(int entity) {
 
   auto it = entityToRenderables.find(entity);
   if (it != entityToRenderables.end()) {
-    throw std::runtime_error("This entity already has a renderable");
+    throw std::runtime_error("This entity already has a renderable " +
+                             std::to_string(entity));
   }
 
-  int renderableIndex = renderables.size();
-  renderables.push_back(Renderable{.entity = entity});
+  int renderableIndex = resources.renderables.size();
+  resources.renderables.push_back(Renderable{.entity = entity});
   entityToRenderables[entity] = renderableIndex;
 
-  return renderables[renderableIndex];
+  return resources.renderables[renderableIndex];
 }
 
 Renderable &getRenderable(int entity) {
   auto r = entityToRenderables.find(entity);
 
   if (r != entityToRenderables.end()) {
-    return renderables[r->second];
+    return resources.renderables[r->second];
   }
 
   throw std::runtime_error("Entity doesn't have a renderable");
@@ -54,16 +56,16 @@ static void destroyRenderable(int entity) {
     return;
   }
   int rIndexToRemove = it->second;
-  int rLastIndex = renderables.size() - 1;
+  int rLastIndex = resources.renderables.size() - 1;
 
   if (rIndexToRemove != rLastIndex) {
-    Renderable moved = renderables[rLastIndex];
+    Renderable moved = resources.renderables[rLastIndex];
 
-    renderables[rIndexToRemove] = moved;
+    resources.renderables[rIndexToRemove] = moved;
     entityToRenderables[moved.entity] = rIndexToRemove;
   }
 
-  renderables.pop_back();
+  resources.renderables.pop_back();
   entityToRenderables.erase(entity);
 }
 

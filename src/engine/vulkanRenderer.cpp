@@ -1,5 +1,6 @@
 #include "vulkanRenderer.h"
 #include "../systems/animationSystem.h"
+#include "../systems/resourceManagementSystem.h"
 #include "../systems/worldSystem.h"
 #include "../utils/buffers.h"
 #include "./predefined/vulkanDescriptorSetLayouts.h"
@@ -357,13 +358,15 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
   commandBuffer.bindDescriptorSets(
       vk::PipelineBindPoint::eGraphics, *vulkanRendererContext.pipelineLayout,
       0, *vulkanRendererContext.descriptorSets[frameIndex], nullptr);
-
-  for (const Object3D &object : vulkanRendererContext.objects) {
+  // new
+  for (int i = 0; i < vulkanRendererContext.objects.size(); i++) {
+    const Object3D &object = vulkanRendererContext.objects[i];
+    const Renderable &renderable = resources.renderables[i];
 
     if (!object.enabled)
       continue;
 
-    if (object.renderKind == ObjectRenderKind::Animated) {
+    if (renderable.renderKind == ObjectRenderKind::Animated) {
       commandBuffer.bindPipeline(
           vk::PipelineBindPoint::eGraphics,
           *vulkanRendererContext.animatedGraphicsPipeline);
@@ -381,23 +384,24 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
           .previousPositionOffset = animationData.previousPositionOffset,
           .nextPositionOffset = animationData.nextPositionOffset,
           .interpolation = animationData.interpolation,
-          .vertexCount = object.animatedMesh->mesh.vertexCount,
+          .vertexCount = renderable.animatedMesh->mesh.vertexCount,
       };
 
       commandBuffer.pushConstants<AnimatedObjectPushConstants>(
           *vulkanRendererContext.animatedPipelineLayout,
           vk::ShaderStageFlagBits::eVertex, 0, pushConstants);
 
-      vk::Buffer vertexBuffers[] = {*object.animatedMesh->mesh.vertexBuffer};
+      vk::Buffer vertexBuffers[] = {
+          *renderable.animatedMesh->mesh.vertexBuffer};
       vk::DeviceSize offsets[] = {0};
 
       commandBuffer.bindVertexBuffers(0, vertexBuffers, offsets);
-      commandBuffer.bindIndexBuffer(*object.animatedMesh->mesh.indexBuffer, 0,
-                                    vk::IndexType::eUint16);
+      commandBuffer.bindIndexBuffer(*renderable.animatedMesh->mesh.indexBuffer,
+                                    0, vk::IndexType::eUint16);
 
-      commandBuffer.drawIndexed(object.animatedMesh->mesh.indexCount, 1, 0, 0,
-                                0);
-    } else if (object.renderKind == ObjectRenderKind::TransformAnimated) {
+      commandBuffer.drawIndexed(renderable.animatedMesh->mesh.indexCount, 1, 0,
+                                0, 0);
+    } else if (renderable.renderKind == ObjectRenderKind::TransformAnimated) {
       commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,
                                  *vulkanRendererContext.graphicsPipeline);
 
@@ -415,17 +419,17 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
           vk::ShaderStageFlagBits::eVertex, 0, pushConstants);
 
       vk::Buffer vertexBuffers[] = {
-          *object.transformAnimatedMesh->mesh.vertexBuffer,
+          *renderable.transformAnimatedMesh->mesh.vertexBuffer,
       };
       vk::DeviceSize offsets[] = {0};
 
       commandBuffer.bindVertexBuffers(0, vertexBuffers, offsets);
       commandBuffer.bindIndexBuffer(
-          *object.transformAnimatedMesh->mesh.indexBuffer, 0,
+          *renderable.transformAnimatedMesh->mesh.indexBuffer, 0,
           vk::IndexType::eUint16);
 
-      commandBuffer.drawIndexed(object.transformAnimatedMesh->mesh.indexCount,
-                                1, 0, 0, 0);
+      commandBuffer.drawIndexed(
+          renderable.transformAnimatedMesh->mesh.indexCount, 1, 0, 0, 0);
     } else {
       commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,
                                  *vulkanRendererContext.graphicsPipeline);
@@ -441,14 +445,14 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
           *vulkanRendererContext.pipelineLayout,
           vk::ShaderStageFlagBits::eVertex, 0, pushConstants);
 
-      vk::Buffer vertexBuffers[] = {*object.mesh->vertexBuffer};
+      vk::Buffer vertexBuffers[] = {*renderable.mesh->vertexBuffer};
       vk::DeviceSize offsets[] = {0};
 
       commandBuffer.bindVertexBuffers(0, vertexBuffers, offsets);
-      commandBuffer.bindIndexBuffer(*object.mesh->indexBuffer, 0,
+      commandBuffer.bindIndexBuffer(*renderable.mesh->indexBuffer, 0,
                                     vk::IndexType::eUint16);
 
-      commandBuffer.drawIndexed(object.mesh->indexCount, 1, 0, 0, 0);
+      commandBuffer.drawIndexed(renderable.mesh->indexCount, 1, 0, 0, 0);
     }
   }
 

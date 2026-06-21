@@ -63,6 +63,11 @@ int main() {
     model = glm::rotate(model, rotation.z, glm::vec3{0.0f, 0.0f, 1.0f});
     model = glm::scale(model, worldData.floor.scale);
 
+    int floorEntity = createEntity();
+    Renderable &floorRenderable = addRenderable(floorEntity);
+    floorRenderable.mesh = &floorMesh;
+    floorRenderable.renderKind = ObjectRenderKind::Static;
+
     vulkanRendererContext.objects.push_back(
         Object3D{.index = 0,
                  .mesh = &floorMesh,
@@ -99,6 +104,12 @@ int main() {
       wizardModelMatrix = glm::translate(wizardModelMatrix, wizardPosition);
 
       int wizardIndex = vulkanRendererContext.objects.size();
+
+      int wizardEntity = createEntity();
+      Renderable &wizardRenderable = addRenderable(wizardEntity);
+      wizardRenderable.renderKind = ObjectRenderKind::Animated;
+      wizardRenderable.animatedMesh = &wizardAnimatedMesh;
+
       vulkanRendererContext.objects.push_back(Object3D{
           .index = wizardIndex,
           .renderKind = ObjectRenderKind::Animated,
@@ -111,6 +122,13 @@ int main() {
       });
 
       int wizardEffectIndex = vulkanRendererContext.objects.size();
+
+      int wizardEffectEntity = createEntity();
+      Renderable &wizardEffectRenderable = addRenderable(wizardEffectEntity);
+      wizardEffectRenderable.renderKind = ObjectRenderKind::TransformAnimated;
+      wizardEffectRenderable.transformAnimatedMesh =
+          &wizardShootEffectTransformAnimatedMesh;
+
       vulkanRendererContext.objects.push_back(Object3D{
           .index = wizardEffectIndex,
           .renderKind = ObjectRenderKind::TransformAnimated,
