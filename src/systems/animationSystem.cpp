@@ -1,28 +1,32 @@
 #include "animationSystem.h"
+#include "resourceManagementSystem.h"
 
 #include <glm/gtc/quaternion.hpp>
 
 static float getCurrentBlenderFrame(const Object3D &object,
+                                    const Renderable &renderable,
                                     const AnimationClipGpu &clip) {
 
   return static_cast<float>(clip.startFrame) +
-         object.animationTimeSeconds * object.animatedMesh->fps;
+         object.animationTimeSeconds * renderable.animatedMesh->fps;
 }
 
 static void updateAnimation(Object3D &object) {
-  if (object.renderKind != ObjectRenderKind::Animated ||
-      object.animatedMesh == nullptr ||
-      object.animatedMesh->animations.empty()) {
+  Renderable &renderable = getRenderable(object.renderableEntity);
+
+  if (renderable.renderKind != ObjectRenderKind::Animated ||
+      renderable.animatedMesh == nullptr ||
+      renderable.animatedMesh->animations.empty()) {
     return;
   }
 
-  if (object.activeAnimation >= object.animatedMesh->animations.size()) {
+  if (object.activeAnimation >= renderable.animatedMesh->animations.size()) {
     object.activeAnimation = WizardAnimationMapping::Iddle;
     object.animationTimeSeconds = 0.0f;
   }
 
   const AnimationClipGpu &clip =
-      object.animatedMesh->animations[object.activeAnimation];
+      renderable.animatedMesh->animations[object.activeAnimation];
 
   const float durationFrames =
       static_cast<float>(clip.endFrame - clip.startFrame);
@@ -32,7 +36,7 @@ static void updateAnimation(Object3D &object) {
     return;
   }
 
-  const float durationSeconds = durationFrames / object.animatedMesh->fps;
+  const float durationSeconds = durationFrames / renderable.animatedMesh->fps;
 
   object.animationTimeSeconds +=
       timeState.deltaTime * object.animationPlaySpeed;
@@ -55,20 +59,21 @@ static void updateAnimation(Object3D &object) {
     }
   }
 
-  const float currentFrame = getCurrentBlenderFrame(object, clip);
+  const float currentFrame = getCurrentBlenderFrame(object, renderable, clip);
   object.activeFrame = static_cast<uint32_t>(currentFrame);
 }
 
 static TransformAnimationDataFromObject
-getTransformAnimationDataFromObject(const Object3D &object) {
-  if (object.renderKind != ObjectRenderKind::TransformAnimated ||
-      object.transformAnimatedMesh == nullptr ||
-      object.transformAnimatedMesh->animations.empty()) {
+getTransformAnimationDataFromObject(const Object3D &object,
+                                    const Renderable &renderable) {
+  if (renderable.renderKind != ObjectRenderKind::TransformAnimated ||
+      renderable.transformAnimatedMesh == nullptr ||
+      renderable.transformAnimatedMesh->animations.empty()) {
     return {};
   }
 
   const AnimationClipGpu &clip =
-      object.transformAnimatedMesh->animations[object.activeAnimation];
+      renderable.transformAnimatedMesh->animations[object.activeAnimation];
 
   const uint32_t first = clip.firstKeyPose;
   const uint32_t count = clip.keyPoseCount;
@@ -79,14 +84,14 @@ getTransformAnimationDataFromObject(const Object3D &object) {
 
   const float currentFrame =
       static_cast<float>(clip.startFrame) +
-      object.animationTimeSeconds * object.transformAnimatedMesh->fps;
+      object.animationTimeSeconds * renderable.transformAnimatedMesh->fps;
 
   uint32_t previousIndex = 0;
   uint32_t nextIndex = count - 1;
 
   for (uint32_t i = 0; i < count; ++i) {
     const TransformAnimationKeyPoseGPU &pose =
-        object.transformAnimatedMesh->keyPoses[first + i];
+        renderable.transformAnimatedMesh->keyPoses[first + i];
 
     if (static_cast<float>(pose.blenderFrame) <= currentFrame) {
       previousIndex = i;
@@ -99,10 +104,10 @@ getTransformAnimationDataFromObject(const Object3D &object) {
   }
 
   const TransformAnimationKeyPoseGPU &previous =
-      object.transformAnimatedMesh->keyPoses[first + previousIndex];
+      renderable.transformAnimatedMesh->keyPoses[first + previousIndex];
 
   const TransformAnimationKeyPoseGPU &next =
-      object.transformAnimatedMesh->keyPoses[first + nextIndex];
+      renderable.transformAnimatedMesh->keyPoses[first + nextIndex];
 
   float interpolation = 0.0f;
 
@@ -120,26 +125,29 @@ getTransformAnimationDataFromObject(const Object3D &object) {
 }
 
 static float getCurrentTransformBlenderFrame(const Object3D &object,
+                                             const Renderable &renderable,
                                              const AnimationClipGpu &clip) {
   return static_cast<float>(clip.startFrame) +
-         object.animationTimeSeconds * object.transformAnimatedMesh->fps;
+         object.animationTimeSeconds * renderable.transformAnimatedMesh->fps;
 }
 
 static void updateTransformAnimation(Object3D &object) {
-  if (object.renderKind != ObjectRenderKind::TransformAnimated ||
-      object.transformAnimatedMesh == nullptr ||
-      object.transformAnimatedMesh->animations.empty()) {
+  Renderable &renderable = getRenderable(object.renderableEntity);
+
+  if (renderable.renderKind != ObjectRenderKind::TransformAnimated ||
+      renderable.transformAnimatedMesh == nullptr ||
+      renderable.transformAnimatedMesh->animations.empty()) {
     return;
   }
 
   if (object.activeAnimation >=
-      object.transformAnimatedMesh->animations.size()) {
+      renderable.transformAnimatedMesh->animations.size()) {
     object.activeAnimation = 0;
     object.animationTimeSeconds = 0.0f;
   }
 
   const AnimationClipGpu &clip =
-      object.transformAnimatedMesh->animations[object.activeAnimation];
+      renderable.transformAnimatedMesh->animations[object.activeAnimation];
 
   const float durationFrames =
       static_cast<float>(clip.endFrame - clip.startFrame);
@@ -150,7 +158,7 @@ static void updateTransformAnimation(Object3D &object) {
   }
 
   const float durationSeconds =
-      durationFrames / object.transformAnimatedMesh->fps;
+      durationFrames / renderable.transformAnimatedMesh->fps;
 
   object.animationTimeSeconds +=
       timeState.deltaTime * object.animationPlaySpeed;
@@ -173,11 +181,12 @@ static void updateTransformAnimation(Object3D &object) {
     }
   }
 
-  const float currentFrame = getCurrentTransformBlenderFrame(object, clip);
+  const float currentFrame =
+      getCurrentTransformBlenderFrame(object, renderable, clip);
   object.activeFrame = static_cast<uint32_t>(currentFrame);
 
   TransformAnimationDataFromObject animationData =
-      getTransformAnimationDataFromObject(object);
+      getTransformAnimationDataFromObject(object, renderable);
 
   glm::mat4 transform{1.0f};
   transform = glm::translate(transform, animationData.location);
@@ -198,14 +207,16 @@ void updateAnimations() {
 }
 
 AnimationDataFromObject getAnimationDataFromObject(const Object3D &object) {
-  if (object.renderKind != ObjectRenderKind::Animated ||
-      object.animatedMesh == nullptr ||
-      object.animatedMesh->animations.empty()) {
+  const Renderable &renderable = getRenderable(object.renderableEntity);
+
+  if (renderable.renderKind != ObjectRenderKind::Animated ||
+      renderable.animatedMesh == nullptr ||
+      renderable.animatedMesh->animations.empty()) {
     return {};
   }
 
   const AnimationClipGpu &clip =
-      object.animatedMesh->animations[object.activeAnimation];
+      renderable.animatedMesh->animations[object.activeAnimation];
 
   const uint32_t first = clip.firstKeyPose;
   const uint32_t count = clip.keyPoseCount;
@@ -214,13 +225,14 @@ AnimationDataFromObject getAnimationDataFromObject(const Object3D &object) {
     return {};
   }
 
-  const float currentFrame = getCurrentBlenderFrame(object, clip);
+  const float currentFrame = getCurrentBlenderFrame(object, renderable, clip);
 
   uint32_t previousIndex = 0;
   uint32_t nextIndex = count - 1;
 
   for (uint32_t i = 0; i < count; ++i) {
-    const AnimationKeyPoseGpu &pose = object.animatedMesh->keyPoses[first + i];
+    const AnimationKeyPoseGpu &pose =
+        renderable.animatedMesh->keyPoses[first + i];
 
     if (static_cast<float>(pose.blenderFrame) <= currentFrame) {
       previousIndex = i;
@@ -233,10 +245,10 @@ AnimationDataFromObject getAnimationDataFromObject(const Object3D &object) {
   }
 
   const AnimationKeyPoseGpu &previousPose =
-      object.animatedMesh->keyPoses[first + previousIndex];
+      renderable.animatedMesh->keyPoses[first + previousIndex];
 
   const AnimationKeyPoseGpu &nextPose =
-      object.animatedMesh->keyPoses[first + nextIndex];
+      renderable.animatedMesh->keyPoses[first + nextIndex];
 
   float interpolation = 0.0f;
 
@@ -254,15 +266,17 @@ AnimationDataFromObject getAnimationDataFromObject(const Object3D &object) {
 }
 
 bool hasActiveAnimationEnded(const Object3D &object) {
-  if (object.renderKind == ObjectRenderKind::Animated) {
-    if (object.animatedMesh == nullptr ||
-        object.animatedMesh->animations.empty() ||
-        object.activeAnimation >= object.animatedMesh->animations.size()) {
+  const Renderable &renderable = getRenderable(object.renderableEntity);
+
+  if (renderable.renderKind == ObjectRenderKind::Animated) {
+    if (renderable.animatedMesh == nullptr ||
+        renderable.animatedMesh->animations.empty() ||
+        object.activeAnimation >= renderable.animatedMesh->animations.size()) {
       return false;
     }
 
     const AnimationClipGpu &clip =
-        object.animatedMesh->animations[object.activeAnimation];
+        renderable.animatedMesh->animations[object.activeAnimation];
 
     if (clip.loop) {
       return false;
@@ -270,21 +284,21 @@ bool hasActiveAnimationEnded(const Object3D &object) {
 
     const float durationSeconds =
         static_cast<float>(clip.endFrame - clip.startFrame) /
-        object.animatedMesh->fps;
+        renderable.animatedMesh->fps;
 
     return object.animationTimeSeconds >= durationSeconds;
   }
 
-  if (object.renderKind == ObjectRenderKind::TransformAnimated) {
-    if (object.transformAnimatedMesh == nullptr ||
-        object.transformAnimatedMesh->animations.empty() ||
+  if (renderable.renderKind == ObjectRenderKind::TransformAnimated) {
+    if (renderable.transformAnimatedMesh == nullptr ||
+        renderable.transformAnimatedMesh->animations.empty() ||
         object.activeAnimation >=
-            object.transformAnimatedMesh->animations.size()) {
+            renderable.transformAnimatedMesh->animations.size()) {
       return false;
     }
 
     const AnimationClipGpu &clip =
-        object.transformAnimatedMesh->animations[object.activeAnimation];
+        renderable.transformAnimatedMesh->animations[object.activeAnimation];
 
     if (clip.loop) {
       return false;
@@ -292,7 +306,7 @@ bool hasActiveAnimationEnded(const Object3D &object) {
 
     const float durationSeconds =
         static_cast<float>(clip.endFrame - clip.startFrame) /
-        object.transformAnimatedMesh->fps;
+        renderable.transformAnimatedMesh->fps;
 
     return object.animationTimeSeconds >= durationSeconds;
   }

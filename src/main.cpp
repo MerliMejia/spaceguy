@@ -70,10 +70,9 @@ int main() {
 
     vulkanRendererContext.objects.push_back(
         Object3D{.index = 0,
-                 .mesh = &floorMesh,
-                 .renderKind = ObjectRenderKind::Static,
-                 .worldKind = ObjectWorldKind::Floor,
-                 .model = model});
+                 .renderableEntity = floorEntity,
+                 .model = model,
+                 .worldKind = ObjectWorldKind::Floor});
 
     std::vector<glm::vec4> animationPositions;
 
@@ -112,13 +111,11 @@ int main() {
 
       vulkanRendererContext.objects.push_back(Object3D{
           .index = wizardIndex,
-          .renderKind = ObjectRenderKind::Animated,
-          .worldKind = ObjectWorldKind::Wizard,
-          .mesh = nullptr,
-          .animatedMesh = &wizardAnimatedMesh,
+          .renderableEntity = wizardEntity,
           .model = wizardModelMatrix,
           .activeAnimation = WizardAnimationMapping::Iddle,
           .activeFrame = 0,
+          .worldKind = ObjectWorldKind::Wizard,
       });
 
       int wizardEffectIndex = vulkanRendererContext.objects.size();
@@ -131,8 +128,7 @@ int main() {
 
       vulkanRendererContext.objects.push_back(Object3D{
           .index = wizardEffectIndex,
-          .renderKind = ObjectRenderKind::TransformAnimated,
-          .transformAnimatedMesh = &wizardShootEffectTransformAnimatedMesh,
+          .renderableEntity = wizardEffectEntity,
           .model = glm::mat4{1.0f},
           .baseModel = wizardModelMatrix,
           .enabled = false});

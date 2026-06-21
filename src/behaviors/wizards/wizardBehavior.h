@@ -4,6 +4,7 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "../../engine/vulkanRenderer.h"
+#include "../../systems/resourceManagementSystem.h"
 #include "../../utils/math.h"
 #include <cstdint>
 #include <functional>
@@ -64,7 +65,8 @@ struct WizardBehavior {
 };
 
 void initializeWizardDecisionTree(Object3D &object,
-                                  WizardBehavior &currentBehavior);
+                                  WizardBehavior &currentBehavior,
+                                  Renderable &renderable);
 void behaveLikeWizzard(Object3D &object, WizardBehavior &currentBehavior);
 
 struct FindClosestWizardInRangeReturn {

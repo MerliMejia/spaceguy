@@ -1,5 +1,6 @@
 #include "worldSystem.h"
 #include "../behaviors/wizards/wizardBehaviorUtils.h"
+#include "resourceManagementSystem.h"
 #include <cstddef>
 #include <vector>
 
@@ -101,10 +102,12 @@ void initializeBehaviors() {
       continue;
     }
 
+    Renderable &renderable = getRenderable(object.renderableEntity);
+
     WizardBehavior &behavior = worldContext.wizardBehaviors.emplace_back();
     behavior.id = i;
     object.entityId = worldContext.wizardBehaviors.size() - 1;
-    initializeWizardDecisionTree(object, behavior);
+    initializeWizardDecisionTree(object, behavior, renderable);
   }
 }
 

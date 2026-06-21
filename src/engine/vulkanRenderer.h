@@ -19,10 +19,7 @@ enum class ObjectWorldKind { None, Floor, Wizard };
 
 struct Object3D {
   int index = -1;
-  ObjectRenderKind renderKind = ObjectRenderKind::Static;
-  const Mesh *mesh = nullptr;
-  const AnimatedMesh *animatedMesh = nullptr;
-  const TransformAnimatedMesh *transformAnimatedMesh = nullptr;
+  int renderableEntity = -1;
   glm::mat4 model;
   glm::mat4 baseModel{1.0f}; // For transform animations
 

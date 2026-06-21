@@ -358,13 +358,14 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
   commandBuffer.bindDescriptorSets(
       vk::PipelineBindPoint::eGraphics, *vulkanRendererContext.pipelineLayout,
       0, *vulkanRendererContext.descriptorSets[frameIndex], nullptr);
-  // new
+
   for (int i = 0; i < vulkanRendererContext.objects.size(); i++) {
     const Object3D &object = vulkanRendererContext.objects[i];
-    const Renderable &renderable = resources.renderables[i];
 
     if (!object.enabled)
       continue;
+
+    const Renderable &renderable = getRenderable(object.renderableEntity);
 
     if (renderable.renderKind == ObjectRenderKind::Animated) {
       commandBuffer.bindPipeline(

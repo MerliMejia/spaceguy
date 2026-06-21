@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../systems/animationSystem.h"
+#include "../../systems/resourceManagementSystem.h"
 #include "../../systems/worldSystem.h"
 #include "glm/fwd.hpp"
 #include <cstdint>
@@ -209,7 +210,8 @@ inline void wizardThinkingExecute(Object3D &object, WizardBehavior &behavior) {
   shootingEffectObject.enabled = false;
 }
 
-inline void wizardKickExecute(Object3D &object, WizardBehavior &behavior) {
+inline void wizardKickExecute(Object3D &object, WizardBehavior &behavior,
+                              Renderable &renderable) {
   Object3D &shootingEffectObject =
       vulkanRendererContext.objects[object.index + 1];
   shootingEffectObject.enabled = false;
@@ -217,12 +219,12 @@ inline void wizardKickExecute(Object3D &object, WizardBehavior &behavior) {
   if (behavior.state != WizardState::Kicking) {
     object.activeAnimation = WizardAnimationMapping::Kicking;
     const AnimationClipGpu &clip =
-        object.animatedMesh->animations[object.activeAnimation];
+        renderable.animatedMesh->animations[object.activeAnimation];
 
     const int halfFrame = 45;
     object.animationTimeSeconds =
         static_cast<float>(halfFrame - clip.startFrame) /
-        object.animatedMesh->fps;
+        renderable.animatedMesh->fps;
     behavior.state = WizardState::Kicking;
 
     if (behavior.currentAttackingIndex < worldContext.wizardBehaviors.size()) {
@@ -277,7 +279,8 @@ inline void wizardBeingAttackedExecute(Object3D &object,
   }
 }
 
-inline void continueCurrentAction(Object3D &object, WizardBehavior &behavior) {
+inline void continueCurrentAction(Object3D &object, WizardBehavior &behavior,
+                                  Renderable &renderable) {
   switch (behavior.state) {
   case WizardState::Moving:
     wizardMoveExecute(object, behavior);
@@ -289,7 +292,7 @@ inline void continueCurrentAction(Object3D &object, WizardBehavior &behavior) {
     wizardThinkingExecute(object, behavior);
     break;
   case WizardState::Kicking:
-    wizardKickExecute(object, behavior);
+    wizardKickExecute(object, behavior, renderable);
     break;
   case WizardState::BeingAttacked:
     wizardBeingAttackedExecute(object, behavior);

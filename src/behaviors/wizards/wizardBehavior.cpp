@@ -3,13 +3,14 @@
 #include "../decisionTree.h"
 #include "wizardBehaviorUtils.h"
 
-static void initializeActionNodes(Object3D &object, WizardBehavior &behavior) {
+static void initializeActionNodes(Object3D &object, WizardBehavior &behavior,
+                                  Renderable &renderable) {
   behavior.attackNode.execute = [&object, &behavior]() {
     wizardAttackExecute(object, behavior);
   };
 
-  behavior.kickNode.execute = [&object, &behavior]() {
-    wizardKickExecute(object, behavior);
+  behavior.kickNode.execute = [&object, &behavior, &renderable]() {
+    wizardKickExecute(object, behavior, renderable);
   };
 
   behavior.moveNode.execute = [&object, &behavior]() {
@@ -20,8 +21,8 @@ static void initializeActionNodes(Object3D &object, WizardBehavior &behavior) {
     wizardThinkingExecute(object, behavior);
   };
 
-  behavior.continueActionNode.execute = [&object, &behavior]() {
-    continueCurrentAction(object, behavior);
+  behavior.continueActionNode.execute = [&object, &behavior, &renderable]() {
+    continueCurrentAction(object, behavior, renderable);
   };
 
   behavior.executeBeingAttackedLogic.execute = [&object, &behavior]() {
@@ -146,8 +147,9 @@ findClosestWizardInRange(const Object3D &self, glm::vec3 &closestPosition,
                                         .otherIndex = otherIndex};
 }
 
-void initializeWizardDecisionTree(Object3D &object, WizardBehavior &behavior) {
-  initializeActionNodes(object, behavior);
+void initializeWizardDecisionTree(Object3D &object, WizardBehavior &behavior,
+                                  Renderable &renderable) {
+  initializeActionNodes(object, behavior, renderable);
   initializeConditionNodes(object, behavior);
   connectDecisionTree(behavior);
 }
