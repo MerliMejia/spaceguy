@@ -49,7 +49,7 @@ struct WizardBehavior {
   DecisionNode thinkingNode;
   DecisionNode continueActionNode;
 
-  // Decision tree interrup nodes
+  // Decision tree interrupt nodes
   DecisionNode beingAttackedNode;
   DecisionNode kickNode;
 
@@ -63,10 +63,8 @@ struct WizardBehavior {
   DecisionNode tooManyKicksNode;
 };
 
-void initializeWizardDecisionTree(int entity,
-                                  WizardBehavior &currentBehavior,
-                                  Renderable &renderable);
-void behaveLikeWizzard(int entity, WizardBehavior &currentBehavior);
+void initializeWizardBehavior(int entity, WizardBehavior &currentBehavior);
+void behaveLikeWizard(int entity, WizardBehavior &currentBehavior);
 
 struct FindClosestWizardInRangeReturn {
   bool found;

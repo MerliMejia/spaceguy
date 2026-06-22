@@ -1,7 +1,7 @@
 #include "vulkanRenderer.h"
 #include "../systems/animationSystem.h"
 #include "../systems/resourceManagementSystem.h"
-#include "../systems/worldSystem.h"
+#include "../systems/sceneContext.h"
 #include "../utils/buffers.h"
 #include "./predefined/vulkanDescriptorSetLayouts.h"
 #include "./predefined/vulkanGraphicPipelines.h"
@@ -465,15 +465,15 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
 
       CameraBufferObject camera{};
       camera.view =
-          glm::lookAt(worldContext.cameraPosition,
-                      worldContext.cameraPosition + worldContext.cameraLookAt,
+          glm::lookAt(sceneContext.cameraPosition,
+                      sceneContext.cameraPosition + sceneContext.cameraLookAt,
                       glm::vec3{0.0f, 0.0f, 1.0f});
 
       camera.proj = glm::perspective(
-          worldContext.cameraFovY,
+          sceneContext.cameraFovY,
           static_cast<float>(vulkanContext.swapchainExtent.width) /
               static_cast<float>(vulkanContext.swapchainExtent.height),
-          worldContext.cameraClipStart, worldContext.cameraClipEnd);
+          sceneContext.cameraClipStart, sceneContext.cameraClipEnd);
 
       camera.proj[1][1] *= -1.0f;
 
@@ -509,15 +509,15 @@ void updateUniformBuffer(uint32_t currentImage) {
   CameraBufferObject camera{};
 
   camera.view =
-      glm::lookAt(worldContext.cameraPosition,
-                  worldContext.cameraPosition + worldContext.cameraLookAt,
+      glm::lookAt(sceneContext.cameraPosition,
+                  sceneContext.cameraPosition + sceneContext.cameraLookAt,
                   glm::vec3{0.0f, 0.0f, 1.0f});
 
   camera.proj = glm::perspective(
-      worldContext.cameraFovY,
+      sceneContext.cameraFovY,
       static_cast<float>(vulkanContext.swapchainExtent.width) /
           static_cast<float>(vulkanContext.swapchainExtent.height),
-      worldContext.cameraClipStart, worldContext.cameraClipEnd);
+      sceneContext.cameraClipStart, sceneContext.cameraClipEnd);
 
   camera.proj[1][1] *= -1.0f;
 

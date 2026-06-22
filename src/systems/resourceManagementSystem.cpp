@@ -8,7 +8,7 @@
 static std::unordered_map<int, int> entityToRenderables;
 static std::unordered_map<int, int> entityToTransforms;
 static std::unordered_map<int, int> entityToAnimations;
-static std::unordered_map<int, int> entityToWorlds;
+static std::unordered_map<int, int> entityToBehaviors;
 static std::unordered_map<int, int> entityToProjectiles;
 static int nextEntityId = 1;
 
@@ -140,39 +140,39 @@ AnimationComponent *tryGetAnimation(int entity) {
   return nullptr;
 }
 
-WorldComponent &addWorld(int entity) {
+BehaviorComponent &addBehavior(int entity) {
   if (!alive.contains(entity)) {
     throw std::runtime_error("This entity doesn't live anymore");
   }
 
-  auto it = entityToWorlds.find(entity);
-  if (it != entityToWorlds.end()) {
-    throw std::runtime_error("This entity already has a world component " +
+  auto it = entityToBehaviors.find(entity);
+  if (it != entityToBehaviors.end()) {
+    throw std::runtime_error("This entity already has a behavior component " +
                              std::to_string(entity));
   }
 
-  int worldIndex = resources.worlds.size();
-  resources.worlds.push_back(WorldComponent{.entity = entity});
-  entityToWorlds[entity] = worldIndex;
+  int behaviorIndex = resources.behaviors.size();
+  resources.behaviors.push_back(BehaviorComponent{.entity = entity});
+  entityToBehaviors[entity] = behaviorIndex;
 
-  return resources.worlds[worldIndex];
+  return resources.behaviors[behaviorIndex];
 }
 
-WorldComponent &getWorld(int entity) {
-  auto r = entityToWorlds.find(entity);
+BehaviorComponent &getBehavior(int entity) {
+  auto r = entityToBehaviors.find(entity);
 
-  if (r != entityToWorlds.end()) {
-    return resources.worlds[r->second];
+  if (r != entityToBehaviors.end()) {
+    return resources.behaviors[r->second];
   }
 
-  throw std::runtime_error("Entity doesn't have a world component");
+  throw std::runtime_error("Entity doesn't have a behavior component");
 }
 
-WorldComponent *tryGetWorld(int entity) {
-  auto r = entityToWorlds.find(entity);
+BehaviorComponent *tryGetBehavior(int entity) {
+  auto r = entityToBehaviors.find(entity);
 
-  if (r != entityToWorlds.end()) {
-    return &resources.worlds[r->second];
+  if (r != entityToBehaviors.end()) {
+    return &resources.behaviors[r->second];
   }
 
   return nullptr;
@@ -275,23 +275,23 @@ static void destroyAnimation(int entity) {
   entityToAnimations.erase(entity);
 }
 
-static void destroyWorld(int entity) {
-  auto it = entityToWorlds.find(entity);
-  if (it == entityToWorlds.end()) {
+static void destroyBehavior(int entity) {
+  auto it = entityToBehaviors.find(entity);
+  if (it == entityToBehaviors.end()) {
     return;
   }
   int indexToRemove = it->second;
-  int lastIndex = resources.worlds.size() - 1;
+  int lastIndex = resources.behaviors.size() - 1;
 
   if (indexToRemove != lastIndex) {
-    WorldComponent moved = resources.worlds[lastIndex];
+    BehaviorComponent moved = resources.behaviors[lastIndex];
 
-    resources.worlds[indexToRemove] = moved;
-    entityToWorlds[moved.entity] = indexToRemove;
+    resources.behaviors[indexToRemove] = moved;
+    entityToBehaviors[moved.entity] = indexToRemove;
   }
 
-  resources.worlds.pop_back();
-  entityToWorlds.erase(entity);
+  resources.behaviors.pop_back();
+  entityToBehaviors.erase(entity);
 }
 
 static void destroyProjectile(int entity) {
@@ -321,7 +321,7 @@ void processDestroyQueue() {
     destroyRenderable(entity);
     destroyTransform(entity);
     destroyAnimation(entity);
-    destroyWorld(entity);
+    destroyBehavior(entity);
     destroyProjectile(entity);
     alive.erase(entity);
   }

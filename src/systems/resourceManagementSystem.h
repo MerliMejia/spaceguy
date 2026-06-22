@@ -4,7 +4,7 @@
 
 enum class ObjectRenderKind { Static, Animated, TransformAnimated };
 
-enum class ObjectWorldKind { None, Floor, Wizard };
+enum class BehaviorKind { None, Wizard };
 
 struct Renderable {
   int entity = -1;
@@ -29,10 +29,9 @@ struct AnimationComponent {
   float animationPlaySpeed = 1.0f;
 };
 
-struct WorldComponent {
+struct BehaviorComponent {
   int entity = -1;
-  ObjectWorldKind worldKind = ObjectWorldKind::None;
-  int worldEntityId = -1;
+  BehaviorKind behaviorKind = BehaviorKind::None;
 };
 
 struct ProjectileComponent {
@@ -46,7 +45,7 @@ struct Resources {
   std::vector<Renderable> renderables;
   std::vector<TransformComponent> transforms;
   std::vector<AnimationComponent> animations;
-  std::vector<WorldComponent> worlds;
+  std::vector<BehaviorComponent> behaviors;
   std::vector<ProjectileComponent> projectiles;
 };
 
@@ -67,9 +66,9 @@ AnimationComponent &addAnimation(int entity);
 AnimationComponent &getAnimation(int entity);
 AnimationComponent *tryGetAnimation(int entity);
 
-WorldComponent &addWorld(int entity);
-WorldComponent &getWorld(int entity);
-WorldComponent *tryGetWorld(int entity);
+BehaviorComponent &addBehavior(int entity);
+BehaviorComponent &getBehavior(int entity);
+BehaviorComponent *tryGetBehavior(int entity);
 
 ProjectileComponent &addProjectile(int entity);
 ProjectileComponent &getProjectile(int entity);

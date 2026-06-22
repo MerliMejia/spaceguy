@@ -1,9 +1,9 @@
 #pragma once
 
 #include "../../systems/animationSystem.h"
+#include "../../systems/behaviorSystem.h"
 #include "../../systems/projectileSystem.h"
 #include "../../systems/resourceManagementSystem.h"
-#include "../../systems/worldSystem.h"
 #include "glm/fwd.hpp"
 #include <cstdint>
 
@@ -14,7 +14,7 @@ constexpr float MOVE_TARGET_EPSILON = 0.000001f;
 
 inline int findWizardShootingEffectEntity(int wizardEntity) {
   for (const WizardShootEffect &shootEffect :
-       worldContext.wizardShootingEffects) {
+       behaviorContext.wizardShootingEffects) {
     if (shootEffect.wizardEntity == wizardEntity) {
       return shootEffect.effectEntity;
     }
@@ -29,8 +29,11 @@ inline void setWizardShootingEffectVisible(int wizardEntity, bool visible) {
     return;
   }
 
-  Renderable &renderable = getRenderable(effectEntity);
-  renderable.visible = visible;
+  Renderable *renderable = tryGetRenderable(effectEntity);
+  if (renderable == nullptr) {
+    return;
+  }
+  renderable->visible = visible;
 }
 
 inline void resetWizardShootingEffectAnimation(int wizardEntity) {
@@ -39,8 +42,11 @@ inline void resetWizardShootingEffectAnimation(int wizardEntity) {
     return;
   }
 
-  AnimationComponent &animation = getAnimation(effectEntity);
-  animation.animationTimeSeconds = 0.0f;
+  AnimationComponent *animation = tryGetAnimation(effectEntity);
+  if (animation == nullptr) {
+    return;
+  }
+  animation->animationTimeSeconds = 0.0f;
 }
 
 inline void applyWizardTransformFacing(int entity,
@@ -119,7 +125,8 @@ inline void wizardAttackExecute(int entity, WizardBehavior &behavior) {
   auto transform = modelToTransform(transformComponent.model);
 
   if (behavior.state != WizardState::Attacking) {
-    if (worldContext.wizardBehaviors.size() < 2) {
+    std::vector<int> wizardEntities = getVisibleWizardBehaviorEntities();
+    if (wizardEntities.size() < 2) {
       behavior.state = WizardState::Thinking;
       animation.activeAnimation = WizardAnimationMapping::Iddle;
       return;
@@ -131,26 +138,28 @@ inline void wizardAttackExecute(int entity, WizardBehavior &behavior) {
 
     // Select a random wizard to attack
     // At some point should not only be wizards
-    size_t randomIndex;
+    std::size_t randomIndex;
     do {
-      randomIndex =
-          randomIndexFromValue<WizardBehavior>(worldContext.wizardBehaviors);
-    } while (worldContext.wizardBehaviors[randomIndex].id == behavior.id);
+      randomIndex = randomIndexFromValue<int>(wizardEntities);
+    } while (wizardEntities[randomIndex] == behavior.id);
 
-    WizardBehavior &selected = worldContext.wizardBehaviors[randomIndex];
+    const int selectedEntity = wizardEntities[randomIndex];
 
     // Who are we attacking?
-    worldContext.wizzardAttacking[selected.id] = behavior.id;
-    behavior.currentAttackingEntity = selected.id;
+    behaviorContext.wizardAttacking[selectedEntity] = behavior.id;
+    behavior.currentAttackingEntity = selectedEntity;
 
     setWizardShootingEffectVisible(entity, true);
     resetWizardShootingEffectAnimation(entity);
   }
 
   if (behavior.currentAttackingEntity < 0 ||
-      !isEntityAlive(behavior.currentAttackingEntity)) {
+      !isVisibleWizardBehaviorEntity(behavior.currentAttackingEntity)) {
+    clearWizardAttackReferences(behavior.currentAttackingEntity);
     behavior.state = WizardState::Thinking;
     animation.activeAnimation = WizardAnimationMapping::Iddle;
+    behavior.currentAttackingEntity = -1;
+    setWizardShootingEffectVisible(entity, false);
     return;
   }
 
@@ -182,7 +191,7 @@ inline void wizardAttackExecute(int entity, WizardBehavior &behavior) {
     setWizardShootingEffectVisible(entity, false);
     resetWizardShootingEffectAnimation(entity);
 
-    worldContext.wizzardAttacking.erase(targetEntity);
+    behaviorContext.wizardAttacking.erase(targetEntity);
     behavior.currentAttackingEntity = -1;
   }
 }
@@ -258,8 +267,8 @@ inline void wizardKickExecute(int entity, WizardBehavior &behavior,
         renderable.animatedMesh->fps;
     behavior.state = WizardState::Kicking;
 
-    if (behavior.currentAttackingEntity >= 0) {
-      worldContext.wizzardAttacking[behavior.currentAttackingEntity] =
+    if (isVisibleWizardBehaviorEntity(behavior.currentAttackingEntity)) {
+      behaviorContext.wizardAttacking[behavior.currentAttackingEntity] =
           behavior.id;
     }
   }
@@ -280,7 +289,7 @@ inline void wizardKickExecute(int entity, WizardBehavior &behavior,
     behavior.attacks = 0;
 
     if (behavior.currentAttackingEntity >= 0) {
-      worldContext.wizzardAttacking.erase(behavior.currentAttackingEntity);
+      behaviorContext.wizardAttacking.erase(behavior.currentAttackingEntity);
     }
     behavior.currentAttackingEntity = -1;
   }
@@ -289,7 +298,7 @@ inline void wizardKickExecute(int entity, WizardBehavior &behavior,
 inline void wizardBeingAttackedExecute(int entity, WizardBehavior &behavior) {
 
   // Super mega hyper edge case
-  // if (!worldContext.wizzardAttacking.contains(behavior.id)) {
+  // if (!behaviorContext.wizardAttacking.contains(behavior.id)) {
   //   behavior.state = WizardState::Thinking;
   //   getAnimation(entity).activeAnimation =
   //   WizardAnimationMapping::BeingAttacked; return;
@@ -345,8 +354,15 @@ inline bool wizardSomeoneIsSuperClose(int entity, WizardBehavior &behavior) {
 }
 
 inline void updateWizardShootingEffect(WizardShootEffect &shootEffect) {
-  const TransformComponent &wizard = getTransform(shootEffect.wizardEntity);
-  TransformComponent &effect = getTransform(shootEffect.effectEntity);
+  if (!isWizardBehaviorEntity(shootEffect.wizardEntity)) {
+    return;
+  }
 
-  effect.baseModel = wizard.model;
+  const TransformComponent *wizard = tryGetTransform(shootEffect.wizardEntity);
+  TransformComponent *effect = tryGetTransform(shootEffect.effectEntity);
+  if (wizard == nullptr || effect == nullptr) {
+    return;
+  }
+
+  effect->baseModel = wizard->model;
 }

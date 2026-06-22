@@ -1,16 +1,21 @@
 #include "wizardBehavior.h"
+#include "../../systems/behaviorSystem.h"
 #include "../../utils/time.h"
 #include "../decisionTree.h"
 #include "wizardBehaviorUtils.h"
 
-static void initializeActionNodes(int entity, WizardBehavior &behavior,
-                                  Renderable &renderable) {
+static void initializeActionNodes(int entity, WizardBehavior &behavior) {
   behavior.attackNode.execute = [entity, &behavior]() {
     wizardAttackExecute(entity, behavior);
   };
 
-  behavior.kickNode.execute = [entity, &behavior, &renderable]() {
-    wizardKickExecute(entity, behavior, renderable);
+  behavior.kickNode.execute = [entity, &behavior]() {
+    Renderable *renderable = tryGetRenderable(entity);
+    if (renderable == nullptr) {
+      return;
+    }
+
+    wizardKickExecute(entity, behavior, *renderable);
   };
 
   behavior.moveNode.execute = [entity, &behavior]() {
@@ -21,8 +26,13 @@ static void initializeActionNodes(int entity, WizardBehavior &behavior,
     wizardThinkingExecute(entity, behavior);
   };
 
-  behavior.continueActionNode.execute = [entity, &behavior, &renderable]() {
-    continueCurrentAction(entity, behavior, renderable);
+  behavior.continueActionNode.execute = [entity, &behavior]() {
+    Renderable *renderable = tryGetRenderable(entity);
+    if (renderable == nullptr) {
+      return;
+    }
+
+    continueCurrentAction(entity, behavior, *renderable);
   };
 
   behavior.executeBeingAttackedLogic.execute = [entity, &behavior]() {
@@ -36,21 +46,17 @@ static bool isActionInProgress(const WizardBehavior &behavior) {
          behavior.state == WizardState::Kicking;
 }
 
-static void initializeConditionNodes(int entity,
-                                     WizardBehavior &behavior) {
-  behavior.someoneIsClose = [entity]() {
-    return wizardIsSomeoneClose(entity);
-  };
+static void initializeConditionNodes(int entity, WizardBehavior &behavior) {
+  behavior.someoneIsClose = [entity]() { return wizardIsSomeoneClose(entity); };
 
   behavior.someoneIsSuperClose = [entity, &behavior]() {
     return wizardSomeoneIsSuperClose(entity, behavior);
   };
 
   behavior.beingAttackedNode.conditions = [&behavior]() {
-    // If i'm being attacked but I'm not currently attacking
-    return worldContext.wizzardAttacking.contains(behavior.id) &&
-           (behavior.state != WizardState::Attacking &&
-            behavior.state != WizardState::Kicking);
+    return behaviorContext.wizardAttacking.contains(behavior.id) &&
+           behavior.state != WizardState::Attacking &&
+           behavior.state != WizardState::Kicking;
   };
 
   behavior.actionInProgressNode.conditions = [&behavior]() {
@@ -79,7 +85,6 @@ static void initializeConditionNodes(int entity,
 }
 
 static void connectDecisionTree(WizardBehavior &behavior) {
-
   behavior.beingAttackedNode.yes = &behavior.executeBeingAttackedLogic;
   behavior.beingAttackedNode.no = &behavior.someoneIsSuperCloseNode;
 
@@ -113,21 +118,18 @@ findClosestWizardInRange(int selfEntity, glm::vec3 &closestPosition,
   bool foundWizard = false;
   int otherEntity = -1;
 
-  for (const WorldComponent &otherWorld : resources.worlds) {
-    const Renderable *otherRenderable = tryGetRenderable(otherWorld.entity);
-
-    if (otherRenderable == nullptr || !otherRenderable->visible)
-      continue;
-
-    if (otherWorld.entity == selfEntity) {
+  for (const BehaviorComponent &otherBehavior : resources.behaviors) {
+    if (otherBehavior.entity == selfEntity) {
       continue;
     }
 
-    if (otherWorld.worldKind != ObjectWorldKind::Wizard) {
+    if (otherBehavior.behaviorKind != BehaviorKind::Wizard ||
+        !isVisibleWizardBehaviorEntity(otherBehavior.entity)) {
       continue;
     }
 
-    const TransformComponent &otherTransform = getTransform(otherWorld.entity);
+    const TransformComponent &otherTransform =
+        getTransform(otherBehavior.entity);
     const glm::vec3 otherPosition = glm::vec3(otherTransform.model[3]);
 
     const glm::vec2 delta{
@@ -141,7 +143,7 @@ findClosestWizardInRange(int selfEntity, glm::vec3 &closestPosition,
       closestPosition = otherPosition;
       closestDistanceSquared = distanceSquared;
       foundWizard = true;
-      otherEntity = otherWorld.entity;
+      otherEntity = otherBehavior.entity;
     }
   }
 
@@ -149,14 +151,14 @@ findClosestWizardInRange(int selfEntity, glm::vec3 &closestPosition,
                                         .otherEntity = otherEntity};
 }
 
-void initializeWizardDecisionTree(int entity, WizardBehavior &behavior,
-                                  Renderable &renderable) {
-  initializeActionNodes(entity, behavior, renderable);
+void initializeWizardBehavior(int entity, WizardBehavior &behavior) {
+  behavior.id = entity;
+  initializeActionNodes(entity, behavior);
   initializeConditionNodes(entity, behavior);
   connectDecisionTree(behavior);
 }
 
-void behaveLikeWizzard(int entity, WizardBehavior &currentBehavior) {
+void behaveLikeWizard(int entity, WizardBehavior &currentBehavior) {
   currentBehavior.tick += timeState.deltaTime;
 
   if (!currentBehavior.hasInitialRotation) {

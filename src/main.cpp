@@ -13,9 +13,10 @@
 #include "engine/vulkanBackend.h"
 #include "engine/vulkanRenderer.h"
 #include "systems/animationSystem.h"
+#include "systems/behaviorSystem.h"
 #include "systems/projectileSystem.h"
 #include "systems/resourceManagementSystem.h"
-#include "systems/worldSystem.h"
+#include "systems/sceneContext.h"
 #include "utils/generators.h"
 #include "utils/time.h"
 
@@ -46,11 +47,11 @@ int main() {
   TransformAnimatedMesh wizardShootEffectTransformAnimatedMesh;
 
   {
-    worldContext.cameraPosition = worldData.camera.transform.position;
-    worldContext.cameraLookAt = worldData.camera.direction;
-    worldContext.cameraFovY = worldData.camera.fovY;
-    worldContext.cameraClipStart = worldData.camera.clipStart;
-    worldContext.cameraClipEnd = worldData.camera.clipEnd;
+    sceneContext.cameraPosition = worldData.camera.transform.position;
+    sceneContext.cameraLookAt = worldData.camera.direction;
+    sceneContext.cameraFovY = worldData.camera.fovY;
+    sceneContext.cameraClipStart = worldData.camera.clipStart;
+    sceneContext.cameraClipEnd = worldData.camera.clipEnd;
 
     BlenderModel floorModel = loadModel("assets/floor.3d");
     floorMesh = generateMesh(floorModel.vertices, floorModel.indices);
@@ -71,9 +72,6 @@ int main() {
 
     TransformComponent &floorTransform = addTransform(floorEntity);
     floorTransform.model = model;
-
-    WorldComponent &floorWorld = addWorld(floorEntity);
-    floorWorld.worldKind = ObjectWorldKind::Floor;
 
     std::vector<glm::vec4> animationPositions;
 
@@ -114,8 +112,8 @@ int main() {
       AnimationComponent &wizardAnimation = addAnimation(wizardEntity);
       wizardAnimation.activeAnimation = WizardAnimationMapping::Iddle;
 
-      WorldComponent &wizardWorld = addWorld(wizardEntity);
-      wizardWorld.worldKind = ObjectWorldKind::Wizard;
+      BehaviorComponent &wizardBehavior = addBehavior(wizardEntity);
+      wizardBehavior.behaviorKind = BehaviorKind::Wizard;
 
       int wizardEffectEntity = createEntity();
       Renderable &wizardEffectRenderable = addRenderable(wizardEffectEntity);
@@ -131,12 +129,11 @@ int main() {
 
       addAnimation(wizardEffectEntity);
 
-      worldContext.wizardShootingEffects.push_back(WizardShootEffect{
-          .wizardEntity = wizardEntity, .effectEntity = wizardEffectEntity});
+      addWizardShootingEffect(wizardEntity, wizardEffectEntity);
     }
   }
 
-  initializeBehaviors();
+  initializeBehaviorSystem();
   initializeProjectiles();
 
   while (!glfwWindowShouldClose(vulkanContext.window)) {
@@ -145,7 +142,7 @@ int main() {
     if (vulkanRendererContext.isDebug) {
       clearDebugShapes();
     }
-    updateBehaviors();
+    updateBehaviorSystem();
     updateWizardEffects();
     updateProjectiles();
     updateAnimations();
