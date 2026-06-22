@@ -1,6 +1,8 @@
 #include "resourceManagementSystem.h"
+#include <concepts>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -26,291 +28,204 @@ int createEntity() {
 
 bool isEntityAlive(int entity) { return alive.contains(entity); }
 
-Renderable &addRenderable(int entity) {
+template <typename T>
+concept EntityComponent = requires(T component, int entity) {
+  T{.entity = entity};
+  { component.entity } -> std::convertible_to<int>;
+};
+
+template <EntityComponent T>
+T &addComponent(int entity, std::unordered_map<int, int> &map,
+                std::vector<T> &list, std::string_view componentName) {
   if (!alive.contains(entity)) {
-    throw std::runtime_error("This entity doesn't live anymore");
+    throw std::runtime_error("The entity " + std::to_string(entity) +
+                             " doesn't live anymore");
   }
 
-  auto it = entityToRenderables.find(entity);
-  if (it != entityToRenderables.end()) {
-    throw std::runtime_error("This entity already has a renderable " +
-                             std::to_string(entity));
+  auto it = map.find(entity);
+  if (it != map.end()) {
+    throw std::runtime_error("The entity " + std::to_string(entity) +
+                             " already has a " + std::string(componentName));
   }
 
-  int renderableIndex = resources.renderables.size();
-  resources.renderables.push_back(Renderable{.entity = entity});
-  entityToRenderables[entity] = renderableIndex;
+  int tIndex = static_cast<int>(list.size());
+  list.push_back(T{.entity = entity});
+  map[entity] = tIndex;
 
-  return resources.renderables[renderableIndex];
+  return list[tIndex];
+}
+
+template <EntityComponent T>
+T &getComponent(int entity, std::unordered_map<int, int> &map,
+                std::vector<T> &list, std::string_view componentName) {
+  auto it = map.find(entity);
+
+  if (it != map.end()) {
+    return list[it->second];
+  }
+
+  throw std::runtime_error("Entity doesn't have a " +
+                           std::string(componentName));
+}
+
+template <EntityComponent T>
+T *tryGetComponent(int entity, std::unordered_map<int, int> &map,
+                   std::vector<T> &list) {
+  auto it = map.find(entity);
+
+  if (it != map.end()) {
+    return &list[it->second];
+  }
+
+  return nullptr;
+}
+
+template <EntityComponent T>
+void destroyComponent(int entity, std::unordered_map<int, int> &map,
+                      std::vector<T> &list) {
+  auto it = map.find(entity);
+  if (it == map.end()) {
+    return;
+  }
+
+  int indexToRemove = it->second;
+  int lastIndex = static_cast<int>(list.size()) - 1;
+
+  if (indexToRemove != lastIndex) {
+    T moved = list[lastIndex];
+
+    list[indexToRemove] = moved;
+    map[moved.entity] = indexToRemove;
+  }
+
+  list.pop_back();
+  map.erase(entity);
+}
+
+Renderable &addRenderable(int entity) {
+  return addComponent<Renderable>(entity, entityToRenderables,
+                                  resources.renderables, "renderable");
+}
+
+template <> Renderable &addComponent<Renderable>(int entity) {
+  return addRenderable(entity);
 }
 
 Renderable &getRenderable(int entity) {
-  auto r = entityToRenderables.find(entity);
-
-  if (r != entityToRenderables.end()) {
-    return resources.renderables[r->second];
-  }
-
-  throw std::runtime_error("Entity doesn't have a renderable");
+  return getComponent<Renderable>(entity, entityToRenderables,
+                                  resources.renderables, "renderable");
 }
 
 Renderable *tryGetRenderable(int entity) {
-  auto r = entityToRenderables.find(entity);
-
-  if (r != entityToRenderables.end()) {
-    return &resources.renderables[r->second];
-  }
-
-  return nullptr;
+  return tryGetComponent<Renderable>(entity, entityToRenderables,
+                                     resources.renderables);
 }
 
 TransformComponent &addTransform(int entity) {
-  if (!alive.contains(entity)) {
-    throw std::runtime_error("This entity doesn't live anymore");
-  }
+  return addComponent<TransformComponent>(entity, entityToTransforms,
+                                          resources.transforms, "transform");
+}
 
-  auto it = entityToTransforms.find(entity);
-  if (it != entityToTransforms.end()) {
-    throw std::runtime_error("This entity already has a transform " +
-                             std::to_string(entity));
-  }
-
-  int transformIndex = resources.transforms.size();
-  resources.transforms.push_back(TransformComponent{.entity = entity});
-  entityToTransforms[entity] = transformIndex;
-
-  return resources.transforms[transformIndex];
+template <> TransformComponent &addComponent<TransformComponent>(int entity) {
+  return addTransform(entity);
 }
 
 TransformComponent &getTransform(int entity) {
-  auto r = entityToTransforms.find(entity);
-
-  if (r != entityToTransforms.end()) {
-    return resources.transforms[r->second];
-  }
-
-  throw std::runtime_error("Entity doesn't have a transform");
+  return getComponent<TransformComponent>(entity, entityToTransforms,
+                                          resources.transforms, "transform");
 }
 
 TransformComponent *tryGetTransform(int entity) {
-  auto r = entityToTransforms.find(entity);
-
-  if (r != entityToTransforms.end()) {
-    return &resources.transforms[r->second];
-  }
-
-  return nullptr;
+  return tryGetComponent<TransformComponent>(entity, entityToTransforms,
+                                             resources.transforms);
 }
 
 AnimationComponent &addAnimation(int entity) {
-  if (!alive.contains(entity)) {
-    throw std::runtime_error("This entity doesn't live anymore");
-  }
+  return addComponent<AnimationComponent>(entity, entityToAnimations,
+                                          resources.animations, "animation");
+}
 
-  auto it = entityToAnimations.find(entity);
-  if (it != entityToAnimations.end()) {
-    throw std::runtime_error("This entity already has an animation " +
-                             std::to_string(entity));
-  }
-
-  int animationIndex = resources.animations.size();
-  resources.animations.push_back(AnimationComponent{.entity = entity});
-  entityToAnimations[entity] = animationIndex;
-
-  return resources.animations[animationIndex];
+template <> AnimationComponent &addComponent<AnimationComponent>(int entity) {
+  return addAnimation(entity);
 }
 
 AnimationComponent &getAnimation(int entity) {
-  auto r = entityToAnimations.find(entity);
-
-  if (r != entityToAnimations.end()) {
-    return resources.animations[r->second];
-  }
-
-  throw std::runtime_error("Entity doesn't have an animation");
+  return getComponent<AnimationComponent>(entity, entityToAnimations,
+                                          resources.animations, "animation");
 }
 
 AnimationComponent *tryGetAnimation(int entity) {
-  auto r = entityToAnimations.find(entity);
-
-  if (r != entityToAnimations.end()) {
-    return &resources.animations[r->second];
-  }
-
-  return nullptr;
+  return tryGetComponent<AnimationComponent>(entity, entityToAnimations,
+                                             resources.animations);
 }
 
 BehaviorComponent &addBehavior(int entity) {
-  if (!alive.contains(entity)) {
-    throw std::runtime_error("This entity doesn't live anymore");
-  }
+  return addComponent<BehaviorComponent>(entity, entityToBehaviors,
+                                         resources.behaviors,
+                                         "behavior component");
+}
 
-  auto it = entityToBehaviors.find(entity);
-  if (it != entityToBehaviors.end()) {
-    throw std::runtime_error("This entity already has a behavior component " +
-                             std::to_string(entity));
-  }
-
-  int behaviorIndex = resources.behaviors.size();
-  resources.behaviors.push_back(BehaviorComponent{.entity = entity});
-  entityToBehaviors[entity] = behaviorIndex;
-
-  return resources.behaviors[behaviorIndex];
+template <> BehaviorComponent &addComponent<BehaviorComponent>(int entity) {
+  return addBehavior(entity);
 }
 
 BehaviorComponent &getBehavior(int entity) {
-  auto r = entityToBehaviors.find(entity);
-
-  if (r != entityToBehaviors.end()) {
-    return resources.behaviors[r->second];
-  }
-
-  throw std::runtime_error("Entity doesn't have a behavior component");
+  return getComponent<BehaviorComponent>(entity, entityToBehaviors,
+                                         resources.behaviors,
+                                         "behavior component");
 }
 
 BehaviorComponent *tryGetBehavior(int entity) {
-  auto r = entityToBehaviors.find(entity);
-
-  if (r != entityToBehaviors.end()) {
-    return &resources.behaviors[r->second];
-  }
-
-  return nullptr;
+  return tryGetComponent<BehaviorComponent>(entity, entityToBehaviors,
+                                            resources.behaviors);
 }
 
 ProjectileComponent &addProjectile(int entity) {
-  if (!alive.contains(entity)) {
-    throw std::runtime_error("This entity doesn't live anymore");
-  }
+  return addComponent<ProjectileComponent>(entity, entityToProjectiles,
+                                           resources.projectiles,
+                                           "projectile component");
+}
 
-  auto it = entityToProjectiles.find(entity);
-  if (it != entityToProjectiles.end()) {
-    throw std::runtime_error("This entity already has a projectile component " +
-                             std::to_string(entity));
-  }
-
-  int projectileIndex = resources.projectiles.size();
-  resources.projectiles.push_back(ProjectileComponent{.entity = entity});
-  entityToProjectiles[entity] = projectileIndex;
-
-  return resources.projectiles[projectileIndex];
+template <> ProjectileComponent &addComponent<ProjectileComponent>(int entity) {
+  return addProjectile(entity);
 }
 
 ProjectileComponent &getProjectile(int entity) {
-  auto r = entityToProjectiles.find(entity);
-
-  if (r != entityToProjectiles.end()) {
-    return resources.projectiles[r->second];
-  }
-
-  throw std::runtime_error("Entity doesn't have a projectile component");
+  return getComponent<ProjectileComponent>(entity, entityToProjectiles,
+                                           resources.projectiles,
+                                           "projectile component");
 }
 
 ProjectileComponent *tryGetProjectile(int entity) {
-  auto r = entityToProjectiles.find(entity);
-
-  if (r != entityToProjectiles.end()) {
-    return &resources.projectiles[r->second];
-  }
-
-  return nullptr;
+  return tryGetComponent<ProjectileComponent>(entity, entityToProjectiles,
+                                              resources.projectiles);
 }
 
 void destroyEntity(int entity) { destroyQueue.push_back(entity); }
 
 static void destroyRenderable(int entity) {
-  auto it = entityToRenderables.find(entity);
-  if (it == entityToRenderables.end()) {
-    return;
-  }
-  int rIndexToRemove = it->second;
-  int rLastIndex = resources.renderables.size() - 1;
-
-  if (rIndexToRemove != rLastIndex) {
-    Renderable moved = resources.renderables[rLastIndex];
-
-    resources.renderables[rIndexToRemove] = moved;
-    entityToRenderables[moved.entity] = rIndexToRemove;
-  }
-
-  resources.renderables.pop_back();
-  entityToRenderables.erase(entity);
+  destroyComponent<Renderable>(entity, entityToRenderables,
+                               resources.renderables);
 }
 
 static void destroyTransform(int entity) {
-  auto it = entityToTransforms.find(entity);
-  if (it == entityToTransforms.end()) {
-    return;
-  }
-  int indexToRemove = it->second;
-  int lastIndex = resources.transforms.size() - 1;
-
-  if (indexToRemove != lastIndex) {
-    TransformComponent moved = resources.transforms[lastIndex];
-
-    resources.transforms[indexToRemove] = moved;
-    entityToTransforms[moved.entity] = indexToRemove;
-  }
-
-  resources.transforms.pop_back();
-  entityToTransforms.erase(entity);
+  destroyComponent<TransformComponent>(entity, entityToTransforms,
+                                       resources.transforms);
 }
 
 static void destroyAnimation(int entity) {
-  auto it = entityToAnimations.find(entity);
-  if (it == entityToAnimations.end()) {
-    return;
-  }
-  int indexToRemove = it->second;
-  int lastIndex = resources.animations.size() - 1;
-
-  if (indexToRemove != lastIndex) {
-    AnimationComponent moved = resources.animations[lastIndex];
-
-    resources.animations[indexToRemove] = moved;
-    entityToAnimations[moved.entity] = indexToRemove;
-  }
-
-  resources.animations.pop_back();
-  entityToAnimations.erase(entity);
+  destroyComponent<AnimationComponent>(entity, entityToAnimations,
+                                       resources.animations);
 }
 
 static void destroyBehavior(int entity) {
-  auto it = entityToBehaviors.find(entity);
-  if (it == entityToBehaviors.end()) {
-    return;
-  }
-  int indexToRemove = it->second;
-  int lastIndex = resources.behaviors.size() - 1;
-
-  if (indexToRemove != lastIndex) {
-    BehaviorComponent moved = resources.behaviors[lastIndex];
-
-    resources.behaviors[indexToRemove] = moved;
-    entityToBehaviors[moved.entity] = indexToRemove;
-  }
-
-  resources.behaviors.pop_back();
-  entityToBehaviors.erase(entity);
+  destroyComponent<BehaviorComponent>(entity, entityToBehaviors,
+                                      resources.behaviors);
 }
 
 static void destroyProjectile(int entity) {
-  auto it = entityToProjectiles.find(entity);
-  if (it == entityToProjectiles.end()) {
-    return;
-  }
-  int indexToRemove = it->second;
-  int lastIndex = resources.projectiles.size() - 1;
-
-  if (indexToRemove != lastIndex) {
-    ProjectileComponent moved = resources.projectiles[lastIndex];
-
-    resources.projectiles[indexToRemove] = moved;
-    entityToProjectiles[moved.entity] = indexToRemove;
-  }
-
-  resources.projectiles.pop_back();
-  entityToProjectiles.erase(entity);
+  destroyComponent<ProjectileComponent>(entity, entityToProjectiles,
+                                        resources.projectiles);
 }
 
 void processDestroyQueue() {

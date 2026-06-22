@@ -66,7 +66,7 @@ int main() {
     model = glm::scale(model, worldData.floor.scale);
 
     int floorEntity = createEntity();
-    Renderable &floorRenderable = addRenderable(floorEntity);
+    Renderable &floorRenderable = addComponent<Renderable>(floorEntity);
     floorRenderable.mesh = &floorMesh;
     floorRenderable.renderKind = ObjectRenderKind::Static;
 
@@ -102,7 +102,7 @@ int main() {
       wizardModelMatrix = glm::translate(wizardModelMatrix, wizardPosition);
 
       int wizardEntity = createEntity();
-      Renderable &wizardRenderable = addRenderable(wizardEntity);
+      Renderable &wizardRenderable = addComponent<Renderable>(wizardEntity);
       wizardRenderable.renderKind = ObjectRenderKind::Animated;
       wizardRenderable.animatedMesh = &wizardAnimatedMesh;
 
@@ -116,7 +116,8 @@ int main() {
       wizardBehavior.behaviorKind = BehaviorKind::Wizard;
 
       int wizardEffectEntity = createEntity();
-      Renderable &wizardEffectRenderable = addRenderable(wizardEffectEntity);
+      Renderable &wizardEffectRenderable =
+          addComponent<Renderable>(wizardEffectEntity);
       wizardEffectRenderable.renderKind = ObjectRenderKind::TransformAnimated;
       wizardEffectRenderable.transformAnimatedMesh =
           &wizardShootEffectTransformAnimatedMesh;

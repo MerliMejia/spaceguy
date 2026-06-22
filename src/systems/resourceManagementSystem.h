@@ -54,6 +54,8 @@ extern Resources resources;
 int createEntity();
 bool isEntityAlive(int entity);
 
+template <typename T> T &addComponent(int entity);
+
 Renderable &addRenderable(int entity);
 Renderable &getRenderable(int entity);
 Renderable *tryGetRenderable(int entity);

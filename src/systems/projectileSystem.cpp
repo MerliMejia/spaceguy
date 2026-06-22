@@ -28,7 +28,7 @@ void spawnWizardProjectile(int wizard) {
 
   int projectile = createEntity();
 
-  Renderable &renderable = addRenderable(projectile);
+  Renderable &renderable = addComponent<Renderable>(projectile);
   renderable.mesh = &wizardProjectileMesh;
   renderable.renderKind = ObjectRenderKind::Static;
 

@@ -1,5 +1,5 @@
-from pathlib import Path
 import math
+from pathlib import Path
 
 import bpy
 
@@ -89,8 +89,13 @@ def interpolate_transform_sample(start, end, frame):
 
 
 def transform_error_ratio(sample, interpolated):
-    location_ratio = vec_delta(sample["location"], interpolated["location"]) / LOCATION_EPSILON
-    rotation_ratio = quat_angle_delta(sample["rotation"], interpolated["rotation"]) / ROTATION_EPSILON_RADIANS
+    location_ratio = (
+        vec_delta(sample["location"], interpolated["location"]) / LOCATION_EPSILON
+    )
+    rotation_ratio = (
+        quat_angle_delta(sample["rotation"], interpolated["rotation"])
+        / ROTATION_EPSILON_RADIANS
+    )
     scale_ratio = vec_delta(sample["scale"], interpolated["scale"]) / SCALE_EPSILON
     return max(location_ratio, rotation_ratio, scale_ratio)
 
