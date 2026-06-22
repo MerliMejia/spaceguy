@@ -29,11 +29,8 @@ add_executable(spaceguy
     src/systems/animationSystem.cpp
     src/utils/input.cpp
     src/utils/time.cpp
-    src/systems/behaviorSystem.cpp
     src/systems/sceneContext.cpp
-    src/behaviors/wizards/wizardBehavior.cpp
     src/utils/math.cpp
-    src/behaviors/decisionTree.cpp
     src/systems/resourceManagementSystem.cpp
     src/systems/projectileSystem.cpp
 )

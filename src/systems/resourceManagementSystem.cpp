@@ -10,7 +10,6 @@
 static std::unordered_map<int, int> entityToRenderables;
 static std::unordered_map<int, int> entityToTransforms;
 static std::unordered_map<int, int> entityToAnimations;
-static std::unordered_map<int, int> entityToBehaviors;
 static std::unordered_map<int, int> entityToProjectiles;
 static int nextEntityId = 1;
 
@@ -159,27 +158,6 @@ AnimationComponent *tryGetAnimation(int entity) {
                                              resources.animations);
 }
 
-BehaviorComponent &addBehavior(int entity) {
-  return addComponent<BehaviorComponent>(entity, entityToBehaviors,
-                                         resources.behaviors,
-                                         "behavior component");
-}
-
-template <> BehaviorComponent &addComponent<BehaviorComponent>(int entity) {
-  return addBehavior(entity);
-}
-
-BehaviorComponent &getBehavior(int entity) {
-  return getComponent<BehaviorComponent>(entity, entityToBehaviors,
-                                         resources.behaviors,
-                                         "behavior component");
-}
-
-BehaviorComponent *tryGetBehavior(int entity) {
-  return tryGetComponent<BehaviorComponent>(entity, entityToBehaviors,
-                                            resources.behaviors);
-}
-
 ProjectileComponent &addProjectile(int entity) {
   return addComponent<ProjectileComponent>(entity, entityToProjectiles,
                                            resources.projectiles,
@@ -218,11 +196,6 @@ static void destroyAnimation(int entity) {
                                        resources.animations);
 }
 
-static void destroyBehavior(int entity) {
-  destroyComponent<BehaviorComponent>(entity, entityToBehaviors,
-                                      resources.behaviors);
-}
-
 static void destroyProjectile(int entity) {
   destroyComponent<ProjectileComponent>(entity, entityToProjectiles,
                                         resources.projectiles);
@@ -236,7 +209,6 @@ void processDestroyQueue() {
     destroyRenderable(entity);
     destroyTransform(entity);
     destroyAnimation(entity);
-    destroyBehavior(entity);
     destroyProjectile(entity);
     alive.erase(entity);
   }

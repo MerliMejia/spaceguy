@@ -13,7 +13,6 @@
 #include "engine/vulkanBackend.h"
 #include "engine/vulkanRenderer.h"
 #include "systems/animationSystem.h"
-#include "systems/behaviorSystem.h"
 #include "systems/projectileSystem.h"
 #include "systems/resourceManagementSystem.h"
 #include "systems/sceneContext.h"
@@ -112,9 +111,6 @@ int main() {
       AnimationComponent &wizardAnimation = addAnimation(wizardEntity);
       wizardAnimation.activeAnimation = WizardAnimationMapping::Iddle;
 
-      BehaviorComponent &wizardBehavior = addBehavior(wizardEntity);
-      wizardBehavior.behaviorKind = BehaviorKind::Wizard;
-
       int wizardEffectEntity = createEntity();
       Renderable &wizardEffectRenderable =
           addComponent<Renderable>(wizardEffectEntity);
@@ -129,12 +125,9 @@ int main() {
       wizardEffectTransform.baseModel = wizardModelMatrix;
 
       addAnimation(wizardEffectEntity);
-
-      addWizardShootingEffect(wizardEntity, wizardEffectEntity);
     }
   }
 
-  initializeBehaviorSystem();
   initializeProjectiles();
 
   while (!glfwWindowShouldClose(vulkanContext.window)) {
@@ -143,8 +136,6 @@ int main() {
     if (vulkanRendererContext.isDebug) {
       clearDebugShapes();
     }
-    updateBehaviorSystem();
-    updateWizardEffects();
     updateProjectiles();
     updateAnimations();
     drawFrame();

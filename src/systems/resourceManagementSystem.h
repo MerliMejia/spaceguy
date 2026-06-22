@@ -29,11 +29,6 @@ struct AnimationComponent {
   float animationPlaySpeed = 1.0f;
 };
 
-struct BehaviorComponent {
-  int entity = -1;
-  BehaviorKind behaviorKind = BehaviorKind::None;
-};
-
 struct ProjectileComponent {
   int entity = -1;
   glm::vec3 direction{0.0f, -1.0f, 0.0f};
@@ -45,7 +40,6 @@ struct Resources {
   std::vector<Renderable> renderables;
   std::vector<TransformComponent> transforms;
   std::vector<AnimationComponent> animations;
-  std::vector<BehaviorComponent> behaviors;
   std::vector<ProjectileComponent> projectiles;
 };
 
@@ -67,10 +61,6 @@ TransformComponent *tryGetTransform(int entity);
 AnimationComponent &addAnimation(int entity);
 AnimationComponent &getAnimation(int entity);
 AnimationComponent *tryGetAnimation(int entity);
-
-BehaviorComponent &addBehavior(int entity);
-BehaviorComponent &getBehavior(int entity);
-BehaviorComponent *tryGetBehavior(int entity);
 
 ProjectileComponent &addProjectile(int entity);
 ProjectileComponent &getProjectile(int entity);
