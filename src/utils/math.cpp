@@ -1,8 +1,8 @@
 #include "math.h"
-#include "glm/fwd.hpp"
-#include <cmath>
+#include "glm/ext/quaternion_trigonometric.hpp"
+#include "glm/trigonometric.hpp"
 #include <glm/glm.hpp>
-#include <glm/gtc/constants.hpp>
+#include <random>
 
 glm::mat4 transformToModel(glm::vec3 position, glm::quat rotation,
                            glm::vec3 scale) {
@@ -13,18 +13,76 @@ glm::mat4 transformToModel(glm::vec3 position, glm::quat rotation,
   return translation * rot * sca;
 }
 
-glm::vec3 randomPointInCircleXY(const glm::vec3 &center, float radius) {
+glm::vec2 randomPointInCircle(float centerX, float centerY, float radius) {
   static std::random_device rd;
   static std::mt19937 gen(rd());
-  static std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+  std::uniform_real_distribution<float> dist(-radius, radius);
 
-  float angle = dist(gen) * 2.0f * glm::pi<float>();
-  float r = radius * std::sqrt(dist(gen));
+  float xOffset, yOffset;
 
-  return center + glm::vec3{std::cos(angle) * r, std::sin(angle) * r, 0.0f};
+  // Rejection loop
+  do {
+    xOffset = dist(gen);
+    yOffset = dist(gen);
+  } while ((xOffset * xOffset) + (yOffset * yOffset) > (radius * radius));
+
+  return glm::vec2{centerX + xOffset, centerY + yOffset};
 }
 
-Transform modelToTransform(glm::mat4 &model) {
+bool isCloseBox(glm::vec2 p1, glm::vec2 p2, float threshold) {
+  if (std::abs(p1.x - p2.x) > threshold)
+    return false;
+  if (std::abs(p1.y - p2.y) > threshold)
+    return false;
+  return true;
+}
+
+float getDistanceSqr(glm::vec2 p1, glm::vec2 p2) {
+  glm::vec2 delta = p2 - p1;
+  return glm::dot(delta, delta);
+}
+
+void moveTowardsDir(glm::mat4 &model, float speed, glm::vec2 dir,
+                    float distance, float deltaTime) {
+
+  if (distance < 0.001f)
+    return;
+
+  Transform transform = modelToTransform(model);
+
+  float angleRadians = glm::atan(dir.y, dir.x);
+
+  float step = speed * deltaTime;
+  if (step > distance)
+    step = distance;
+
+  transform.position += glm::vec3(dir * step, 0.0f);
+  transform.rotation = glm::angleAxis(angleRadians, glm::vec3{0.0, 0.0, 1.0});
+
+  model =
+      transformToModel(transform.position, transform.rotation, transform.scale);
+}
+
+void faceTowardsDir(glm::mat4 &model, glm::vec2 dir) {
+  Transform transform = modelToTransform(model);
+  float angleRadians = glm::atan(dir.y, dir.x);
+
+  transform.rotation = glm::angleAxis(angleRadians, glm::vec3{0.0, 0.0, 1.0});
+
+  model =
+      transformToModel(transform.position, transform.rotation, transform.scale);
+}
+
+int getRandom(int size) {
+  static std::random_device rd;
+  static std::mt19937 gen(rd());
+
+  std::uniform_int_distribution<int> dist(0, size - 1);
+
+  return dist(gen);
+}
+
+Transform modelToTransform(const glm::mat4 &model) {
   glm::vec3 position = glm::vec3(model[3]);
   glm::vec3 scale = glm::vec3{glm::length(glm::vec3(model[0])),
                               glm::length(glm::vec3(model[1])),

@@ -16,8 +16,14 @@ struct Transform {
 
 glm::mat4 transformToModel(glm::vec3 position, glm::quat rotation,
                            glm::vec3 scale);
-Transform modelToTransform(glm::mat4 &model);
-glm::vec3 randomPointInCircleXY(const glm::vec3 &center, float radius);
+Transform modelToTransform(const glm::mat4 &model);
+glm::vec2 randomPointInCircle(float centerX, float centerY, float radius);
+bool isCloseBox(glm::vec2 p1, glm::vec2 p2, float threshold);
+void moveTowardsDir(glm::mat4 &model, float speed, glm::vec2 dir,
+                    float distance, float deltaTime);
+float getDistanceSqr(glm::vec2 p1, glm::vec2 p2);
+void faceTowardsDir(glm::mat4 &model, glm::vec2 dir);
+int getRandom(int size);
 
 template <typename T>
 size_t randomIndexFromValue(const std::vector<T> &vector) {
