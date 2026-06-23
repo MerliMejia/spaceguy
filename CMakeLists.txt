@@ -33,6 +33,7 @@ add_executable(spaceguy
     src/utils/math.cpp
     src/systems/resourceManagementSystem.cpp
     src/systems/projectileSystem.cpp
+    src/systems/wizardBehaviorSystem.cpp
 )
 
 target_compile_features(spaceguy PRIVATE cxx_std_20)

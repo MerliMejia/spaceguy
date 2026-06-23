@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../utils/types.h"
+#include <vector>
 
 enum class ObjectRenderKind { Static, Animated, TransformAnimated };
 
@@ -36,11 +37,32 @@ struct ProjectileComponent {
   float timeAlive = 0.0f;
 };
 
+enum class WizzardState {
+  None,
+  ChoosingNewPosition,
+  MovingToPosition,
+  Attacking,
+  Waiting
+};
+
+struct WizardBehaviorComponent {
+  int entity = -1;
+  WizzardState state = WizzardState::None;
+  glm::vec2 nextPos{0.0f};
+  glm::vec4 debugColor{1.0f};
+  float speed = 8.0f;
+  int nextAttackEntity = -1;
+  float attackTime = 0;
+
+  int attackCounter = 0;
+};
+
 struct Resources {
   std::vector<Renderable> renderables;
   std::vector<TransformComponent> transforms;
   std::vector<AnimationComponent> animations;
   std::vector<ProjectileComponent> projectiles;
+  std::vector<WizardBehaviorComponent> wizardBehaviors;
 };
 
 extern Resources resources;
@@ -65,6 +87,10 @@ AnimationComponent *tryGetAnimation(int entity);
 ProjectileComponent &addProjectile(int entity);
 ProjectileComponent &getProjectile(int entity);
 ProjectileComponent *tryGetProjectile(int entity);
+
+WizardBehaviorComponent &addWizardBehavior(int entity);
+WizardBehaviorComponent &getWizardBehavior(int entity);
+WizardBehaviorComponent *tryGetWizardBehavior(int entity);
 
 void destroyEntity(int entity);
 void processDestroyQueue();

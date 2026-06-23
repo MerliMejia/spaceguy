@@ -16,6 +16,7 @@
 #include "systems/projectileSystem.h"
 #include "systems/resourceManagementSystem.h"
 #include "systems/sceneContext.h"
+#include "systems/wizardBehaviorSystem.h"
 #include "utils/generators.h"
 #include "utils/time.h"
 
@@ -111,31 +112,18 @@ int main() {
       AnimationComponent &wizardAnimation = addAnimation(wizardEntity);
       wizardAnimation.activeAnimation = WizardAnimationMapping::Iddle;
 
-      int wizardEffectEntity = createEntity();
-      Renderable &wizardEffectRenderable =
-          addComponent<Renderable>(wizardEffectEntity);
-      wizardEffectRenderable.renderKind = ObjectRenderKind::TransformAnimated;
-      wizardEffectRenderable.transformAnimatedMesh =
-          &wizardShootEffectTransformAnimatedMesh;
-      wizardEffectRenderable.visible = false;
-
-      TransformComponent &wizardEffectTransform =
-          addTransform(wizardEffectEntity);
-      wizardEffectTransform.model = glm::mat4{1.0f};
-      wizardEffectTransform.baseModel = wizardModelMatrix;
-
-      addAnimation(wizardEffectEntity);
+      addWizardBehavior(wizardEntity);
     }
   }
 
+  initWizardBehaviors();
   initializeProjectiles();
 
   while (!glfwWindowShouldClose(vulkanContext.window)) {
     glfwPollEvents();
     updateTime();
-    if (vulkanRendererContext.isDebug) {
-      clearDebugShapes();
-    }
+    clearDebugShapes();
+    updateWizardBehaviors();
     updateProjectiles();
     updateAnimations();
     drawFrame();

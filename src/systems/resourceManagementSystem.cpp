@@ -11,6 +11,7 @@ static std::unordered_map<int, int> entityToRenderables;
 static std::unordered_map<int, int> entityToTransforms;
 static std::unordered_map<int, int> entityToAnimations;
 static std::unordered_map<int, int> entityToProjectiles;
+static std::unordered_map<int, int> entityToWizardBehaviors;
 static int nextEntityId = 1;
 
 static std::unordered_set<int> alive;
@@ -179,6 +180,28 @@ ProjectileComponent *tryGetProjectile(int entity) {
                                               resources.projectiles);
 }
 
+WizardBehaviorComponent &addWizardBehavior(int entity) {
+  return addComponent<WizardBehaviorComponent>(entity, entityToWizardBehaviors,
+                                               resources.wizardBehaviors,
+                                               "wizard behavior component");
+}
+
+template <>
+WizardBehaviorComponent &addComponent<WizardBehaviorComponent>(int entity) {
+  return addWizardBehavior(entity);
+}
+
+WizardBehaviorComponent &getWizardBehavior(int entity) {
+  return getComponent<WizardBehaviorComponent>(entity, entityToWizardBehaviors,
+                                               resources.wizardBehaviors,
+                                               "wizard behavior component");
+}
+
+WizardBehaviorComponent *tryGetWizardBehavior(int entity) {
+  return tryGetComponent<WizardBehaviorComponent>(
+      entity, entityToWizardBehaviors, resources.wizardBehaviors);
+}
+
 void destroyEntity(int entity) { destroyQueue.push_back(entity); }
 
 static void destroyRenderable(int entity) {
@@ -201,6 +224,11 @@ static void destroyProjectile(int entity) {
                                         resources.projectiles);
 }
 
+static void destroyWizardBehavior(int entity) {
+  destroyComponent<WizardBehaviorComponent>(entity, entityToWizardBehaviors,
+                                            resources.wizardBehaviors);
+}
+
 void processDestroyQueue() {
   for (int entity : destroyQueue) {
     if (!alive.contains(entity)) {
@@ -210,6 +238,7 @@ void processDestroyQueue() {
     destroyTransform(entity);
     destroyAnimation(entity);
     destroyProjectile(entity);
+    destroyWizardBehavior(entity);
     alive.erase(entity);
   }
 

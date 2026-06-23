@@ -2,6 +2,7 @@
 #include "glm/ext/quaternion_trigonometric.hpp"
 #include "glm/trigonometric.hpp"
 #include <glm/glm.hpp>
+#include <glm/gtc/constants.hpp>
 #include <random>
 
 glm::mat4 transformToModel(glm::vec3 position, glm::quat rotation,
@@ -50,7 +51,7 @@ void moveTowardsDir(glm::mat4 &model, float speed, glm::vec2 dir,
 
   Transform transform = modelToTransform(model);
 
-  float angleRadians = glm::atan(dir.y, dir.x);
+  float angleRadians = glm::atan(dir.y, dir.x) + glm::half_pi<float>();
 
   float step = speed * deltaTime;
   if (step > distance)
@@ -65,7 +66,7 @@ void moveTowardsDir(glm::mat4 &model, float speed, glm::vec2 dir,
 
 void faceTowardsDir(glm::mat4 &model, glm::vec2 dir) {
   Transform transform = modelToTransform(model);
-  float angleRadians = glm::atan(dir.y, dir.x);
+  float angleRadians = glm::atan(dir.y, dir.x) + glm::half_pi<float>();
 
   transform.rotation = glm::angleAxis(angleRadians, glm::vec3{0.0, 0.0, 1.0});
 
