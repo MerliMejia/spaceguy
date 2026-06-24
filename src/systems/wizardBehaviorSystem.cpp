@@ -1,6 +1,8 @@
 #include "wizardBehaviorSystem.h"
 #include "../behaviors/decisionTree.h"
+#include "../engine/blender/importer.h"
 #include "../engine/vulkanRenderer.h"
+#include "../utils/generators.h"
 #include "../utils/math.h"
 #include "../utils/time.h"
 #include "animationSystem.h"
@@ -14,6 +16,9 @@
 constexpr float NEXT_POS_RADIUS = 2 * 2;
 constexpr float MOVING_AREA = 20.0F;
 constexpr float CLOSE_RADIUS = 3.0f;
+
+static TransformAnimatedMesh shootEffectMesh{};
+static BlenderTransformModel shootModel{};
 
 DecisionStatus choosNewPositionLogic(int entity) {
   // We may want to change the center of this at some point.
@@ -126,6 +131,7 @@ DecisionStatus chooseNextAttackEntityLogic(int entity) {
 
 DecisionStatus attackLogic(int entity) {
   WizardBehaviorComponent &wizard = getWizardBehavior(entity);
+  TransformComponent thisWizardTC = getTransform(entity);
 
   if (wizard.state != WizzardState::Attacking) {
     AnimationComponent &animation = getAnimation(entity);
@@ -133,6 +139,25 @@ DecisionStatus attackLogic(int entity) {
     animation.animationTimeSeconds = 0;
     wizard.state = WizzardState::Attacking;
     wizard.attackCounter++;
+
+    int shootEffectEntity = createEntity();
+
+    wizard.shootEffecEntity = shootEffectEntity;
+
+    Renderable &r = addRenderable(shootEffectEntity);
+    r.renderKind = ObjectRenderKind::TransformAnimated;
+    r.transformAnimatedMesh = &shootEffectMesh;
+    r.visible = true;
+
+    TransformComponent &transform = addTransform(shootEffectEntity);
+    transform.baseModel = thisWizardTC.model;
+    transform.model = thisWizardTC.model;
+
+    AnimationComponent &shootEffectAnimation = addAnimation(shootEffectEntity);
+
+    shootEffectAnimation.activeAnimation = 0;
+    shootEffectAnimation.animationTimeSeconds = 0.0f;
+    shootEffectAnimation.animationPlaySpeed = 1.8f;
   }
 
   TransformComponent &wtc = getTransform(entity);
@@ -151,10 +176,11 @@ DecisionStatus attackLogic(int entity) {
 
   faceTowardsDir(wtc.model, nextAttackDir);
 
-  if (hasActiveAnimationEnded(entity)) {
+  if (hasActiveAnimationEnded(wizard.shootEffecEntity)) {
     wizard.state = WizzardState::None;
 
     spawnWizardProjectile(entity);
+    destroyEntity(wizard.shootEffecEntity);
 
     return DecisionStatus::Done;
   }
@@ -325,6 +351,10 @@ static void initWizard(WizardBehaviorComponent &wizardBehavior) {
 
 void initWizardBehaviors() {
   int debugColorIndex = 0;
+
+  shootModel = loadTransformModel("assets/Wizard_Shooting_Effect_1.3d");
+  shootEffectMesh = generateTransformAnimatedMesh(shootModel);
+
   for (WizardBehaviorComponent &wizardBehavior : resources.wizardBehaviors) {
     wizardBehavior.debugColor = getDebugColor(debugColorIndex++);
     initWizard(wizardBehavior);
@@ -347,6 +377,15 @@ void updateWizardBehaviors() {
     addDebugDiskXY(
         glm::vec3{wizardBehavior.nextPos.x, wizardBehavior.nextPos.y, 1.0f},
         NEXT_POS_RADIUS, wizardBehavior.debugColor);
+
     decisionTree.tick();
+
+    if (wizardBehavior.shootEffecEntity != -1 &&
+        isEntityAlive(wizardBehavior.shootEffecEntity)) {
+      TransformComponent &effectTransform =
+          getTransform(wizardBehavior.shootEffecEntity);
+
+      effectTransform.baseModel = wtc.model;
+    }
   }
 }

@@ -44,7 +44,6 @@ int main() {
 
   Mesh floorMesh;
   AnimatedMesh wizardAnimatedMesh;
-  TransformAnimatedMesh wizardShootEffectTransformAnimatedMesh;
 
   {
     sceneContext.cameraPosition = worldData.camera.transform.position;
@@ -93,9 +92,6 @@ int main() {
 
     BlenderTransformModel wizardShootTransformModel =
         loadTransformModel("assets/Wizard_Shooting_Effect_1.3d");
-
-    wizardShootEffectTransformAnimatedMesh =
-        generateTransformAnimatedMesh(wizardShootTransformModel);
 
     for (const glm::vec3 &wizardPosition : worldData.wizards.positions) {
       glm::mat4 wizardModelMatrix{1.0f};

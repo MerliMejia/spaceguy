@@ -55,6 +55,7 @@ struct WizardBehaviorComponent {
   float attackTime = 0;
 
   int attackCounter = 0;
+  int shootEffecEntity = -1;
 };
 
 struct Resources {
