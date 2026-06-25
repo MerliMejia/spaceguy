@@ -30,7 +30,7 @@ struct VulkanRendererContext {
   vk::raii::PipelineLayout animatedPipelineLayout = nullptr;
   vk::raii::Pipeline animatedGraphicsPipeline = nullptr;
   // Debug
-  bool isDebug = false;
+  bool isDebug = true;
   vk::raii::PipelineLayout debugPipelineLayout = nullptr;
   vk::raii::Pipeline debugGraphicsPipeline = nullptr;
   std::vector<DebugFrameData> debugFrames;
@@ -73,3 +73,7 @@ void addDebugDiskXY(glm::vec3 center, float radius, glm::vec4 color);
 void addDebugLine(glm::vec3 a, glm::vec3 b, glm::vec4 color);
 void addDebugCube(glm::vec3 center, float radius, glm::vec4 color);
 void addDebugSphere(glm::vec3 center, float radius, glm::vec4 color);
+void addDebugCellXY(glm::vec3 origin, float width, float height,
+                    glm::vec4 color);
+void addDebugGridCellsXY(glm::vec3 origin, uint32_t width, uint32_t height,
+                         float cellWidth, float cellHeight, glm::vec4 color);

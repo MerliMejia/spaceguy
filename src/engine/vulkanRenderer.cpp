@@ -625,6 +625,41 @@ void addDebugSphere(glm::vec3 center, float radius, glm::vec4 color) {
   }
 }
 
+void addDebugCellXY(glm::vec3 origin, float width, float height,
+                    glm::vec4 color) {
+  float x0 = origin.x;
+  float y0 = origin.y;
+  float x1 = x0 + width;
+  float y1 = y0 + height;
+  float z = origin.z;
+
+  addDebugLine({x0, y0, z}, {x1, y0, z}, color);
+  addDebugLine({x1, y0, z}, {x1, y1, z}, color);
+  addDebugLine({x1, y1, z}, {x0, y1, z}, color);
+  addDebugLine({x0, y1, z}, {x0, y0, z}, color);
+
+  addDebugLine({x0, y0, z}, {x1, y1, z}, color);
+  addDebugLine({x1, y0, z}, {x0, y1, z}, color);
+}
+
+void addDebugGridCellsXY(glm::vec3 origin, uint32_t width, uint32_t height,
+                         float cellWidth, float cellHeight, glm::vec4 color) {
+  for (uint32_t y = 0; y < height; y++) {
+    for (uint32_t x = 0; x < width; x++) {
+      float x0 = origin.x + static_cast<float>(x) * cellWidth;
+      float y0 = origin.y + static_cast<float>(y) * cellHeight;
+      float x1 = x0 + cellWidth;
+      float y1 = y0 + cellHeight;
+      float z = origin.z;
+
+      addDebugLine({x0, y0, z}, {x1, y0, z}, color);
+      addDebugLine({x1, y0, z}, {x1, y1, z}, color);
+      addDebugLine({x1, y1, z}, {x0, y1, z}, color);
+      addDebugLine({x0, y1, z}, {x0, y0, z}, color);
+    }
+  }
+}
+
 void drawFrame() {
   vulkanContext.device.waitForFences(
       *vulkanRendererContext.inFlightFences[vulkanRendererContext.currentFrame],

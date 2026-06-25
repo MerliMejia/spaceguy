@@ -16,6 +16,7 @@
 #include "systems/projectileSystem.h"
 #include "systems/resourceManagementSystem.h"
 #include "systems/sceneContext.h"
+#include "systems/spacialGridHashSystem.h"
 #include "systems/wizardBehaviorSystem.h"
 #include "utils/generators.h"
 #include "utils/time.h"
@@ -114,11 +115,13 @@ int main() {
 
   initWizardBehaviors();
   initializeProjectiles();
+  initSpacialGridHash();
 
   while (!glfwWindowShouldClose(vulkanContext.window)) {
     glfwPollEvents();
     updateTime();
     clearDebugShapes();
+    updateSpacialGridHash();
     updateWizardBehaviors();
     updateProjectiles();
     updateAnimations();

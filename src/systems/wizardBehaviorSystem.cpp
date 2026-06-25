@@ -10,12 +10,14 @@
 #include "glm/geometric.hpp"
 #include "projectileSystem.h"
 #include "resourceManagementSystem.h"
+#include "spacialGridHashSystem.h"
 #include "unordered_map"
 #include <cmath>
 
-constexpr float NEXT_POS_RADIUS = 2 * 2;
-constexpr float MOVING_AREA = 20.0F;
-constexpr float CLOSE_RADIUS = 3.0f;
+// Almost the size of floor right now.
+constexpr float MOVING_AREA = 30.0F;
+constexpr float NEXT_POS_RADIUS = 1;
+constexpr float CLOSE_RADIUS = 1;
 
 static TransformAnimatedMesh shootEffectMesh{};
 static BlenderTransformModel shootModel{};
@@ -35,18 +37,20 @@ DecisionStatus choosNewPositionLogic(int entity) {
   return DecisionStatus::Done;
 }
 
-static bool hasReservedPosition(const WizardBehaviorComponent &wizard) {
-  return wizard.state == WizzardState::ChoosingNewPosition ||
-         wizard.state == WizzardState::MovingToPosition;
-}
-
 bool positionIsFreeLogic(int entity) {
   WizardBehaviorComponent &thisWizard = getWizardBehavior(entity);
 
-  for (WizardBehaviorComponent &wizard : resources.wizardBehaviors) {
+  CellCoord cell = worldToCell(thisWizard.nextPos, spacialGridContext.cellWidth,
+                               spacialGridContext.cellHeight);
+
+  bool isFree = true;
+
+  executeOnNearbyCells(cell, [entity, thisWizard, &isFree](int checkEntity) {
+    WizardBehaviorComponent &wizard = getWizardBehavior(checkEntity);
+
     // So we don't take thisWizard into account
     if (wizard.entity == entity) {
-      continue;
+      return ExecuteOnNearbyCellsStatus::Running;
     }
 
     TransformComponent &t = getTransform(wizard.entity);
@@ -55,17 +59,15 @@ bool positionIsFreeLogic(int entity) {
     float distanceToWizardPosition = getDistanceSqr(
         thisWizard.nextPos, glm::vec2{wt.position.x, wt.position.y});
 
-    bool wizardReservedNearbyPosition =
-        hasReservedPosition(wizard) &&
-        getDistanceSqr(thisWizard.nextPos, wizard.nextPos) <= NEXT_POS_RADIUS;
-
-    if (distanceToWizardPosition <= NEXT_POS_RADIUS ||
-        wizardReservedNearbyPosition) {
-      return false;
+    if (distanceToWizardPosition <= NEXT_POS_RADIUS * NEXT_POS_RADIUS) {
+      isFree = false;
+      return ExecuteOnNearbyCellsStatus::Done;
     }
-  }
 
-  return true;
+    return ExecuteOnNearbyCellsStatus::Running;
+  });
+
+  return isFree;
 }
 
 DecisionStatus moveToPositionLogic(int entity) {
@@ -189,30 +191,42 @@ DecisionStatus attackLogic(int entity) {
 }
 
 bool isSomeoneCloseLogic(int entity) {
+
   TransformComponent &wtc = getTransform(entity);
   const Transform &wt = modelToTransform(wtc.model);
   glm::vec2 wizardPos = glm::vec2{wt.position};
 
-  for (WizardBehaviorComponent &checkWizard : resources.wizardBehaviors) {
-    if (entity == checkWizard.entity) {
-      continue;
-    }
+  CellCoord cell = worldToCell(wizardPos, spacialGridContext.cellWidth,
+                               spacialGridContext.cellHeight);
 
-    TransformComponent &cwtc = getTransform(checkWizard.entity);
-    const Transform &cwt = modelToTransform(cwtc.model);
-    glm::vec2 checkWizardPos = glm::vec2{cwt.position};
+  bool isSomeoneClose = false;
 
-    float distance = getDistanceSqr(wizardPos, checkWizardPos);
+  executeOnNearbyCells(
+      cell, [entity, &isSomeoneClose, wizardPos](int checkEntity) {
+        WizardBehaviorComponent &checkWizard = getWizardBehavior(checkEntity);
 
-    constexpr float closeRadius = CLOSE_RADIUS;
-    constexpr float closeRadiusSqr = closeRadius * closeRadius;
+        if (entity == checkWizard.entity) {
+          return ExecuteOnNearbyCellsStatus::Running;
+        }
 
-    if (distance <= closeRadiusSqr) {
-      return true;
-    }
-  }
+        TransformComponent &cwtc = getTransform(checkWizard.entity);
+        const Transform &cwt = modelToTransform(cwtc.model);
+        glm::vec2 checkWizardPos = glm::vec2{cwt.position};
 
-  return false;
+        float distance = getDistanceSqr(wizardPos, checkWizardPos);
+
+        constexpr float closeRadius = CLOSE_RADIUS;
+        constexpr float closeRadiusSqr = closeRadius * closeRadius;
+
+        if (distance <= closeRadiusSqr) {
+          isSomeoneClose = true;
+          return ExecuteOnNearbyCellsStatus::Done;
+        }
+
+        return ExecuteOnNearbyCellsStatus::Running;
+      });
+
+  return isSomeoneClose;
 }
 
 bool waitedForNextAttackLogic(int entity) {
@@ -343,6 +357,47 @@ static glm::vec4 getDebugColor(int index) {
   }
 }
 
+static void drawWizardDebug(const WizardBehaviorComponent &wizardBehavior) {
+  TransformComponent &wtc = getTransform(wizardBehavior.entity);
+  const Transform &wt = modelToTransform(wtc.model);
+
+  switch (wizardBehavior.state) {
+  case WizzardState::MovingToPosition:
+    addDebugLine(
+        wt.position,
+        glm::vec3{wizardBehavior.nextPos.x, wizardBehavior.nextPos.y, 1.0f},
+        wizardBehavior.debugColor);
+    addDebugDiskXY(
+        glm::vec3{wizardBehavior.nextPos.x, wizardBehavior.nextPos.y, 1.0f},
+        NEXT_POS_RADIUS, wizardBehavior.debugColor);
+    break;
+
+  case WizzardState::Attacking:
+    if (wizardBehavior.nextAttackEntity != -1 &&
+        isEntityAlive(wizardBehavior.nextAttackEntity)) {
+      TransformComponent &targetTc =
+          getTransform(wizardBehavior.nextAttackEntity);
+      const Transform &target = modelToTransform(targetTc.model);
+      addDebugLine(wt.position, target.position, wizardBehavior.debugColor);
+      addDebugSphere(target.position, 0.75f, wizardBehavior.debugColor);
+    }
+    break;
+
+  case WizzardState::Waiting:
+    addDebugDiskXY(wt.position, CLOSE_RADIUS, wizardBehavior.debugColor);
+    break;
+
+  case WizzardState::ChoosingNewPosition:
+    addDebugCube(
+        glm::vec3{wizardBehavior.nextPos.x, wizardBehavior.nextPos.y, 1.0f},
+        0.5f, wizardBehavior.debugColor);
+    break;
+
+  default:
+    break;
+  }
+}
+
 static void initWizard(WizardBehaviorComponent &wizardBehavior) {
   WizardDecisionTree &decisionTree = decisionTrees[wizardBehavior.entity];
   decisionTree = WizardDecisionTree{};
@@ -370,15 +425,11 @@ void updateWizardBehaviors() {
     TransformComponent &wtc = getTransform(wizardBehavior.entity);
     const Transform &wt = modelToTransform(wtc.model);
 
-    addDebugDiskXY(wt.position, CLOSE_RADIUS, wizardBehavior.debugColor);
-    addDebugCube(glm::vec3{wizardBehavior.nextPos.x + 0.5f,
-                           wizardBehavior.nextPos.y + 0.5f, 1.0f},
-                 0.5, wizardBehavior.debugColor);
-    addDebugDiskXY(
-        glm::vec3{wizardBehavior.nextPos.x, wizardBehavior.nextPos.y, 1.0f},
-        NEXT_POS_RADIUS, wizardBehavior.debugColor);
-
     decisionTree.tick();
+
+    if (vulkanRendererContext.isDebug) {
+      drawWizardDebug(wizardBehavior);
+    }
 
     if (wizardBehavior.shootEffecEntity != -1 &&
         isEntityAlive(wizardBehavior.shootEffecEntity)) {

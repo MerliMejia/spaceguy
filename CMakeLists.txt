@@ -34,6 +34,7 @@ add_executable(spaceguy
     src/systems/resourceManagementSystem.cpp
     src/systems/projectileSystem.cpp
     src/systems/wizardBehaviorSystem.cpp
+    src/systems/spacialGridHashSystem.cpp
 )
 
 target_compile_features(spaceguy PRIVATE cxx_std_20)
