@@ -122,8 +122,8 @@ int main() {
     updateTime();
     clearDebugShapes();
     updateSpacialGridHash();
-    updateWizardBehaviors();
     updateProjectiles();
+    updateWizardBehaviors();
     updateAnimations();
     drawFrame();
     processDestroyQueue();

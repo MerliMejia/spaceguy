@@ -121,12 +121,27 @@ DecisionStatus chooseNextAttackEntityLogic(int entity) {
   WizardBehaviorComponent nextWizardToAttack =
       resources.wizardBehaviors[nextWizardToAttackIndex];
 
+  if (resources.wizardBehaviors.size() < 2) {
+    wizard.nextAttackEntity = -1;
+    wizard.state = WizzardState::None;
+    return DecisionStatus::Done;
+  }
+
   while (nextWizardToAttack.entity == wizard.entity) {
     nextWizardToAttackIndex = getRandom(resources.wizardBehaviors.size());
     nextWizardToAttack = resources.wizardBehaviors[nextWizardToAttackIndex];
   }
 
-  wizard.nextAttackEntity = nextWizardToAttack.entity;
+  WizardBehaviorComponent *nextAttack =
+      tryGetWizardBehavior(nextWizardToAttack.entity);
+
+  if (nextAttack == nullptr || !isEntityAlive(nextWizardToAttack.entity)) {
+    wizard.nextAttackEntity = -1;
+    wizard.state = WizzardState::None;
+    return DecisionStatus::Done;
+  }
+
+  wizard.nextAttackEntity = nextAttack->entity;
 
   return DecisionStatus::Done;
 }
@@ -168,9 +183,16 @@ DecisionStatus attackLogic(int entity) {
 
   wizard.attackTime = 0;
 
-  WizardBehaviorComponent &nextAttack =
-      getWizardBehavior(wizard.nextAttackEntity);
-  TransformComponent &natc = getTransform(nextAttack.entity);
+  WizardBehaviorComponent *nextAttack =
+      tryGetWizardBehavior(wizard.nextAttackEntity);
+
+  if (nextAttack == nullptr || !isEntityAlive(wizard.nextAttackEntity)) {
+    wizard.nextAttackEntity = -1;
+    destroyEntity(wizard.shootEffecEntity);
+    return DecisionStatus::Done;
+  }
+
+  TransformComponent &natc = getTransform(nextAttack->entity);
   const Transform &nat = modelToTransform(natc.model);
   glm::vec2 natPos = glm::vec2{nat.position};
 

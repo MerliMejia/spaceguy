@@ -32,6 +32,7 @@ struct AnimationComponent {
 
 struct ProjectileComponent {
   int entity = -1;
+  int ownerEntity = -1;
   glm::vec3 direction{0.0f, -1.0f, 0.0f};
   float speed = 20.0f;
   float timeAlive = 0.0f;

@@ -6,9 +6,13 @@
 #include "../utils/types.h"
 #include "glm/fwd.hpp"
 #include "resourceManagementSystem.h"
+#include "spacialGridHashSystem.h"
+#include <unordered_set>
 
 static Mesh wizardProjectileMesh;
-const constexpr float timeToDie = 2.0f;
+std::unordered_set<int> projectileHits;
+
+const constexpr float timeToDie = 4.0f;
 
 void initializeProjectiles() {
   BlenderModel wizardProjectile = loadModel("assets/Wizard_Projectile.3d");
@@ -40,6 +44,7 @@ void spawnWizardProjectile(int wizard) {
 
   ProjectileComponent &projectileComponent = addProjectile(projectile);
   projectileComponent.direction = forward;
+  projectileComponent.ownerEntity = wizard;
 }
 
 void updateProjectiles() {
@@ -60,5 +65,34 @@ void updateProjectiles() {
 
     tc.model = transformToModel(transform.position, transform.rotation,
                                 transform.scale);
+
+    // Check hits
+    CellCoord center =
+        worldToCell(transform.position, spacialGridContext.cellWidth,
+                    spacialGridContext.cellHeight);
+
+    executeOnNearbyCells(center, [transform, projectile](int closeEntity) {
+      // Wizards
+      if (WizardBehaviorComponent *wizard = tryGetWizardBehavior(closeEntity)) {
+
+        if (wizard->entity != projectile.ownerEntity) {
+          TransformComponent &wtc = getTransform(closeEntity);
+          const Transform &wt = modelToTransform(wtc.model);
+
+          float distance = getDistanceSqr(glm::vec2{transform.position},
+                                          glm::vec2{wt.position});
+          float distanceSQ = distance * distance;
+
+          if (distanceSQ <= 1) {
+            destroyEntity(wizard->shootEffecEntity);
+            destroyEntity(closeEntity);
+            destroyEntity(projectile.entity);
+            return ExecuteOnNearbyCellsStatus::Done;
+          }
+        }
+      }
+
+      return ExecuteOnNearbyCellsStatus::Running;
+    });
   }
 }
