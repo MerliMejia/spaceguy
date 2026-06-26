@@ -664,7 +664,8 @@ void setupRendererCore() {
   createCommandBuffers();
   createDepthResources();
   createUniformBuffers();
-  // At some point this should be something we set depending of the emitter config.
+  // At some point this should be something we set depending of the emitter
+  // config.
   BlenderModel wizardProjectile = loadModel("assets/Wizard_Projectile.3d");
   vulkanRendererContext.particleQuadMesh =
       generateMesh(wizardProjectile.vertices, wizardProjectile.indices);
