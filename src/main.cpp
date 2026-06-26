@@ -13,6 +13,7 @@
 #include "engine/vulkanBackend.h"
 #include "engine/vulkanRenderer.h"
 #include "systems/animationSystem.h"
+#include "systems/particleLifeSystem.h"
 #include "systems/projectileSystem.h"
 #include "systems/resourceManagementSystem.h"
 #include "systems/sceneContext.h"
@@ -127,6 +128,7 @@ int main() {
     updateAnimations();
     drawFrame();
     processDestroyQueue();
+    updateParticleEmittersToBeDestroyed();
   }
 
   cleanup();

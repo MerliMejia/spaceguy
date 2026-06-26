@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../engine/blender/importer.h"
+#include "../systems/resourceManagementSystem.h"
 #include "./buffers.h"
 
 #include <cstring>
@@ -150,4 +151,72 @@ generateTransformAnimatedMesh(const BlenderTransformModel &model) {
   }
 
   return animated;
+}
+
+inline Mesh generateQuadMesh() {
+  std::vector<Vertex> vertices{
+      Vertex{
+          .pos = {-0.5f, -0.5f, 0.0f},
+          .color = {1.0f, 1.0f, 1.0f},
+      },
+      Vertex{
+          .pos = {0.5f, -0.5f, 0.0f},
+          .color = {1.0f, 1.0f, 1.0f},
+      },
+      Vertex{
+          .pos = {0.5f, 0.5f, 0.0f},
+          .color = {1.0f, 1.0f, 1.0f},
+      },
+      Vertex{
+          .pos = {-0.5f, 0.5f, 0.0f},
+          .color = {1.0f, 1.0f, 1.0f},
+      },
+  };
+
+  std::vector<uint16_t> indices{
+      0, 1, 2, 2, 3, 0,
+  };
+
+  return generateMesh(vertices, indices);
+}
+
+inline void
+generateLongTrailParticleEmitter(ParticleEmitterCpuComponent &emitter,
+                                 glm::vec3 position, glm::vec3 direction) {
+  emitter.maxParticles = 1600;
+  emitter.active = true;
+  emitter.spawnRate = 260.0f;
+  emitter.particleLifetime = 2.0f;
+  emitter.particleStartSize = 1.0f;
+  emitter.particleEndSize = 0.01f;
+  emitter.spawnSpeed = 1.4f;
+  emitter.maxColorSpeed = 3.0f;
+  emitter.lifeColorStart = glm::vec4{1.0f};
+  emitter.lifeColorEnd = glm::vec4{1.0f, 1.0f, 1.0f, 0.0f};
+  emitter.speedColorSlow = glm::vec4{1.0f};
+  emitter.speedColorFast = glm::vec4{1.0f};
+  emitter.position = position;
+  emitter.direction = -direction;
+  emitter.shape = ParticleEmitterShape::Cone;
+}
+
+inline void
+generateExplosionParticleEmitter(ParticleEmitterCpuComponent &emitter,
+                                 glm::vec3 position, float radius) {
+  const float lifetime = 0.55f;
+
+  emitter.maxParticles = 420;
+  emitter.active = true;
+  emitter.spawnRate = 420.0f;
+  emitter.particleLifetime = lifetime;
+  emitter.particleStartSize = radius * 0.2f;
+  emitter.particleEndSize = 0.01f;
+  emitter.spawnSpeed = (radius / lifetime) * 2;
+  emitter.maxColorSpeed = emitter.spawnSpeed;
+  emitter.lifeColorStart = glm::vec4{1.0f, 0.7f, 0.18f, 1.0f};
+  emitter.lifeColorEnd = glm::vec4{0.9f, 0.08f, 0.02f, 0.0f};
+  emitter.speedColorSlow = glm::vec4{0.9f, 0.08f, 0.02f, 1.0f};
+  emitter.speedColorFast = glm::vec4{1.0f, 0.9f, 0.2f, 1.0f};
+  emitter.position = position;
+  emitter.shape = ParticleEmitterShape::Sphere;
 }

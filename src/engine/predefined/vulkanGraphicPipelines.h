@@ -7,29 +7,28 @@
 #include <glm/glm.hpp>
 
 // Different graphic pipelines.
+extern void PARTICLE_COMPUTE_GRAPHICS_PIPELINE();
+extern void PARTICLE_GRAPHICS_PIPELINE();
 extern void DEFAULT_GRAPHICS_PIPELINE();
 extern void ANIMATED_GRAPHICS_PIPELINE();
 extern void DEBUG_GRAPHICS_PIPELINE();
 
 // Different uniform buffers and push constants
-struct CameraBufferObject
-{
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
+struct CameraBufferObject {
+  alignas(16) glm::mat4 view;
+  alignas(16) glm::mat4 proj;
 };
 
-struct ObjectPushConstants
-{
-    glm::mat4 model;
+struct ObjectPushConstants {
+  glm::mat4 model;
 };
 
-struct AnimatedObjectPushConstants
-{
-    glm::mat4 model;
-    uint32_t previousPositionOffset;
-    uint32_t nextPositionOffset;
-    float interpolation;
-    uint32_t vertexCount;
+struct AnimatedObjectPushConstants {
+  glm::mat4 model;
+  uint32_t previousPositionOffset;
+  uint32_t nextPositionOffset;
+  float interpolation;
+  uint32_t vertexCount;
 };
 
 // Different command buffer recordings.

@@ -3,14 +3,53 @@
 #include "../systems/resourceManagementSystem.h"
 #include "../systems/sceneContext.h"
 #include "../utils/buffers.h"
+#include "../utils/generators.h"
 #include "./predefined/vulkanDescriptorSetLayouts.h"
 #include "./predefined/vulkanGraphicPipelines.h"
 #include "./vulkanBackend.h"
+#include "vulkan/vulkan.hpp"
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstring>
 #include <glm/gtc/constants.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <limits>
+#include <optional>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+#include <vulkan/vulkan.hpp>
 
 VulkanRendererContext vulkanRendererContext{};
 
+constexpr uint32_t WORKGROUP_SIZE = 256;
+constexpr uint32_t MAX_PARTICLE_EMITTERS = 128;
+constexpr uint32_t MAX_PARTICLES = 50000;
+constexpr uint32_t INVALID_PARTICLE_EMITTER_SLOT =
+    std::numeric_limits<uint32_t>::max();
+
+struct ParticleRange {
+  uint32_t first = 0;
+  uint32_t count = 0;
+};
+
+struct ParticleEmitterAllocation {
+  uint32_t gpuEmitterIndex = INVALID_PARTICLE_EMITTER_SLOT;
+  uint32_t firstParticle = 0;
+  uint32_t maxParticles = 0;
+  bool seenThisFrame = false;
+};
+
+static std::unordered_map<int, ParticleEmitterAllocation>
+    particleEmitterAllocations;
+static std::vector<uint32_t> freeParticleEmitterSlots;
+static std::vector<ParticleRange> freeParticleRanges;
+
 void createDescriptorSetLayout() {
+  PARTICLE_COMPUTE_DESCRIPTOR_SET_LAYOUT(
+      vulkanRendererContext.particleDescriptorSetLayout, vulkanContext.device);
   DEFAULT_DESCRIPTOR_SET_LAYOUT(vulkanRendererContext.descriptorSetLayout,
                                 vulkanContext.device);
   ANIMATED_DESCRIPTOR_SET_LAYOUT(
@@ -18,10 +57,98 @@ void createDescriptorSetLayout() {
 }
 
 void createDescriptorPool() {
+  PARTICLE_COMPUTE_DESCRIPTOR_POOL(vulkanRendererContext.particleDescriptorPool,
+                                   vulkanContext.device);
   DEFAULT_DESCRIPTOR_POOL(vulkanRendererContext.descriptorPool,
                           vulkanContext.device);
   ANIMATED_DESCRIPTOR_POOL(vulkanRendererContext.animatedDescriptorPool,
                            vulkanContext.device);
+}
+
+void createParticleDescriptorSets() {
+  std::vector<vk::DescriptorSetLayout> layouts(
+      MAX_FRAMES_IN_FLIGHT, *vulkanRendererContext.particleDescriptorSetLayout);
+
+  vk::DescriptorSetAllocateInfo allocInfo{
+      .descriptorPool = *vulkanRendererContext.particleDescriptorPool,
+      .descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+      .pSetLayouts = layouts.data(),
+  };
+
+  vulkanRendererContext.particleDescriptorSets =
+      vk::raii::DescriptorSets(vulkanContext.device, allocInfo);
+
+  for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    vk::DescriptorBufferInfo cameraBufferInfo{
+        .buffer = *vulkanRendererContext.uniformBuffers[i],
+        .offset = 0,
+        .range = sizeof(CameraBufferObject),
+    };
+
+    vk::DescriptorBufferInfo particleBufferInfo{
+        .buffer = *vulkanRendererContext.particleBuffer,
+        .offset = 0,
+        .range = VK_WHOLE_SIZE,
+    };
+
+    vk::DescriptorBufferInfo simParamsBufferInfo{
+        .buffer = *vulkanRendererContext.particleSimParamsBuffers[i],
+        .offset = 0,
+        .range = sizeof(ParticleSimUbo),
+    };
+
+    vk::DescriptorBufferInfo emitterBufferInfo{
+        .buffer = *vulkanRendererContext.particleEmitterBuffers[i],
+        .offset = 0,
+        .range = VK_WHOLE_SIZE,
+    };
+
+    vk::DescriptorBufferInfo spawnCounterBufferInfo{
+        .buffer = *vulkanRendererContext.particleSpawnCounterBuffers[i],
+        .offset = 0,
+        .range = VK_WHOLE_SIZE,
+    };
+
+    std::array<vk::WriteDescriptorSet, 5> descriptorWrites{
+        vk::WriteDescriptorSet{
+            .dstSet = *vulkanRendererContext.particleDescriptorSets[i],
+            .dstBinding = 0,
+            .descriptorCount = 1,
+            .descriptorType = vk::DescriptorType::eUniformBuffer,
+            .pBufferInfo = &cameraBufferInfo,
+        },
+        vk::WriteDescriptorSet{
+            .dstSet = *vulkanRendererContext.particleDescriptorSets[i],
+            .dstBinding = 1,
+            .descriptorCount = 1,
+            .descriptorType = vk::DescriptorType::eStorageBuffer,
+            .pBufferInfo = &particleBufferInfo,
+        },
+        vk::WriteDescriptorSet{
+            .dstSet = *vulkanRendererContext.particleDescriptorSets[i],
+            .dstBinding = 2,
+            .descriptorCount = 1,
+            .descriptorType = vk::DescriptorType::eUniformBuffer,
+            .pBufferInfo = &simParamsBufferInfo,
+        },
+        vk::WriteDescriptorSet{
+            .dstSet = *vulkanRendererContext.particleDescriptorSets[i],
+            .dstBinding = 3,
+            .descriptorCount = 1,
+            .descriptorType = vk::DescriptorType::eStorageBuffer,
+            .pBufferInfo = &emitterBufferInfo,
+        },
+        vk::WriteDescriptorSet{
+            .dstSet = *vulkanRendererContext.particleDescriptorSets[i],
+            .dstBinding = 4,
+            .descriptorCount = 1,
+            .descriptorType = vk::DescriptorType::eStorageBuffer,
+            .pBufferInfo = &spawnCounterBufferInfo,
+        },
+    };
+
+    vulkanContext.device.updateDescriptorSets(descriptorWrites, nullptr);
+  }
 }
 
 void createStaticDescriptorSets() {
@@ -95,6 +222,8 @@ void createAnimatedDescriptorSets() {
 }
 
 void createGraphicsPipeline() {
+  PARTICLE_COMPUTE_GRAPHICS_PIPELINE();
+  PARTICLE_GRAPHICS_PIPELINE();
   DEFAULT_GRAPHICS_PIPELINE();
   ANIMATED_GRAPHICS_PIPELINE();
   DEBUG_GRAPHICS_PIPELINE();
@@ -147,6 +276,92 @@ void createUniformBuffers() {
 
     vulkanRendererContext.uniformBuffersMapped.push_back(
         vulkanRendererContext.uniformBuffersMemory.back().mapMemory(
+            0, bufferSize));
+  }
+}
+
+void createParticleSimParamsBuffers() {
+  vk::DeviceSize bufferSize = sizeof(ParticleSimUbo);
+
+  vulkanRendererContext.particleSimParamsBuffers.clear();
+  vulkanRendererContext.particleSimParamsMemory.clear();
+  vulkanRendererContext.particleSimParamsMapped.clear();
+
+  vulkanRendererContext.particleSimParamsBuffers.reserve(MAX_FRAMES_IN_FLIGHT);
+  vulkanRendererContext.particleSimParamsMemory.reserve(MAX_FRAMES_IN_FLIGHT);
+  vulkanRendererContext.particleSimParamsMapped.reserve(MAX_FRAMES_IN_FLIGHT);
+
+  for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    BufferWithMemory bufferWithMemory =
+        createBuffer(bufferSize, vk::BufferUsageFlagBits::eUniformBuffer,
+                     vk::MemoryPropertyFlagBits::eHostVisible |
+                         vk::MemoryPropertyFlagBits::eHostCoherent);
+
+    vulkanRendererContext.particleSimParamsBuffers.emplace_back(
+        std::move(bufferWithMemory.buffer));
+    vulkanRendererContext.particleSimParamsMemory.emplace_back(
+        std::move(bufferWithMemory.memory));
+
+    vulkanRendererContext.particleSimParamsMapped.push_back(
+        vulkanRendererContext.particleSimParamsMemory.back().mapMemory(
+            0, bufferSize));
+  }
+}
+
+void createParticleEmitterBuffers() {
+  vk::DeviceSize bufferSize =
+      sizeof(ParticleEmitterGpu) * MAX_PARTICLE_EMITTERS;
+
+  vulkanRendererContext.particleEmitterBuffers.clear();
+  vulkanRendererContext.particleEmitterMemory.clear();
+  vulkanRendererContext.particleEmitterMapped.clear();
+
+  vulkanRendererContext.particleEmitterBuffers.reserve(MAX_FRAMES_IN_FLIGHT);
+  vulkanRendererContext.particleEmitterMemory.reserve(MAX_FRAMES_IN_FLIGHT);
+  vulkanRendererContext.particleEmitterMapped.reserve(MAX_FRAMES_IN_FLIGHT);
+
+  for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    BufferWithMemory bufferWithMemory =
+        createBuffer(bufferSize, vk::BufferUsageFlagBits::eStorageBuffer,
+                     vk::MemoryPropertyFlagBits::eHostVisible |
+                         vk::MemoryPropertyFlagBits::eHostCoherent);
+
+    vulkanRendererContext.particleEmitterBuffers.emplace_back(
+        std::move(bufferWithMemory.buffer));
+    vulkanRendererContext.particleEmitterMemory.emplace_back(
+        std::move(bufferWithMemory.memory));
+    vulkanRendererContext.particleEmitterMapped.push_back(
+        vulkanRendererContext.particleEmitterMemory.back().mapMemory(
+            0, bufferSize));
+  }
+}
+
+void createParticleSpawnCounterBuffers() {
+  vk::DeviceSize bufferSize = sizeof(uint32_t) * MAX_PARTICLE_EMITTERS;
+
+  vulkanRendererContext.particleSpawnCounterBuffers.clear();
+  vulkanRendererContext.particleSpawnCounterMemory.clear();
+  vulkanRendererContext.particleSpawnCounterMapped.clear();
+
+  vulkanRendererContext.particleSpawnCounterBuffers.reserve(
+      MAX_FRAMES_IN_FLIGHT);
+  vulkanRendererContext.particleSpawnCounterMemory.reserve(
+      MAX_FRAMES_IN_FLIGHT);
+  vulkanRendererContext.particleSpawnCounterMapped.reserve(
+      MAX_FRAMES_IN_FLIGHT);
+
+  for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    BufferWithMemory bufferWithMemory =
+        createBuffer(bufferSize, vk::BufferUsageFlagBits::eStorageBuffer,
+                     vk::MemoryPropertyFlagBits::eHostVisible |
+                         vk::MemoryPropertyFlagBits::eHostCoherent);
+
+    vulkanRendererContext.particleSpawnCounterBuffers.emplace_back(
+        std::move(bufferWithMemory.buffer));
+    vulkanRendererContext.particleSpawnCounterMemory.emplace_back(
+        std::move(bufferWithMemory.memory));
+    vulkanRendererContext.particleSpawnCounterMapped.push_back(
+        vulkanRendererContext.particleSpawnCounterMemory.back().mapMemory(
             0, bufferSize));
   }
 }
@@ -239,11 +454,226 @@ void createDepthResources() {
       vk::raii::ImageView{vulkanContext.device, createInfo};
 }
 
+void initializeParticleAllocator() {
+  vulkanRendererContext.particleCount = MAX_PARTICLES;
+
+  freeParticleEmitterSlots.clear();
+  freeParticleRanges.clear();
+  particleEmitterAllocations.clear();
+
+  freeParticleEmitterSlots.reserve(MAX_PARTICLE_EMITTERS);
+  for (uint32_t i = MAX_PARTICLE_EMITTERS; i > 0; i--) {
+    freeParticleEmitterSlots.push_back(i - 1);
+  }
+
+  freeParticleRanges.push_back(
+      ParticleRange{.first = 0, .count = MAX_PARTICLES});
+}
+
+static ParticleGpu inactiveParticle(uint32_t gpuEmitterIndex,
+                                    const ParticleEmitterCpuComponent &emitter,
+                                    uint32_t particleIndex) {
+  return ParticleGpu{
+      .positionLifeTime = glm::vec4{0.0f, 0.0f, 0.0f, 0.0f},
+      .velocitySize = glm::vec4{0.0f, 0.0f, 0.0f, emitter.particleStartSize},
+      .color = glm::vec4{1.0f, 1.0f, 1.0f, 0.0f},
+      .state = glm::vec4{emitter.particleLifetime, 0.0f, 0.0f, 0.0f},
+      .meta = glm::uvec4{gpuEmitterIndex, 0u, particleIndex * 9781u, 0u},
+  };
+}
+
+static void
+writeParticleRangeInactive(const ParticleEmitterAllocation &allocation,
+                           const ParticleEmitterCpuComponent &emitter) {
+  if (vulkanRendererContext.particleBufferMapped == nullptr) {
+    return;
+  }
+
+  ParticleGpu *particles =
+      static_cast<ParticleGpu *>(vulkanRendererContext.particleBufferMapped);
+
+  for (uint32_t offset = 0; offset < allocation.maxParticles; offset++) {
+    const uint32_t particleIndex = allocation.firstParticle + offset;
+    particles[particleIndex] =
+        inactiveParticle(allocation.gpuEmitterIndex, emitter, particleIndex);
+  }
+}
+
+static void
+writeParticleRangeInvalid(const ParticleEmitterAllocation &allocation) {
+  if (vulkanRendererContext.particleBufferMapped == nullptr) {
+    return;
+  }
+
+  ParticleGpu *particles =
+      static_cast<ParticleGpu *>(vulkanRendererContext.particleBufferMapped);
+
+  for (uint32_t offset = 0; offset < allocation.maxParticles; offset++) {
+    const uint32_t particleIndex = allocation.firstParticle + offset;
+    particles[particleIndex] = ParticleGpu{
+        .positionLifeTime = glm::vec4{0.0f},
+        .velocitySize = glm::vec4{0.0f},
+        .color = glm::vec4{0.0f},
+        .state = glm::vec4{0.0f},
+        .meta = glm::uvec4{INVALID_PARTICLE_EMITTER_SLOT, 0u,
+                           particleIndex * 9781u, 0u},
+    };
+  }
+}
+
+static std::optional<ParticleRange> allocateParticleRange(uint32_t count) {
+  for (size_t i = 0; i < freeParticleRanges.size(); i++) {
+    ParticleRange &range = freeParticleRanges[i];
+    if (range.count < count) {
+      continue;
+    }
+
+    ParticleRange allocated{.first = range.first, .count = count};
+    range.first += count;
+    range.count -= count;
+
+    if (range.count == 0) {
+      freeParticleRanges.erase(freeParticleRanges.begin() + i);
+    }
+
+    return allocated;
+  }
+
+  return std::nullopt;
+}
+
+static void releaseParticleRange(ParticleRange released) {
+  if (released.count == 0) {
+    return;
+  }
+
+  freeParticleRanges.push_back(released);
+  std::sort(freeParticleRanges.begin(), freeParticleRanges.end(),
+            [](const ParticleRange &a, const ParticleRange &b) {
+              return a.first < b.first;
+            });
+
+  std::vector<ParticleRange> merged;
+  merged.reserve(freeParticleRanges.size());
+
+  for (const ParticleRange &range : freeParticleRanges) {
+    if (merged.empty() ||
+        merged.back().first + merged.back().count < range.first) {
+      merged.push_back(range);
+      continue;
+    }
+
+    uint32_t mergedEnd = std::max(merged.back().first + merged.back().count,
+                                  range.first + range.count);
+    merged.back().count = mergedEnd - merged.back().first;
+  }
+
+  freeParticleRanges = std::move(merged);
+}
+
+static ParticleEmitterAllocation *
+ensureParticleEmitterAllocation(ParticleEmitterCpuComponent &emitter) {
+  auto existing = particleEmitterAllocations.find(emitter.entity);
+  if (existing != particleEmitterAllocations.end()) {
+    ParticleEmitterAllocation &allocation = existing->second;
+    allocation.seenThisFrame = true;
+    emitter.firstParticle = allocation.firstParticle;
+    return &allocation;
+  }
+
+  if (emitter.maxParticles == 0 || freeParticleEmitterSlots.empty()) {
+    emitter.active = false;
+    return nullptr;
+  }
+
+  std::optional<ParticleRange> range =
+      allocateParticleRange(emitter.maxParticles);
+  if (!range.has_value()) {
+    emitter.active = false;
+    return nullptr;
+  }
+
+  uint32_t gpuEmitterIndex = freeParticleEmitterSlots.back();
+  freeParticleEmitterSlots.pop_back();
+
+  ParticleEmitterAllocation allocation{
+      .gpuEmitterIndex = gpuEmitterIndex,
+      .firstParticle = range->first,
+      .maxParticles = range->count,
+      .seenThisFrame = true,
+  };
+
+  auto [it, _] = particleEmitterAllocations.emplace(emitter.entity, allocation);
+  emitter.firstParticle = allocation.firstParticle;
+  writeParticleRangeInactive(it->second, emitter);
+
+  return &it->second;
+}
+
+static void releaseMissingParticleEmitterAllocations() {
+  for (auto it = particleEmitterAllocations.begin();
+       it != particleEmitterAllocations.end();) {
+    ParticleEmitterAllocation &allocation = it->second;
+    if (allocation.seenThisFrame) {
+      ++it;
+      continue;
+    }
+
+    if (allocation.gpuEmitterIndex != INVALID_PARTICLE_EMITTER_SLOT) {
+      freeParticleEmitterSlots.push_back(allocation.gpuEmitterIndex);
+    }
+
+    writeParticleRangeInvalid(allocation);
+
+    releaseParticleRange(ParticleRange{.first = allocation.firstParticle,
+                                       .count = allocation.maxParticles});
+
+    it = particleEmitterAllocations.erase(it);
+  }
+}
+
+void createParticleBuffer() {
+  vk::DeviceSize bufferSize = sizeof(ParticleGpu) * MAX_PARTICLES;
+
+  BufferWithMemory buffer =
+      createBuffer(bufferSize, vk::BufferUsageFlagBits::eStorageBuffer,
+                   vk::MemoryPropertyFlagBits::eHostVisible |
+                       vk::MemoryPropertyFlagBits::eHostCoherent);
+
+  vulkanRendererContext.particleBuffer = std::move(buffer.buffer);
+  vulkanRendererContext.particleBufferMemory = std::move(buffer.memory);
+  vulkanRendererContext.particleBufferMapped =
+      vulkanRendererContext.particleBufferMemory.mapMemory(0, bufferSize);
+
+  std::vector<ParticleGpu> particles(MAX_PARTICLES);
+  for (uint32_t i = 0; i < MAX_PARTICLES; i++) {
+    particles[i] = ParticleGpu{
+        .positionLifeTime = glm::vec4{0.0f},
+        .velocitySize = glm::vec4{0.0f},
+        .color = glm::vec4{0.0f},
+        .state = glm::vec4{0.0f},
+        .meta = glm::uvec4{INVALID_PARTICLE_EMITTER_SLOT, 0u, i * 9781u, 0u},
+    };
+  }
+
+  memcpy(vulkanRendererContext.particleBufferMapped, particles.data(),
+         static_cast<size_t>(bufferSize));
+}
+
 void setupRendererCore() {
   createCommandBuffers();
   createDepthResources();
   createUniformBuffers();
+  // At some point this should be something we set depending of the emitter config.
+  BlenderModel wizardProjectile = loadModel("assets/Wizard_Projectile.3d");
+  vulkanRendererContext.particleQuadMesh =
+      generateMesh(wizardProjectile.vertices, wizardProjectile.indices);
+  initializeParticleAllocator();
+  createParticleSimParamsBuffers();
+  createParticleEmitterBuffers();
+  createParticleSpawnCounterBuffers();
   createDebugBuffers();
+  createParticleBuffer();
   createSyncObjects();
 }
 
@@ -255,6 +685,7 @@ void setupRendererAfterAssetsLoaded() {
   if (vulkanRendererContext.animationPositionCount > 0) {
     createAnimatedDescriptorSets();
   }
+  createParticleDescriptorSets();
 }
 
 void transitionImageLayout(vk::raii::CommandBuffer const &commandBuffer,
@@ -287,6 +718,37 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
   auto &commandBuffer = vulkanRendererContext.commandBuffers[frameIndex];
 
   commandBuffer.begin(vk::CommandBufferBeginInfo{});
+
+  if (vulkanRendererContext.particleCount > 0) {
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute,
+                               *vulkanRendererContext.particleComputePipeline);
+
+    commandBuffer.bindDescriptorSets(
+        vk::PipelineBindPoint::eCompute,
+        *vulkanRendererContext.particleComputePipelineLayout, 0,
+        *vulkanRendererContext.particleDescriptorSets[frameIndex], nullptr);
+
+    uint32_t groupCount =
+        (vulkanRendererContext.particleCount + WORKGROUP_SIZE - 1) /
+        WORKGROUP_SIZE;
+
+    commandBuffer.dispatch(groupCount, 1, 1);
+
+    // Wait for the compute pipeline to finish.
+    vk::BufferMemoryBarrier particleBarrier{
+        .srcAccessMask = vk::AccessFlagBits::eShaderWrite,
+        .dstAccessMask = vk::AccessFlagBits::eShaderRead,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .buffer = *vulkanRendererContext.particleBuffer,
+        .offset = 0,
+        .size = VK_WHOLE_SIZE,
+    };
+
+    commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader,
+                                  vk::PipelineStageFlagBits::eVertexShader, {},
+                                  nullptr, particleBarrier, nullptr);
+  }
 
   transitionImageLayout(
       commandBuffer, vulkanContext.swapchainImages[imageIndex],
@@ -354,10 +816,6 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
 
   commandBuffer.setViewport(0, viewport);
   commandBuffer.setScissor(0, scissor);
-
-  commandBuffer.bindDescriptorSets(
-      vk::PipelineBindPoint::eGraphics, *vulkanRendererContext.pipelineLayout,
-      0, *vulkanRendererContext.descriptorSets[frameIndex], nullptr);
 
   for (const Renderable &renderable : resources.renderables) {
     if (!isEntityAlive(renderable.entity) || !renderable.visible)
@@ -455,6 +913,29 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
     }
   }
 
+  if (vulkanRendererContext.particleCount > 0) {
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,
+                               *vulkanRendererContext.particleGraphicsPipeline);
+
+    commandBuffer.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics,
+        *vulkanRendererContext.particleGraphicsPipelineLayout, 0,
+        *vulkanRendererContext.particleDescriptorSets[frameIndex], nullptr);
+
+    vk::Buffer vertexBuffers[] = {
+        *vulkanRendererContext.particleQuadMesh.vertexBuffer,
+    };
+    vk::DeviceSize offsets[] = {0};
+
+    commandBuffer.bindVertexBuffers(0, vertexBuffers, offsets);
+    commandBuffer.bindIndexBuffer(
+        *vulkanRendererContext.particleQuadMesh.indexBuffer, 0,
+        vk::IndexType::eUint16);
+
+    commandBuffer.drawIndexed(vulkanRendererContext.particleQuadMesh.indexCount,
+                              vulkanRendererContext.particleCount, 0, 0, 0);
+  }
+
   if (vulkanRendererContext.isDebug) {
     const DebugFrameData &debugFrame =
         vulkanRendererContext.debugFrames[frameIndex];
@@ -525,8 +1006,78 @@ void updateUniformBuffer(uint32_t currentImage) {
          sizeof(camera));
 }
 
-void updateObjectTransforms() {
-  // Not needed for now.
+void updateParticleSimParams(uint32_t frameIndex) {
+  ParticleSimUbo sim{
+      .deltaTime = timeState.deltaTime,
+      .particleCount = vulkanRendererContext.particleCount,
+      .emitterCount = MAX_PARTICLE_EMITTERS,
+      .frameIndex = vulkanRendererContext.particleSimulationFrame,
+  };
+
+  memcpy(vulkanRendererContext.particleSimParamsMapped[frameIndex], &sim,
+         sizeof(sim));
+}
+
+void updateParticleEmitters(uint32_t frameIndex) {
+  for (auto &[_, allocation] : particleEmitterAllocations) {
+    allocation.seenThisFrame = false;
+  }
+
+  std::vector<ParticleEmitterGpu> gpuEmitters(MAX_PARTICLE_EMITTERS);
+  std::vector<uint32_t> spawnCounters(MAX_PARTICLE_EMITTERS, 0);
+
+  for (uint32_t i = 0; i < resources.particleEmitterCpuComponents.size(); i++) {
+    ParticleEmitterCpuComponent &emitter =
+        resources.particleEmitterCpuComponents[i];
+
+    if (!isEntityAlive(emitter.entity)) {
+      continue;
+    }
+
+    ParticleEmitterAllocation *allocation =
+        ensureParticleEmitterAllocation(emitter);
+    if (allocation == nullptr) {
+      continue;
+    }
+
+    uint32_t particlesToSpawn = 0;
+    bool active = emitter.active;
+    if (active) {
+      emitter.spawnAccumulator += emitter.spawnRate * timeState.deltaTime;
+      particlesToSpawn =
+          static_cast<uint32_t>(std::floor(emitter.spawnAccumulator));
+      emitter.spawnAccumulator -= static_cast<float>(particlesToSpawn);
+      particlesToSpawn = std::min(particlesToSpawn, emitter.maxParticles);
+    } else {
+      emitter.spawnAccumulator = 0.0f;
+    }
+
+    gpuEmitters[allocation->gpuEmitterIndex] = ParticleEmitterGpu{
+        .position = glm::vec4{emitter.position, 1.0f},
+        .direction = glm::vec4{emitter.direction, 0.0f},
+        .worldVelocitySpawnRate =
+            glm::vec4{0.0f, 0.0f, 0.0f, emitter.spawnRate},
+        .config = glm::vec4{emitter.particleLifetime, emitter.particleStartSize,
+                            emitter.spawnSpeed, emitter.maxColorSpeed},
+        .sizeConfig = glm::vec4{emitter.particleEndSize, 0.0f, 0.0f, 0.0f},
+        .lifeColorStart = emitter.lifeColorStart,
+        .lifeColorEnd = emitter.lifeColorEnd,
+        .speedColorSlow = emitter.speedColorSlow,
+        .speedColorFast = emitter.speedColorFast,
+        .rangeActive =
+            glm::uvec4{allocation->firstParticle, allocation->maxParticles,
+                       active ? 1u : 0u, particlesToSpawn},
+        .shape = glm::uvec4{static_cast<uint32_t>(emitter.shape), 0u, 0u, 0u},
+    };
+  }
+
+  releaseMissingParticleEmitterAllocations();
+
+  memcpy(vulkanRendererContext.particleEmitterMapped[frameIndex],
+         gpuEmitters.data(), sizeof(ParticleEmitterGpu) * gpuEmitters.size());
+
+  memcpy(vulkanRendererContext.particleSpawnCounterMapped[frameIndex],
+         spawnCounters.data(), sizeof(uint32_t) * spawnCounters.size());
 }
 
 void clearDebugShapes() { vulkanRendererContext.debugVertices.clear(); }
@@ -674,7 +1225,8 @@ void drawFrame() {
           .value;
 
   updateUniformBuffer(vulkanRendererContext.currentFrame);
-  updateObjectTransforms();
+  updateParticleSimParams(vulkanRendererContext.currentFrame);
+  updateParticleEmitters(vulkanRendererContext.currentFrame);
 
   if (vulkanRendererContext.isDebug) {
     DebugFrameData &debugFrame =
@@ -737,6 +1289,7 @@ void drawFrame() {
 
   vulkanRendererContext.currentFrame =
       (vulkanRendererContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+  vulkanRendererContext.particleSimulationFrame++;
 }
 
 void uploadAnimationPositions(const std::vector<glm::vec4> &positions) {

@@ -33,6 +33,7 @@ struct AnimationComponent {
 struct ProjectileComponent {
   int entity = -1;
   int ownerEntity = -1;
+  int travelEffectEmitter = -1;
   glm::vec3 direction{0.0f, -1.0f, 0.0f};
   float speed = 20.0f;
   float timeAlive = 0.0f;
@@ -59,12 +60,35 @@ struct WizardBehaviorComponent {
   int shootEffecEntity = -1;
 };
 
+struct ParticleEmitterCpuComponent {
+  int entity = -1;
+  int owner = -1;
+  uint32_t firstParticle = 0;
+  uint32_t maxParticles = 0;
+  bool active = true;
+  float spawnRate = 0.0f;
+  float spawnAccumulator = 0.0f;
+  float particleLifetime = 1.0f;
+  float particleStartSize = 0.1f;
+  float particleEndSize = 0.1f;
+  float spawnSpeed = 1.0f;
+  float maxColorSpeed = 1.0f;
+  glm::vec4 lifeColorStart{1.0f};
+  glm::vec4 lifeColorEnd{1.0f};
+  glm::vec4 speedColorSlow{1.0f};
+  glm::vec4 speedColorFast{1.0f};
+  glm::vec3 position{0.0f};
+  glm::vec3 direction{0.0f, 0.0f, 1.0f};
+  ParticleEmitterShape shape = ParticleEmitterShape::Cone;
+};
+
 struct Resources {
   std::vector<Renderable> renderables;
   std::vector<TransformComponent> transforms;
   std::vector<AnimationComponent> animations;
   std::vector<ProjectileComponent> projectiles;
   std::vector<WizardBehaviorComponent> wizardBehaviors;
+  std::vector<ParticleEmitterCpuComponent> particleEmitterCpuComponents;
 };
 
 extern Resources resources;
@@ -93,6 +117,10 @@ ProjectileComponent *tryGetProjectile(int entity);
 WizardBehaviorComponent &addWizardBehavior(int entity);
 WizardBehaviorComponent &getWizardBehavior(int entity);
 WizardBehaviorComponent *tryGetWizardBehavior(int entity);
+
+ParticleEmitterCpuComponent &addParticleEmitterCpuComponent(int entity);
+ParticleEmitterCpuComponent &getParticleEmitterCpuComponent(int entity);
+ParticleEmitterCpuComponent *tryGetParticleEmitterCpuComponent(int entity);
 
 void destroyEntity(int entity);
 void processDestroyQueue();

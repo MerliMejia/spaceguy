@@ -46,14 +46,22 @@ bool positionIsFreeLogic(int entity) {
   bool isFree = true;
 
   executeOnNearbyCells(cell, [entity, thisWizard, &isFree](int checkEntity) {
-    WizardBehaviorComponent &wizard = getWizardBehavior(checkEntity);
+    WizardBehaviorComponent *wizard = tryGetWizardBehavior(checkEntity);
 
-    // So we don't take thisWizard into account
-    if (wizard.entity == entity) {
+    if (wizard == nullptr) {
       return ExecuteOnNearbyCellsStatus::Running;
     }
 
-    TransformComponent &t = getTransform(wizard.entity);
+    if (wizard->entity == entity) {
+      return ExecuteOnNearbyCellsStatus::Running;
+    }
+
+    // So we don't take thisWizard into account
+    if (wizard->entity == entity) {
+      return ExecuteOnNearbyCellsStatus::Running;
+    }
+
+    TransformComponent &t = getTransform(wizard->entity);
     Transform wt = modelToTransform(t.model);
 
     float distanceToWizardPosition = getDistanceSqr(
@@ -223,30 +231,38 @@ bool isSomeoneCloseLogic(int entity) {
 
   bool isSomeoneClose = false;
 
-  executeOnNearbyCells(
-      cell, [entity, &isSomeoneClose, wizardPos](int checkEntity) {
-        WizardBehaviorComponent &checkWizard = getWizardBehavior(checkEntity);
+  executeOnNearbyCells(cell, [entity, &isSomeoneClose,
+                              wizardPos](int checkEntity) {
+    WizardBehaviorComponent *checkWizard = tryGetWizardBehavior(checkEntity);
 
-        if (entity == checkWizard.entity) {
-          return ExecuteOnNearbyCellsStatus::Running;
-        }
+    if (checkWizard == nullptr) {
+      return ExecuteOnNearbyCellsStatus::Running;
+    }
 
-        TransformComponent &cwtc = getTransform(checkWizard.entity);
-        const Transform &cwt = modelToTransform(cwtc.model);
-        glm::vec2 checkWizardPos = glm::vec2{cwt.position};
+    if (entity == checkWizard->entity) {
+      return ExecuteOnNearbyCellsStatus::Running;
+    }
 
-        float distance = getDistanceSqr(wizardPos, checkWizardPos);
+    if (entity == checkWizard->entity) {
+      return ExecuteOnNearbyCellsStatus::Running;
+    }
 
-        constexpr float closeRadius = CLOSE_RADIUS;
-        constexpr float closeRadiusSqr = closeRadius * closeRadius;
+    TransformComponent &cwtc = getTransform(checkWizard->entity);
+    const Transform &cwt = modelToTransform(cwtc.model);
+    glm::vec2 checkWizardPos = glm::vec2{cwt.position};
 
-        if (distance <= closeRadiusSqr) {
-          isSomeoneClose = true;
-          return ExecuteOnNearbyCellsStatus::Done;
-        }
+    float distance = getDistanceSqr(wizardPos, checkWizardPos);
 
-        return ExecuteOnNearbyCellsStatus::Running;
-      });
+    constexpr float closeRadius = CLOSE_RADIUS;
+    constexpr float closeRadiusSqr = closeRadius * closeRadius;
+
+    if (distance <= closeRadiusSqr) {
+      isSomeoneClose = true;
+      return ExecuteOnNearbyCellsStatus::Done;
+    }
+
+    return ExecuteOnNearbyCellsStatus::Running;
+  });
 
   return isSomeoneClose;
 }

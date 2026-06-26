@@ -3,3 +3,6 @@ glslc shaders/animated.vert -o shaders/animated.vert.spv
 glslc shaders/default.frag -o shaders/default.frag.spv
 glslc shaders/debug.vert -o shaders/debug.vert.spv
 glslc shaders/debug.frag -o shaders/debug.frag.spv
+glslc shaders/particles.comp -o shaders/particles.comp.spv
+glslc shaders/particles.vert -o shaders/particles.vert.spv
+glslc shaders/particles.frag -o shaders/particles.frag.spv

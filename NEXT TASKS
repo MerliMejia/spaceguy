@@ -1,11 +1,15 @@
-Wizards shooting
+Particles Life Time System
 
-This can be a good oportunity to create a "proyectile system".
+Simple... What if we just take the emitter.particleLifetime as the "how much time this emitter needs to wait before being destroyed".
 
-Basically something that takes any entity that is a proyectile and update it's transformation every frame.
+Also we immediatly set spawn rate and spaw speed to 0 so the emitter doesn't emit more particles.
 
-So a "projectile" in this case should start in an initial position, have a direction and a desired speed.
+The idea is "At this point, the particles should just die at their time".
 
-Every frame the projectile will travel in that direction at that speed.
+So each emitter should be put on a list of "emitters to be destroyed".
 
-At some point, the projectile should be destroyed. Maybe after certain time is reached. So maybe also have a life time constant.
+When put there, we set the amount of time to wait (the particleLifetime), spawn rate and spaw speed to 0 and initialize a counter for that emitter.
+
+Each frame we check that list and on each one we substract timestate.deltaTime
+
+We check if the counter is less or equal than 0 and if it is we remove that emitter from the list (by swapping with the last one).

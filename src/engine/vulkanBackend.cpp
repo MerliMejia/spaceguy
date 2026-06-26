@@ -100,7 +100,13 @@ static QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
                                            queueFamilies.data());
 
   for (uint32_t i = 0; i < queueFamilyCount; i++) {
-    if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+    const bool supportsGraphics =
+        queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT;
+
+    const bool supportsCompute =
+        queueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT;
+
+    if (supportsGraphics && supportsCompute) {
       indices.graphicsFamily = i;
     }
 

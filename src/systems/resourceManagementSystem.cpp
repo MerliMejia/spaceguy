@@ -12,6 +12,7 @@ static std::unordered_map<int, int> entityToTransforms;
 static std::unordered_map<int, int> entityToAnimations;
 static std::unordered_map<int, int> entityToProjectiles;
 static std::unordered_map<int, int> entityToWizardBehaviors;
+static std::unordered_map<int, int> entityToParticleEmitterCpuComponents;
 static int nextEntityId = 1;
 
 static std::unordered_set<int> alive;
@@ -202,6 +203,30 @@ WizardBehaviorComponent *tryGetWizardBehavior(int entity) {
       entity, entityToWizardBehaviors, resources.wizardBehaviors);
 }
 
+ParticleEmitterCpuComponent &addParticleEmitterCpuComponent(int entity) {
+  return addComponent<ParticleEmitterCpuComponent>(
+      entity, entityToParticleEmitterCpuComponents,
+      resources.particleEmitterCpuComponents, "particle emitter cpu component");
+}
+
+template <>
+ParticleEmitterCpuComponent &addComponent<ParticleEmitterCpuComponent>(
+    int entity) {
+  return addParticleEmitterCpuComponent(entity);
+}
+
+ParticleEmitterCpuComponent &getParticleEmitterCpuComponent(int entity) {
+  return getComponent<ParticleEmitterCpuComponent>(
+      entity, entityToParticleEmitterCpuComponents,
+      resources.particleEmitterCpuComponents, "particle emitter cpu component");
+}
+
+ParticleEmitterCpuComponent *tryGetParticleEmitterCpuComponent(int entity) {
+  return tryGetComponent<ParticleEmitterCpuComponent>(
+      entity, entityToParticleEmitterCpuComponents,
+      resources.particleEmitterCpuComponents);
+}
+
 void destroyEntity(int entity) { destroyQueue.push_back(entity); }
 
 static void destroyRenderable(int entity) {
@@ -229,6 +254,12 @@ static void destroyWizardBehavior(int entity) {
                                             resources.wizardBehaviors);
 }
 
+static void destroyParticleEmitterCpuComponent(int entity) {
+  destroyComponent<ParticleEmitterCpuComponent>(
+      entity, entityToParticleEmitterCpuComponents,
+      resources.particleEmitterCpuComponents);
+}
+
 void processDestroyQueue() {
   for (int entity : destroyQueue) {
     if (!alive.contains(entity)) {
@@ -239,6 +270,7 @@ void processDestroyQueue() {
     destroyAnimation(entity);
     destroyProjectile(entity);
     destroyWizardBehavior(entity);
+    destroyParticleEmitterCpuComponent(entity);
     alive.erase(entity);
   }
 

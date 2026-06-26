@@ -1,0 +1,183 @@
+#version 450
+
+layout(local_size_x = 256) in;
+
+struct Particle {
+    vec4 positionLifetime;
+    vec4 velocitySize;
+    vec4 color;
+    vec4 state;
+    uvec4 meta;
+};
+
+struct Emitter {
+    vec4 position;
+    vec4 direction;
+    vec4 worldVelocitySpawnRate;
+    vec4 config;
+    vec4 sizeConfig;
+    vec4 lifeColorStart;
+    vec4 lifeColorEnd;
+    vec4 speedColorSlow;
+    vec4 speedColorFast;
+    uvec4 rangeActive;
+    uvec4 shape;
+};
+
+const uint EMITTER_SHAPE_CONE = 0u;
+const uint EMITTER_SHAPE_SPHERE = 1u;
+
+layout(std430, set = 0, binding = 1) buffer Particles {
+    Particle particles[];
+};
+
+layout(std140, set = 0, binding = 2) uniform SimParams {
+    float deltaTime;
+    uint particleCount;
+    uint emitterCount;
+    uint frameIndex;
+} sim;
+
+layout(std430, set = 0, binding = 3) readonly buffer Emitters {
+    Emitter emitters[];
+};
+
+layout(std430, set = 0, binding = 4) buffer SpawnCounters {
+    uint spawnCounters[];
+};
+
+float hash01(uint x) {
+    x ^= x >> 16;
+    x *= 0x7feb352du;
+    x ^= x >> 15;
+    x *= 0x846ca68bu;
+    x ^= x >> 16;
+    return float(x) / 4294967295.0;
+}
+
+vec3 randomLocalConeDirection(uint seed) {
+    float a = hash01(seed) * 6.28318530718;
+    float r = sqrt(hash01(seed + 17u)) * 0.35;
+    return normalize(vec3(cos(a) * r, sin(a) * r, 1.0));
+}
+
+vec3 randomSphereDirection(uint seed) {
+    float z = hash01(seed) * 2.0 - 1.0;
+    float a = hash01(seed + 17u) * 6.28318530718;
+    float r = sqrt(max(0.0, 1.0 - z * z));
+    return vec3(cos(a) * r, sin(a) * r, z);
+}
+
+vec4 particleColor(Particle p, Emitter emitter) {
+    float initialLifetime = max(p.state.x, 0.0001);
+    float lifeT = clamp(1.0 - p.positionLifetime.w / initialLifetime, 0.0, 1.0);
+
+    float speed = length(p.velocitySize.xyz);
+    float maxColorSpeed = max(emitter.config.w, 0.0001);
+    float speedT = clamp(speed / maxColorSpeed, 0.0, 1.0);
+
+    vec4 lifeColor = mix(emitter.lifeColorStart, emitter.lifeColorEnd, lifeT);
+    vec4 speedColor = mix(emitter.speedColorSlow, emitter.speedColorFast, speedT);
+
+    return mix(lifeColor, speedColor, 0.5);
+}
+
+float particleSize(Particle p, Emitter emitter) {
+    float initialLifetime = max(p.state.x, 0.0001);
+    float lifeT = clamp(1.0 - p.positionLifetime.w / initialLifetime, 0.0, 1.0);
+
+    return mix(emitter.config.y, emitter.sizeConfig.x, lifeT);
+}
+
+mat3 emitterBasis(Emitter emitter) {
+    vec3 forward = emitter.direction.xyz;
+    if (length(forward) < 0.0001) {
+        forward = vec3(0.0, 0.0, 1.0);
+    }
+    forward = normalize(forward);
+
+    vec3 referenceUp =
+        abs(dot(forward, vec3(0.0, 0.0, 1.0))) > 0.95
+        ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, 1.0);
+
+    vec3 right = normalize(cross(referenceUp, forward));
+    vec3 up = cross(forward, right);
+
+    return mat3(right, up, forward);
+}
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= sim.particleCount) {
+        return;
+    }
+
+    Particle p = particles[i];
+    uint emitterIndex = p.meta.x;
+
+    if (emitterIndex >= sim.emitterCount) {
+        p.meta.y = 0u;
+        p.positionLifetime.w = 0.0;
+        particles[i] = p;
+        return;
+    }
+
+    Emitter emitter = emitters[emitterIndex];
+
+    if (p.meta.y != 0u && p.positionLifetime.w > 0.0) {
+        p.positionLifetime.xyz += p.velocitySize.xyz * sim.deltaTime;
+        p.positionLifetime.w -= sim.deltaTime;
+
+        if (p.positionLifetime.w <= 0.0) {
+            p.meta.y = 0u;
+            p.color.a = 0.0;
+        } else {
+            p.velocitySize.w = particleSize(p, emitter);
+            p.color = particleColor(p, emitter);
+        }
+
+        particles[i] = p;
+        return;
+    }
+
+    if (emitter.rangeActive.z == 0u) {
+        p.meta.y = 0u;
+        p.positionLifetime.w = 0.0;
+        p.color.a = 0.0;
+        particles[i] = p;
+        return;
+    }
+
+    uint spawnIndex = atomicAdd(spawnCounters[emitterIndex], 1u);
+    if (spawnIndex >= emitter.rangeActive.w) {
+        p.meta.y = 0u;
+        p.positionLifetime.w = 0.0;
+        p.color.a = 0.0;
+        particles[i] = p;
+        return;
+    }
+
+    uint seed = p.meta.z + sim.frameIndex * 6271u + spawnIndex * 313u;
+    vec3 worldDir;
+    if (emitter.shape.x == EMITTER_SHAPE_SPHERE) {
+        worldDir = randomSphereDirection(seed);
+    } else {
+        vec3 localDir = randomLocalConeDirection(seed);
+        worldDir = normalize(emitterBasis(emitter) * localDir);
+    }
+
+    vec3 emitterPosition = emitter.position.xyz;
+    float lifetimeRandom = mix(0.65, 1.0, hash01(seed + 91u));
+    float lifetime = emitter.config.x * lifetimeRandom;
+    float speed = emitter.config.z;
+
+    p.positionLifetime = vec4(emitterPosition, lifetime);
+    p.velocitySize = vec4(emitter.worldVelocitySpawnRate.xyz + worldDir * speed,
+            emitter.config.y);
+    p.state = vec4(lifetime, 0.0, 0.0, 0.0);
+    p.meta = uvec4(emitterIndex, 1u, seed, 0u);
+    p.velocitySize.w = particleSize(p, emitter);
+    p.color = particleColor(p, emitter);
+
+    particles[i] = p;
+}

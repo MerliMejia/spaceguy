@@ -109,6 +109,18 @@ static void buildSpacialGridHash() {
 
     spacialGridContext.grid[cellCoord].push_back(wizard.entity);
   }
+
+  for (ProjectileComponent &projectile : resources.projectiles) {
+    TransformComponent &ptc = getTransform(projectile.entity);
+    const Transform &pt = modelToTransform(ptc.model);
+    glm::vec2 projectilePosition = glm::vec2{pt.position};
+
+    CellCoord cellCoord =
+        worldToCell(projectilePosition, spacialGridContext.cellWidth,
+                    spacialGridContext.cellHeight);
+
+    spacialGridContext.grid[cellCoord].push_back(projectile.entity);
+  }
 }
 
 void initSpacialGridHash() { spacialGridContext.grid.reserve(256); }
