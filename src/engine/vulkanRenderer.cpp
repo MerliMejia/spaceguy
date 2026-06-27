@@ -15,8 +15,11 @@
 #include <cstring>
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <iostream>
 #include <limits>
 #include <optional>
+#include <string.h>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -405,6 +408,13 @@ void createSyncObjects() {
 }
 
 void createDepthResources() {
+  vulkanRendererContext.depthImages.clear();
+  vulkanRendererContext.depthImageMemory.clear();
+  vulkanRendererContext.depthImageViews.clear();
+
+  vulkanRendererContext.depthImages.reserve(MAX_FRAMES_IN_FLIGHT);
+  vulkanRendererContext.depthImageMemory.reserve(MAX_FRAMES_IN_FLIGHT);
+  vulkanRendererContext.depthImageViews.reserve(MAX_FRAMES_IN_FLIGHT);
 
   vk::ImageCreateInfo imageInfo{
       .imageType = vk::ImageType::e2D,
@@ -414,44 +424,46 @@ void createDepthResources() {
                              .depth = 1},
       .mipLevels = 1,
       .arrayLayers = 1,
-      .samples = vk::SampleCountFlagBits::e1,
+      .samples = vulkanRendererContext.msaaSamples,
       .tiling = vk::ImageTiling::eOptimal,
       .usage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
       .sharingMode = vk::SharingMode::eExclusive,
       .initialLayout = vk::ImageLayout::eUndefined};
 
-  vulkanRendererContext.depthImage =
-      vk::raii::Image{vulkanContext.device, imageInfo};
+  for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    vulkanRendererContext.depthImages.emplace_back(vulkanContext.device,
+                                                   imageInfo);
 
-  vk::MemoryRequirements memRequirements =
-      vulkanRendererContext.depthImage.getMemoryRequirements();
+    vk::MemoryRequirements memRequirements =
+        vulkanRendererContext.depthImages.back().getMemoryRequirements();
 
-  vk::MemoryAllocateInfo allocInfo{
-      .allocationSize = memRequirements.size,
-      .memoryTypeIndex =
-          findMemoryType(memRequirements.memoryTypeBits,
-                         vk::MemoryPropertyFlagBits::eDeviceLocal),
-  };
+    vk::MemoryAllocateInfo allocInfo{
+        .allocationSize = memRequirements.size,
+        .memoryTypeIndex =
+            findMemoryType(memRequirements.memoryTypeBits,
+                           vk::MemoryPropertyFlagBits::eDeviceLocal),
+    };
 
-  vulkanRendererContext.depthImageMemory =
-      vk::raii::DeviceMemory{vulkanContext.device, allocInfo};
+    vulkanRendererContext.depthImageMemory.emplace_back(vulkanContext.device,
+                                                        allocInfo);
 
-  vulkanRendererContext.depthImage.bindMemory(
-      *vulkanRendererContext.depthImageMemory, 0);
+    vulkanRendererContext.depthImages.back().bindMemory(
+        *vulkanRendererContext.depthImageMemory.back(), 0);
 
-  vk::ImageViewCreateInfo createInfo{
-      .image = *vulkanRendererContext.depthImage,
-      .viewType = vk::ImageViewType::e2D,
-      .format = vulkanRendererContext.depthFormat,
-      .subresourceRange = vk::ImageSubresourceRange{
-          .aspectMask = vk::ImageAspectFlagBits::eDepth,
-          .baseMipLevel = 0,
-          .levelCount = 1,
-          .baseArrayLayer = 0,
-          .layerCount = 1}};
+    vk::ImageViewCreateInfo createInfo{
+        .image = *vulkanRendererContext.depthImages.back(),
+        .viewType = vk::ImageViewType::e2D,
+        .format = vulkanRendererContext.depthFormat,
+        .subresourceRange = vk::ImageSubresourceRange{
+            .aspectMask = vk::ImageAspectFlagBits::eDepth,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1}};
 
-  vulkanRendererContext.depthImageView =
-      vk::raii::ImageView{vulkanContext.device, createInfo};
+    vulkanRendererContext.depthImageViews.emplace_back(vulkanContext.device,
+                                                       createInfo);
+  }
 }
 
 void initializeParticleAllocator() {
@@ -660,8 +672,82 @@ void createParticleBuffer() {
          static_cast<size_t>(bufferSize));
 }
 
+void createColorResources() {
+  vulkanRendererContext.colorImages.clear();
+  vulkanRendererContext.colorImageMemory.clear();
+  vulkanRendererContext.colorImageViews.clear();
+
+  if (vulkanRendererContext.msaaSamples == vk::SampleCountFlagBits::e1) {
+    return;
+  }
+
+  vulkanRendererContext.colorImages.reserve(MAX_FRAMES_IN_FLIGHT);
+  vulkanRendererContext.colorImageMemory.reserve(MAX_FRAMES_IN_FLIGHT);
+  vulkanRendererContext.colorImageViews.reserve(MAX_FRAMES_IN_FLIGHT);
+
+  vk::ImageCreateInfo imageInfo{
+      .imageType = vk::ImageType::e2D,
+      .format = vulkanContext.swapchainImageFormat,
+      .extent =
+          vk::Extent3D{
+              .width = vulkanContext.swapchainExtent.width,
+              .height = vulkanContext.swapchainExtent.height,
+              .depth = 1,
+          },
+      .mipLevels = 1,
+      .arrayLayers = 1,
+      .samples = vulkanRendererContext.msaaSamples,
+      .tiling = vk::ImageTiling::eOptimal,
+      .usage = vk::ImageUsageFlagBits::eColorAttachment,
+      .sharingMode = vk::SharingMode::eExclusive,
+      .initialLayout = vk::ImageLayout::eUndefined,
+  };
+
+  for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    vulkanRendererContext.colorImages.emplace_back(vulkanContext.device,
+                                                   imageInfo);
+
+    vk::MemoryRequirements memRequirements =
+        vulkanRendererContext.colorImages.back().getMemoryRequirements();
+
+    vk::MemoryAllocateInfo allocInfo{
+        .allocationSize = memRequirements.size,
+        .memoryTypeIndex =
+            findMemoryType(memRequirements.memoryTypeBits,
+                           vk::MemoryPropertyFlagBits::eDeviceLocal),
+    };
+
+    vulkanRendererContext.colorImageMemory.emplace_back(vulkanContext.device,
+                                                        allocInfo);
+
+    vulkanRendererContext.colorImages.back().bindMemory(
+        *vulkanRendererContext.colorImageMemory.back(), 0);
+
+    vk::ImageViewCreateInfo viewInfo{
+        .image = *vulkanRendererContext.colorImages.back(),
+        .viewType = vk::ImageViewType::e2D,
+        .format = vulkanContext.swapchainImageFormat,
+        .subresourceRange =
+            vk::ImageSubresourceRange{
+                .aspectMask = vk::ImageAspectFlagBits::eColor,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+    };
+
+    vulkanRendererContext.colorImageViews.emplace_back(vulkanContext.device,
+                                                       viewInfo);
+  }
+}
+
 void setupRendererCore() {
+  vulkanRendererContext.msaaSamples =
+      chooseUsableSampleCount(vk::SampleCountFlagBits::e4);
+
   createCommandBuffers();
+  createColorResources();
   createDepthResources();
   createUniformBuffers();
   // At some point this should be something we set depending of the emitter
@@ -759,16 +845,40 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
       vk::AccessFlagBits::eColorAttachmentWrite,
       vk::ImageAspectFlagBits::eColor);
 
+  const bool useMsaa =
+      vulkanRendererContext.msaaSamples != vk::SampleCountFlagBits::e1;
+
+  if (useMsaa) {
+    transitionImageLayout(
+        commandBuffer, *vulkanRendererContext.colorImages[frameIndex],
+        vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+        vk::PipelineStageFlagBits::eTopOfPipe, {},
+        vk::PipelineStageFlagBits::eColorAttachmentOutput,
+        vk::AccessFlagBits::eColorAttachmentWrite,
+        vk::ImageAspectFlagBits::eColor);
+  }
+
   vk::ClearValue clearColor{
       .color = vk::ClearColorValue{
           .float32 = std::array<float, 4>{0.02f, 0.02f, 0.04f, 1.0f}}};
 
   vk::RenderingAttachmentInfo colorAttachment{
-      .imageView = *vulkanContext.swapchainImageViews[imageIndex],
+      .imageView = useMsaa ? *vulkanRendererContext.colorImageViews[frameIndex]
+                           : *vulkanContext.swapchainImageViews[imageIndex],
       .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
       .loadOp = vk::AttachmentLoadOp::eClear,
-      .storeOp = vk::AttachmentStoreOp::eStore,
-      .clearValue = clearColor};
+      .storeOp = useMsaa ? vk::AttachmentStoreOp::eDontCare
+                         : vk::AttachmentStoreOp::eStore,
+      .clearValue = clearColor,
+  };
+
+  if (useMsaa) {
+    colorAttachment.resolveMode = vk::ResolveModeFlagBits::eAverage;
+    colorAttachment.resolveImageView =
+        *vulkanContext.swapchainImageViews[imageIndex];
+    colorAttachment.resolveImageLayout =
+        vk::ImageLayout::eColorAttachmentOptimal;
+  }
 
   vk::ClearValue clearDepth{
       .depthStencil =
@@ -779,7 +889,7 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
   };
 
   vk::RenderingAttachmentInfo depthAttachment{
-      .imageView = *vulkanRendererContext.depthImageView,
+      .imageView = *vulkanRendererContext.depthImageViews[frameIndex],
       .imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
       .loadOp = vk::AttachmentLoadOp::eClear,
       .storeOp = vk::AttachmentStoreOp::eDontCare,
@@ -794,13 +904,13 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
       .pColorAttachments = &colorAttachment,
       .pDepthAttachment = &depthAttachment};
 
-  transitionImageLayout(commandBuffer, *vulkanRendererContext.depthImage,
-                        vk::ImageLayout::eUndefined,
-                        vk::ImageLayout::eDepthAttachmentOptimal,
-                        vk::PipelineStageFlagBits::eTopOfPipe, {},
-                        vk::PipelineStageFlagBits::eEarlyFragmentTests,
-                        vk::AccessFlagBits::eDepthStencilAttachmentWrite,
-                        vk::ImageAspectFlagBits::eDepth);
+  transitionImageLayout(
+      commandBuffer, *vulkanRendererContext.depthImages[frameIndex],
+      vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthAttachmentOptimal,
+      vk::PipelineStageFlagBits::eTopOfPipe, {},
+      vk::PipelineStageFlagBits::eEarlyFragmentTests,
+      vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+      vk::ImageAspectFlagBits::eDepth);
 
   commandBuffer.beginRendering(renderingInfo);
 

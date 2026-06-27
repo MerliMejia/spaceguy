@@ -156,6 +156,38 @@ static bool isDeviceSuitable(VkPhysicalDevice device) {
   return indices.isComplete() && swapchainAdequate;
 }
 
+vk::SampleCountFlagBits chooseUsableSampleCount(
+    vk::SampleCountFlagBits preferredSampleCount) {
+  vk::PhysicalDeviceProperties physicalDeviceProperties =
+      vulkanContext.physicalDevice.getProperties();
+
+  vk::SampleCountFlags counts =
+      physicalDeviceProperties.limits.framebufferColorSampleCounts &
+      physicalDeviceProperties.limits.framebufferDepthSampleCounts;
+  uint32_t preferred = static_cast<uint32_t>(preferredSampleCount);
+
+  if (preferred >= static_cast<uint32_t>(vk::SampleCountFlagBits::e64) &&
+      counts & vk::SampleCountFlagBits::e64)
+    return vk::SampleCountFlagBits::e64;
+  if (preferred >= static_cast<uint32_t>(vk::SampleCountFlagBits::e32) &&
+      counts & vk::SampleCountFlagBits::e32)
+    return vk::SampleCountFlagBits::e32;
+  if (preferred >= static_cast<uint32_t>(vk::SampleCountFlagBits::e16) &&
+      counts & vk::SampleCountFlagBits::e16)
+    return vk::SampleCountFlagBits::e16;
+  if (preferred >= static_cast<uint32_t>(vk::SampleCountFlagBits::e8) &&
+      counts & vk::SampleCountFlagBits::e8)
+    return vk::SampleCountFlagBits::e8;
+  if (preferred >= static_cast<uint32_t>(vk::SampleCountFlagBits::e4) &&
+      counts & vk::SampleCountFlagBits::e4)
+    return vk::SampleCountFlagBits::e4;
+  if (preferred >= static_cast<uint32_t>(vk::SampleCountFlagBits::e2) &&
+      counts & vk::SampleCountFlagBits::e2)
+    return vk::SampleCountFlagBits::e2;
+
+  return vk::SampleCountFlagBits::e1;
+}
+
 static void pickPhysicalDevice() {
   std::vector<vk::raii::PhysicalDevice> devices =
       vk::raii::PhysicalDevices{vulkanContext.instance};

@@ -80,9 +80,15 @@ struct VulkanRendererContext {
 
   // Depth testing
   vk::Format depthFormat = vk::Format::eD32Sfloat;
-  vk::raii::Image depthImage = nullptr;
-  vk::raii::DeviceMemory depthImageMemory = nullptr;
-  vk::raii::ImageView depthImageView = nullptr;
+  std::vector<vk::raii::Image> depthImages;
+  std::vector<vk::raii::DeviceMemory> depthImageMemory;
+  std::vector<vk::raii::ImageView> depthImageViews;
+
+  // Multi-sampling
+  vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e1;
+  std::vector<vk::raii::Image> colorImages;
+  std::vector<vk::raii::DeviceMemory> colorImageMemory;
+  std::vector<vk::raii::ImageView> colorImageViews;
 
   // Animations
   vk::raii::Buffer animationPositionsBuffer = nullptr;

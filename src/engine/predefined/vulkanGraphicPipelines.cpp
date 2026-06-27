@@ -108,7 +108,7 @@ void PARTICLE_GRAPHICS_PIPELINE() {
       .lineWidth = 1.0f};
 
   vk::PipelineMultisampleStateCreateInfo multisampling{
-      .rasterizationSamples = vk::SampleCountFlagBits::e1,
+      .rasterizationSamples = vulkanRendererContext.msaaSamples,
       .sampleShadingEnable = vk::False};
 
   vk::PipelineColorBlendAttachmentState colorBlendAttachment{
@@ -239,7 +239,7 @@ void DEFAULT_GRAPHICS_PIPELINE() {
       .lineWidth = 1.0f};
 
   vk::PipelineMultisampleStateCreateInfo multisampling{
-      .rasterizationSamples = vk::SampleCountFlagBits::e1,
+      .rasterizationSamples = vulkanRendererContext.msaaSamples,
       .sampleShadingEnable = vk::False};
 
   vk::PipelineColorBlendAttachmentState colorBlendAttachment{
@@ -366,7 +366,7 @@ void ANIMATED_GRAPHICS_PIPELINE() {
       .lineWidth = 1.0f};
 
   vk::PipelineMultisampleStateCreateInfo multisampling{
-      .rasterizationSamples = vk::SampleCountFlagBits::e1,
+      .rasterizationSamples = vulkanRendererContext.msaaSamples,
       .sampleShadingEnable = vk::False};
 
   vk::PipelineColorBlendAttachmentState colorBlendAttachment{
@@ -545,7 +545,7 @@ void DEBUG_GRAPHICS_PIPELINE() {
                                                     .scissorCount = 1};
 
   vk::PipelineMultisampleStateCreateInfo multisampling{
-      .rasterizationSamples = vk::SampleCountFlagBits::e1,
+      .rasterizationSamples = vulkanRendererContext.msaaSamples,
       .sampleShadingEnable = vk::False};
 
   vk::PipelineColorBlendAttachmentState colorBlendAttachment{
