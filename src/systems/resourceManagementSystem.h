@@ -44,7 +44,9 @@ enum class WizzardState {
   ChoosingNewPosition,
   MovingToPosition,
   Attacking,
-  Waiting
+  Waiting,
+  Evading,
+  Recovering
 };
 
 struct WizardBehaviorComponent {
@@ -53,6 +55,18 @@ struct WizardBehaviorComponent {
   glm::vec2 nextPos{0.0f};
   glm::vec4 debugColor{1.0f};
   float speed = 8.0f;
+
+  float stamina = 1.0f;
+  float maxStamina = 1.0f;
+  float staminaRecoverPerSecond = 0.35f;
+  float moveStaminaPerSecond = 0.18f;
+  float evadeStaminaCost = 0.28f;
+  float attackStaminaCost = 0.32f;
+
+  glm::vec2 evadeDir{0.0f};
+  glm::vec2 previousPosition{0.0f};
+  glm::vec2 velocity{0.0f};
+
   int nextAttackEntity = -1;
   float attackTime = 0;
 

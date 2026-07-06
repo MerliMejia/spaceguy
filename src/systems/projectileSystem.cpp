@@ -28,6 +28,15 @@ void spawnWizardProjectile(int wizard) {
   glm::vec3 localForward{0.0f, -1.0f, 0.0f};
   glm::vec3 forward = glm::normalize(wizardTransform.rotation * localForward);
 
+  spawnWizardProjectile(wizard, forward);
+}
+
+void spawnWizardProjectile(int wizard, glm::vec3 direction) {
+  TransformComponent tc = getTransform(wizard);
+  Transform wizardTransform = modelToTransform(tc.model);
+
+  glm::vec3 forward = glm::normalize(direction);
+
   float spawnDistance = 1.0f;
   glm::vec3 initialPos = wizardTransform.position + forward * spawnDistance;
 
