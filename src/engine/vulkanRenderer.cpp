@@ -12,6 +12,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -49,6 +50,38 @@ static std::unordered_map<int, ParticleEmitterAllocation>
     particleEmitterAllocations;
 static std::vector<uint32_t> freeParticleEmitterSlots;
 static std::vector<ParticleRange> freeParticleRanges;
+
+static vk::Extent2D getConfiguredRenderExtent() {
+  const float scale =
+      std::clamp(vulkanRendererContext.config.renderScale, 0.01f, 1.0f);
+
+  vk::Extent2D extent{};
+  extent.width = std::max(
+      1u, static_cast<uint32_t>(vulkanContext.swapchainExtent.width * scale));
+  extent.height = std::max(
+      1u, static_cast<uint32_t>(vulkanContext.swapchainExtent.height * scale));
+
+  return extent;
+}
+
+static bool usesMsaa() {
+  return vulkanRendererContext.msaaSamples != vk::SampleCountFlagBits::e1;
+}
+
+static bool needsOffscreenColor() {
+  return usesMsaa() ||
+         vulkanRendererContext.renderExtent.width !=
+             vulkanContext.swapchainExtent.width ||
+         vulkanRendererContext.renderExtent.height !=
+             vulkanContext.swapchainExtent.height;
+}
+
+static bool needsUpscaleBlit() {
+  return vulkanRendererContext.renderExtent.width !=
+             vulkanContext.swapchainExtent.width ||
+         vulkanRendererContext.renderExtent.height !=
+             vulkanContext.swapchainExtent.height;
+}
 
 void createDescriptorSetLayout() {
   PARTICLE_COMPUTE_DESCRIPTOR_SET_LAYOUT(
@@ -419,9 +452,10 @@ void createDepthResources() {
   vk::ImageCreateInfo imageInfo{
       .imageType = vk::ImageType::e2D,
       .format = vulkanRendererContext.depthFormat,
-      .extent = vk::Extent3D{.width = vulkanContext.swapchainExtent.width,
-                             .height = vulkanContext.swapchainExtent.height,
-                             .depth = 1},
+      .extent =
+          vk::Extent3D{.width = vulkanRendererContext.renderExtent.width,
+                       .height = vulkanRendererContext.renderExtent.height,
+                       .depth = 1},
       .mipLevels = 1,
       .arrayLayers = 1,
       .samples = vulkanRendererContext.msaaSamples,
@@ -677,7 +711,11 @@ void createColorResources() {
   vulkanRendererContext.colorImageMemory.clear();
   vulkanRendererContext.colorImageViews.clear();
 
-  if (vulkanRendererContext.msaaSamples == vk::SampleCountFlagBits::e1) {
+  vulkanRendererContext.resolveImages.clear();
+  vulkanRendererContext.resolveImageMemory.clear();
+  vulkanRendererContext.resolveImageViews.clear();
+
+  if (!needsOffscreenColor()) {
     return;
   }
 
@@ -685,20 +723,25 @@ void createColorResources() {
   vulkanRendererContext.colorImageMemory.reserve(MAX_FRAMES_IN_FLIGHT);
   vulkanRendererContext.colorImageViews.reserve(MAX_FRAMES_IN_FLIGHT);
 
+  const vk::ImageUsageFlags colorUsage =
+      usesMsaa() ? vk::ImageUsageFlagBits::eColorAttachment
+                 : vk::ImageUsageFlagBits::eColorAttachment |
+                       vk::ImageUsageFlagBits::eTransferSrc;
+
   vk::ImageCreateInfo imageInfo{
       .imageType = vk::ImageType::e2D,
       .format = vulkanContext.swapchainImageFormat,
       .extent =
           vk::Extent3D{
-              .width = vulkanContext.swapchainExtent.width,
-              .height = vulkanContext.swapchainExtent.height,
+              .width = vulkanRendererContext.renderExtent.width,
+              .height = vulkanRendererContext.renderExtent.height,
               .depth = 1,
           },
       .mipLevels = 1,
       .arrayLayers = 1,
       .samples = vulkanRendererContext.msaaSamples,
       .tiling = vk::ImageTiling::eOptimal,
-      .usage = vk::ImageUsageFlagBits::eColorAttachment,
+      .usage = colorUsage,
       .sharingMode = vk::SharingMode::eExclusive,
       .initialLayout = vk::ImageLayout::eUndefined,
   };
@@ -740,11 +783,77 @@ void createColorResources() {
     vulkanRendererContext.colorImageViews.emplace_back(vulkanContext.device,
                                                        viewInfo);
   }
+
+  if (!usesMsaa() || !needsUpscaleBlit()) {
+    return;
+  }
+
+  vulkanRendererContext.resolveImages.reserve(MAX_FRAMES_IN_FLIGHT);
+  vulkanRendererContext.resolveImageMemory.reserve(MAX_FRAMES_IN_FLIGHT);
+  vulkanRendererContext.resolveImageViews.reserve(MAX_FRAMES_IN_FLIGHT);
+
+  vk::ImageCreateInfo resolveImageInfo{
+      .imageType = vk::ImageType::e2D,
+      .format = vulkanContext.swapchainImageFormat,
+      .extent =
+          vk::Extent3D{
+              .width = vulkanRendererContext.renderExtent.width,
+              .height = vulkanRendererContext.renderExtent.height,
+              .depth = 1,
+          },
+      .mipLevels = 1,
+      .arrayLayers = 1,
+      .samples = vk::SampleCountFlagBits::e1,
+      .tiling = vk::ImageTiling::eOptimal,
+      .usage = vk::ImageUsageFlagBits::eColorAttachment |
+               vk::ImageUsageFlagBits::eTransferSrc,
+      .sharingMode = vk::SharingMode::eExclusive,
+      .initialLayout = vk::ImageLayout::eUndefined,
+  };
+
+  for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    vulkanRendererContext.resolveImages.emplace_back(vulkanContext.device,
+                                                     resolveImageInfo);
+
+    vk::MemoryRequirements memRequirements =
+        vulkanRendererContext.resolveImages.back().getMemoryRequirements();
+
+    vk::MemoryAllocateInfo allocInfo{
+        .allocationSize = memRequirements.size,
+        .memoryTypeIndex =
+            findMemoryType(memRequirements.memoryTypeBits,
+                           vk::MemoryPropertyFlagBits::eDeviceLocal),
+    };
+
+    vulkanRendererContext.resolveImageMemory.emplace_back(vulkanContext.device,
+                                                          allocInfo);
+
+    vulkanRendererContext.resolveImages.back().bindMemory(
+        *vulkanRendererContext.resolveImageMemory.back(), 0);
+
+    vk::ImageViewCreateInfo viewInfo{
+        .image = *vulkanRendererContext.resolveImages.back(),
+        .viewType = vk::ImageViewType::e2D,
+        .format = vulkanContext.swapchainImageFormat,
+        .subresourceRange =
+            vk::ImageSubresourceRange{
+                .aspectMask = vk::ImageAspectFlagBits::eColor,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+    };
+
+    vulkanRendererContext.resolveImageViews.emplace_back(vulkanContext.device,
+                                                         viewInfo);
+  }
 }
 
 void setupRendererCore() {
-  vulkanRendererContext.msaaSamples =
-      chooseUsableSampleCount(vk::SampleCountFlagBits::e4);
+  vulkanRendererContext.msaaSamples = chooseUsableSampleCount(
+      vulkanRendererContext.config.preferredMsaaSamples);
+  vulkanRendererContext.renderExtent = getConfiguredRenderExtent();
 
   createCommandBuffers();
   createColorResources();
@@ -837,20 +946,33 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
                                   nullptr, particleBarrier, nullptr);
   }
 
-  transitionImageLayout(
-      commandBuffer, vulkanContext.swapchainImages[imageIndex],
-      vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
-      vk::PipelineStageFlagBits::eTopOfPipe, {},
-      vk::PipelineStageFlagBits::eColorAttachmentOutput,
-      vk::AccessFlagBits::eColorAttachmentWrite,
-      vk::ImageAspectFlagBits::eColor);
+  const bool useMsaa = usesMsaa();
+  const bool useOffscreenColor = needsOffscreenColor();
+  const bool useUpscaleBlit = needsUpscaleBlit();
 
-  const bool useMsaa =
-      vulkanRendererContext.msaaSamples != vk::SampleCountFlagBits::e1;
-
-  if (useMsaa) {
+  if (useOffscreenColor) {
     transitionImageLayout(
         commandBuffer, *vulkanRendererContext.colorImages[frameIndex],
+        vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+        vk::PipelineStageFlagBits::eTopOfPipe, {},
+        vk::PipelineStageFlagBits::eColorAttachmentOutput,
+        vk::AccessFlagBits::eColorAttachmentWrite,
+        vk::ImageAspectFlagBits::eColor);
+  }
+
+  if (!useOffscreenColor || (useMsaa && !useUpscaleBlit)) {
+    transitionImageLayout(
+        commandBuffer, vulkanContext.swapchainImages[imageIndex],
+        vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+        vk::PipelineStageFlagBits::eTopOfPipe, {},
+        vk::PipelineStageFlagBits::eColorAttachmentOutput,
+        vk::AccessFlagBits::eColorAttachmentWrite,
+        vk::ImageAspectFlagBits::eColor);
+  }
+
+  if (useMsaa && useUpscaleBlit) {
+    transitionImageLayout(
+        commandBuffer, *vulkanRendererContext.resolveImages[frameIndex],
         vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
         vk::PipelineStageFlagBits::eTopOfPipe, {},
         vk::PipelineStageFlagBits::eColorAttachmentOutput,
@@ -863,8 +985,9 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
           .float32 = std::array<float, 4>{0.02f, 0.02f, 0.04f, 1.0f}}};
 
   vk::RenderingAttachmentInfo colorAttachment{
-      .imageView = useMsaa ? *vulkanRendererContext.colorImageViews[frameIndex]
-                           : *vulkanContext.swapchainImageViews[imageIndex],
+      .imageView = useOffscreenColor
+                       ? *vulkanRendererContext.colorImageViews[frameIndex]
+                       : *vulkanContext.swapchainImageViews[imageIndex],
       .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
       .loadOp = vk::AttachmentLoadOp::eClear,
       .storeOp = useMsaa ? vk::AttachmentStoreOp::eDontCare
@@ -875,7 +998,8 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
   if (useMsaa) {
     colorAttachment.resolveMode = vk::ResolveModeFlagBits::eAverage;
     colorAttachment.resolveImageView =
-        *vulkanContext.swapchainImageViews[imageIndex];
+        useUpscaleBlit ? *vulkanRendererContext.resolveImageViews[frameIndex]
+                       : *vulkanContext.swapchainImageViews[imageIndex];
     colorAttachment.resolveImageLayout =
         vk::ImageLayout::eColorAttachmentOptimal;
   }
@@ -898,7 +1022,7 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
 
   vk::RenderingInfo renderingInfo{
       .renderArea = vk::Rect2D{.offset = vk::Offset2D{0, 0},
-                               .extent = vulkanContext.swapchainExtent},
+                               .extent = vulkanRendererContext.renderExtent},
       .layerCount = 1,
       .colorAttachmentCount = 1,
       .pColorAttachments = &colorAttachment,
@@ -917,13 +1041,13 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
   vk::Viewport viewport{
       .x = 0.0f,
       .y = 0.0f,
-      .width = static_cast<float>(vulkanContext.swapchainExtent.width),
-      .height = static_cast<float>(vulkanContext.swapchainExtent.height),
+      .width = static_cast<float>(vulkanRendererContext.renderExtent.width),
+      .height = static_cast<float>(vulkanRendererContext.renderExtent.height),
       .minDepth = 0.0f,
       .maxDepth = 1.0f};
 
   vk::Rect2D scissor{.offset = vk::Offset2D{0, 0},
-                     .extent = vulkanContext.swapchainExtent};
+                     .extent = vulkanRendererContext.renderExtent};
 
   commandBuffer.setViewport(0, viewport);
   commandBuffer.setScissor(0, scissor);
@@ -1085,13 +1209,87 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
 
   commandBuffer.endRendering();
 
-  transitionImageLayout(
-      commandBuffer, vulkanContext.swapchainImages[imageIndex],
-      vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
-      vk::PipelineStageFlagBits::eColorAttachmentOutput,
-      vk::AccessFlagBits::eColorAttachmentWrite,
-      vk::PipelineStageFlagBits::eBottomOfPipe, {},
-      vk::ImageAspectFlagBits::eColor);
+  if (useUpscaleBlit) {
+    vk::Image blitSourceImage =
+        useMsaa ? *vulkanRendererContext.resolveImages[frameIndex]
+                : *vulkanRendererContext.colorImages[frameIndex];
+
+    transitionImageLayout(commandBuffer, blitSourceImage,
+                          vk::ImageLayout::eColorAttachmentOptimal,
+                          vk::ImageLayout::eTransferSrcOptimal,
+                          vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                          vk::AccessFlagBits::eColorAttachmentWrite,
+                          vk::PipelineStageFlagBits::eTransfer,
+                          vk::AccessFlagBits::eTransferRead,
+                          vk::ImageAspectFlagBits::eColor);
+
+    transitionImageLayout(
+        commandBuffer, vulkanContext.swapchainImages[imageIndex],
+        vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal,
+        vk::PipelineStageFlagBits::eTopOfPipe, {},
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::AccessFlagBits::eTransferWrite, vk::ImageAspectFlagBits::eColor);
+
+    vk::ImageBlit blit{
+        .srcSubresource =
+            vk::ImageSubresourceLayers{
+                .aspectMask = vk::ImageAspectFlagBits::eColor,
+                .mipLevel = 0,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        .srcOffsets =
+            std::array<vk::Offset3D, 2>{
+                vk::Offset3D{0, 0, 0},
+                vk::Offset3D{
+                    static_cast<int32_t>(
+                        vulkanRendererContext.renderExtent.width),
+                    static_cast<int32_t>(
+                        vulkanRendererContext.renderExtent.height),
+                    1,
+                },
+            },
+        .dstSubresource =
+            vk::ImageSubresourceLayers{
+                .aspectMask = vk::ImageAspectFlagBits::eColor,
+                .mipLevel = 0,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        .dstOffsets =
+            std::array<vk::Offset3D, 2>{
+                vk::Offset3D{0, 0, 0},
+                vk::Offset3D{
+                    static_cast<int32_t>(vulkanContext.swapchainExtent.width),
+                    static_cast<int32_t>(vulkanContext.swapchainExtent.height),
+                    1,
+                },
+            },
+    };
+
+    commandBuffer.blitImage(blitSourceImage,
+                            vk::ImageLayout::eTransferSrcOptimal,
+                            vulkanContext.swapchainImages[imageIndex],
+                            vk::ImageLayout::eTransferDstOptimal, blit,
+                            vulkanRendererContext.config.upscaleFilter);
+
+    transitionImageLayout(
+        commandBuffer, vulkanContext.swapchainImages[imageIndex],
+        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR,
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::AccessFlagBits::eTransferWrite,
+        vk::PipelineStageFlagBits::eBottomOfPipe, {},
+        vk::ImageAspectFlagBits::eColor);
+  } else {
+    transitionImageLayout(commandBuffer,
+                          vulkanContext.swapchainImages[imageIndex],
+                          vk::ImageLayout::eColorAttachmentOptimal,
+                          vk::ImageLayout::ePresentSrcKHR,
+                          vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                          vk::AccessFlagBits::eColorAttachmentWrite,
+                          vk::PipelineStageFlagBits::eBottomOfPipe, {},
+                          vk::ImageAspectFlagBits::eColor);
+  }
 
   commandBuffer.end();
 }

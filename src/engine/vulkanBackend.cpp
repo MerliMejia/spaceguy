@@ -1,6 +1,7 @@
 #include "vulkanBackend.h"
 
 #include <set>
+#include <stdexcept>
 
 VulkanContext vulkanContext{};
 
@@ -156,8 +157,8 @@ static bool isDeviceSuitable(VkPhysicalDevice device) {
   return indices.isComplete() && swapchainAdequate;
 }
 
-vk::SampleCountFlagBits chooseUsableSampleCount(
-    vk::SampleCountFlagBits preferredSampleCount) {
+vk::SampleCountFlagBits
+chooseUsableSampleCount(vk::SampleCountFlagBits preferredSampleCount) {
   vk::PhysicalDeviceProperties physicalDeviceProperties =
       vulkanContext.physicalDevice.getProperties();
 
@@ -341,6 +342,15 @@ static void createSwapchain() {
       indices.presentFamily.value(),
   };
 
+  vk::ImageUsageFlags imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
+  if (swapchainSupport.capabilities.supportedUsageFlags &
+      vk::ImageUsageFlagBits::eTransferDst) {
+    imageUsage |= vk::ImageUsageFlagBits::eTransferDst;
+  } else {
+    throw std::runtime_error(
+        "swapchain does not support transfer destination images");
+  }
+
   vk::SwapchainCreateInfoKHR createInfo{
       .surface = *vulkanContext.surface,
       .minImageCount = imageCount,
@@ -348,7 +358,7 @@ static void createSwapchain() {
       .imageColorSpace = surfaceFormat.colorSpace,
       .imageExtent = extent,
       .imageArrayLayers = 1,
-      .imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
+      .imageUsage = imageUsage,
       .preTransform = swapchainSupport.capabilities.currentTransform,
       .compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
       .presentMode = presentMode,

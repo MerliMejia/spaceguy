@@ -1,7 +1,8 @@
 #pragma once
 
-#include <cstdint>
 #define VULKAN_HPP_NO_CONSTRUCTORS
+#include "vulkan/vulkan.hpp"
+#include <cstdint>
 #include <vulkan/vulkan_raii.hpp>
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -14,10 +15,18 @@
 #include "../utils/types.h"
 #include "vulkanGlobals.h"
 
+struct RendererConfig {
+  float renderScale = 0.25f;
+  vk::SampleCountFlagBits preferredMsaaSamples = vk::SampleCountFlagBits::e1;
+  vk::Filter upscaleFilter = vk::Filter::eNearest;
+};
+
 // Will store/handle every vulkan stuff that can change depending of how we
 // decide that the renderer will render stuff.
 
 struct VulkanRendererContext {
+  RendererConfig config{};
+  vk::Extent2D renderExtent{};
 
   // Particles. At some point should be more like "compute stuff".
   vk::raii::DescriptorSetLayout particleDescriptorSetLayout = nullptr;
@@ -89,6 +98,9 @@ struct VulkanRendererContext {
   std::vector<vk::raii::Image> colorImages;
   std::vector<vk::raii::DeviceMemory> colorImageMemory;
   std::vector<vk::raii::ImageView> colorImageViews;
+  std::vector<vk::raii::Image> resolveImages;
+  std::vector<vk::raii::DeviceMemory> resolveImageMemory;
+  std::vector<vk::raii::ImageView> resolveImageViews;
 
   // Animations
   vk::raii::Buffer animationPositionsBuffer = nullptr;
