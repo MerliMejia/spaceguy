@@ -156,8 +156,7 @@ static void readAttachments(AnimationClip &clip) {
   }
 }
 
-static void readTransformKeyPoses(AnimationClip &clip,
-                                  std::size_t frameCount) {
+static void readTransformKeyPoses(AnimationClip &clip, std::size_t frameCount) {
   clip.transformKeyPoses.resize(frameCount);
 
   for (auto &keyPose : clip.transformKeyPoses) {
@@ -351,6 +350,17 @@ WorldData loadWorldData() {
   data.wizards.positions.resize(static_cast<std::size_t>(data.wizards.count));
 
   for (glm::vec3 &position : data.wizards.positions) {
+    position = readVec3();
+  }
+
+  expect("ogres");
+
+  expect("ogre_count");
+  data.ogres.count = readInt();
+
+  data.ogres.positions.resize(static_cast<std::size_t>(data.ogres.count));
+
+  for (glm::vec3 &position : data.ogres.positions) {
     position = readVec3();
   }
 

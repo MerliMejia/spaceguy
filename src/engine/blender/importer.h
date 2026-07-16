@@ -81,10 +81,16 @@ struct Wizards {
   std::vector<glm::vec3> positions;
 };
 
+struct Ogres {
+  int count;
+  std::vector<glm::vec3> positions;
+};
+
 struct WorldData {
   ImporterTransform floor;
   Camera camera;
   Wizards wizards;
+  Ogres ogres;
 };
 
 struct TransformAnimationClip {

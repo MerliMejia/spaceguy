@@ -16,9 +16,9 @@
 #include "vulkanGlobals.h"
 
 struct RendererConfig {
-  float renderScale = 1.0f;
-  vk::SampleCountFlagBits preferredMsaaSamples = vk::SampleCountFlagBits::e4;
-  vk::Filter upscaleFilter = vk::Filter::eCubicEXT;
+  float renderScale = 0.5f;
+  vk::SampleCountFlagBits preferredMsaaSamples = vk::SampleCountFlagBits::e1;
+  vk::Filter upscaleFilter = vk::Filter::eNearest;
 };
 
 // Will store/handle every vulkan stuff that can change depending of how we

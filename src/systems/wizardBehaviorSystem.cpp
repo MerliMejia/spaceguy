@@ -25,7 +25,7 @@ constexpr float WIZARD_AVOID_RADIUS = 2.0f;
 constexpr float EVADE_DISTANCE = 4.0f;
 constexpr float MIN_MOVE_STAMINA = 0.08f;
 constexpr float WIZARD_PROJECTILE_SPEED = 20.0f;
-constexpr float WIZARD_RUN_ANIMATION_SPEED = 1.8f;
+constexpr float WIZARD_RUN_ANIMATION_SPEED = 1.0f;
 constexpr float AIM_VELOCITY_SMOOTHING = 0.25f;
 
 static TransformAnimatedMesh shootEffectMesh{};

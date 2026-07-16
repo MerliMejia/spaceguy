@@ -224,32 +224,26 @@ def find_compatible_action_slot(action, owner):
     if not hasattr(action, "slots"):
         return None
 
-    if len(action.slots) == 0:
-        return None
-
-    owner_id_type = getattr(owner, "id_type", None)
-    compatible_slots = []
-
     for slot in action.slots:
-        slot_id_type = getattr(slot, "target_id_type", None)
-
-        if slot_id_type not in (None, "UNSPECIFIED"):
-            if owner_id_type is not None and slot_id_type != owner_id_type:
-                continue
-
-        compatible_slots.append(slot)
-
-    if not compatible_slots:
-        return None
-
-    for slot in compatible_slots:
-        slot_name = getattr(slot, "name_display", "")
-        slot_identifier = getattr(slot, "identifier", "")
-
-        if slot_name == owner.name or slot_identifier.endswith(owner.name):
+        if owner in slot.users():
             return slot
 
-    return compatible_slots[0]
+    owner_id_type = getattr(owner, "id_type", None)
+
+    compatible_slots = [
+        slot
+        for slot in action.slots
+        if getattr(slot, "target_id_type", None) in (None, "UNSPECIFIED", owner_id_type)
+    ]
+
+    for slot in compatible_slots:
+        if getattr(slot, "name_display", "") == owner.name:
+            return slot
+
+        if getattr(slot, "identifier", "").endswith(owner.name):
+            return slot
+
+    return None
 
 
 def assign_action(owner, action):
@@ -263,28 +257,45 @@ def assign_action(owner, action):
         animation_data.action_slot = slot
 
 
+def action_is_owned_by(action, owner):
+    if not hasattr(action, "slots"):
+        return False
+
+    for slot in action.slots:
+        if owner in slot.users():
+            return True
+
+    return False
+
+
 def collect_owned_actions(owner, kind):
-    if owner.animation_data is None:
-        return []
+    candidate_actions = []
 
-    owned_actions = []
+    # Find every Action that Blender associates with this owner.
+    for action in bpy.data.actions:
+        if action_is_owned_by(action, owner):
+            candidate_actions.append(action)
 
-    if owner.animation_data.action is not None:
-        owned_actions.append(owner.animation_data.action)
+    # Compatibility fallback for older/legacy Actions.
+    if owner.animation_data is not None:
+        if owner.animation_data.action is not None:
+            candidate_actions.append(owner.animation_data.action)
 
-    for track in owner.animation_data.nla_tracks:
-        for strip in track.strips:
-            if strip.action is not None:
-                owned_actions.append(strip.action)
+        for track in owner.animation_data.nla_tracks:
+            for strip in track.strips:
+                if strip.action is not None:
+                    candidate_actions.append(strip.action)
 
     actions = []
     seen = set()
 
-    for action in owned_actions:
-        if action.name in seen:
+    for action in candidate_actions:
+        action_id = action.as_pointer()
+
+        if action_id in seen:
             continue
 
-        seen.add(action.name)
+        seen.add(action_id)
 
         if not action_has_animation(action):
             continue
@@ -698,7 +709,8 @@ def capture_scene_state(scene, owners):
 
         action = owner.animation_data.action
         action_slot = None
-        if hasattr(owner.animation_data, "action_slot"):
+
+        if action is not None and hasattr(owner.animation_data, "action_slot"):
             action_slot = owner.animation_data.action_slot
 
         state["owners"].append((owner, action, action_slot))
@@ -713,7 +725,12 @@ def restore_scene_state(scene, state):
 
         owner.animation_data.action = action
 
-        if hasattr(owner.animation_data, "action_slot"):
+        # A slot can only be assigned when an Action is assigned.
+        if (
+            action is not None
+            and action_slot is not None
+            and hasattr(owner.animation_data, "action_slot")
+        ):
             owner.animation_data.action_slot = action_slot
 
     scene.frame_set(state["frame"])

@@ -80,6 +80,15 @@ enum WizardAnimationMapping : uint32_t {
   Iddle = 1,
   Kicking = 2,
   Running = 3,
+  WizardBeingAttacked = 4,
+};
+
+enum OgreAnimationMapping : uint32_t {
+  OgreAttackMode = 0,
+  OgreIddle = 1,
+  OgreInitAttackMode = 2,
+  OgreAttack1 = 3,
+  OgreRunning = 4
 };
 
 struct TransformAnimationKeyPoseGPU {

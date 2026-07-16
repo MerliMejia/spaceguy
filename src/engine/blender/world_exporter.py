@@ -1,5 +1,6 @@
-import bpy
 from pathlib import Path
+
+import bpy
 from mathutils import Vector
 
 
@@ -50,13 +51,22 @@ def export_spaceguy_world(filepath):
 
     wizards = bpy.data.collections.get("wizards")
     if wizards is None:
-        raise RuntimeError(
-            "World export requires a collection named 'wizards'")
+        raise RuntimeError("World export requires a collection named 'wizards'")
 
     wizard_objects = sorted(
         [obj for obj in wizards.objects if obj.type == "MESH"],
         key=lambda obj: obj.name,
     )
+
+    ogres = bpy.data.collections.get("ogres")
+    if ogres is None:
+        raise RuntimeError("World export requires a collection named 'ogres'")
+
+    ogre_objects = sorted(
+        [obj for obj in ogres.objects if obj.type == "MESH"],
+        key=lambda obj: obj.name,
+    )
+
     filepath = Path(filepath)
 
     with filepath.open("w", encoding="utf-8") as file:
@@ -81,6 +91,14 @@ def export_spaceguy_world(filepath):
         file.write("# x y z\n")
         for wizard in wizard_objects:
             write_vec3(file, wizard.matrix_world.translation)
+        file.write("\n")
+
+        file.write("ogres\n")
+        file.write(f"ogre_count {len(ogre_objects)}\n")
+        file.write("# x y z\n")
+        for ogre in ogre_objects:
+            write_vec3(file, ogre.matrix_world.translation)
+        file.write("\n")
 
     print(f"Exported {filepath}")
     print(f"Wizards: {len(wizard_objects)}")

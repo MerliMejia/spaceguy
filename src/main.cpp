@@ -139,36 +139,38 @@ int main() {
       addWizardBehavior(wizardEntity);
     }
 
-    ogreMesh = generateAnimatedMesh(ogreModel, wizardAnimationPositionCount);
-    ogreBladeMesh =
-        generateMesh(ogreBladeModel.vertices, ogreBladeModel.indices);
+    for (const auto &ogrePos : worldData.ogres.positions) {
+      ogreMesh = generateAnimatedMesh(ogreModel, wizardAnimationPositionCount);
+      ogreBladeMesh =
+          generateMesh(ogreBladeModel.vertices, ogreBladeModel.indices);
 
-    int ogreEntity = createEntity();
-    Renderable &ogreRenderable = addComponent<Renderable>(ogreEntity);
-    ogreRenderable.renderKind = ObjectRenderKind::Animated;
-    ogreRenderable.animatedMesh = &ogreMesh;
-    TransformComponent &ogreTransformComponent = addTransform(ogreEntity);
+      int ogreEntity = createEntity();
+      Renderable &ogreRenderable = addComponent<Renderable>(ogreEntity);
+      ogreRenderable.renderKind = ObjectRenderKind::Animated;
+      ogreRenderable.animatedMesh = &ogreMesh;
+      TransformComponent &ogreTransformComponent = addTransform(ogreEntity);
 
-    Transform ot = modelToTransform(ogreTransformComponent.model);
-    ot.position = glm::vec3(0.0f, 0.0f, 5.0f);
+      Transform ot = modelToTransform(ogreTransformComponent.model);
+      ot.position = ogrePos;
 
-    ogreTransformComponent.model =
-        transformToModel(ot.position, ot.rotation, ot.scale);
+      ogreTransformComponent.model =
+          transformToModel(ot.position, ot.rotation, ot.scale);
 
-    AnimationComponent &ogreAnimation = addAnimation(ogreEntity);
-    ogreAnimation.activeAnimation = 3;
+      AnimationComponent &ogreAnimation = addAnimation(ogreEntity);
+      ogreAnimation.activeAnimation = OgreAnimationMapping::OgreIddle;
 
-    int ogreBladeEntity = createEntity();
-    Renderable &obRenderable = addRenderable(ogreBladeEntity);
-    obRenderable.mesh = &ogreBladeMesh;
-    obRenderable.renderKind = ObjectRenderKind::Static;
+      int ogreBladeEntity = createEntity();
+      Renderable &obRenderable = addRenderable(ogreBladeEntity);
+      obRenderable.mesh = &ogreBladeMesh;
+      obRenderable.renderKind = ObjectRenderKind::Static;
 
-    addTransform(ogreBladeEntity);
+      addTransform(ogreBladeEntity);
 
-    AttachmentAnimationComponent &attachmentComponent =
-        addAttachmentAnimationComponent(ogreBladeEntity);
-    attachmentComponent.parentEntity = ogreEntity;
-    attachmentComponent.attachmentIndex = 0;
+      AttachmentAnimationComponent &attachmentComponent =
+          addAttachmentAnimationComponent(ogreBladeEntity);
+      attachmentComponent.parentEntity = ogreEntity;
+      attachmentComponent.attachmentIndex = 0;
+    }
   }
 
   initWizardBehaviors();
