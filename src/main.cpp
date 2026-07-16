@@ -1,6 +1,8 @@
 #include "glm/fwd.hpp"
+#include "utils/math.h"
 #include "utils/types.h"
 #include <GLFW/glfw3.h>
+#include <cstdint>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -46,6 +48,7 @@ int main() {
 
   Mesh floorMesh;
   AnimatedMesh wizardAnimatedMesh;
+  AnimatedMesh ogreMesh;
 
   {
     sceneContext.cameraPosition = worldData.camera.transform.position;
@@ -77,8 +80,29 @@ int main() {
     std::vector<glm::vec4> animationPositions;
 
     BlenderModel wizardModel = loadModel("assets/Wizzard_4.3d");
+    BlenderModel ogreModel = loadModel("assets/Ogre.3d");
+
+    int wizardAnimationPositionCount = 0;
 
     for (const AnimationClip &clip : wizardModel.animations) {
+      if (clip.kind != AnimationKind::Vertex) {
+        continue;
+      }
+
+      for (const AnimationKeyPose &keyPoses : clip.keyPoses) {
+        wizardAnimationPositionCount +=
+            static_cast<uint32_t>(keyPoses.positions.size());
+        for (const glm::vec3 &pos : keyPoses.positions) {
+          animationPositions.push_back(glm::vec4(pos, 1.0f));
+        }
+      }
+    }
+
+    for (const AnimationClip &clip : ogreModel.animations) {
+      if (clip.kind != AnimationKind::Vertex) {
+        continue;
+      }
+
       for (const AnimationKeyPose &keyPoses : clip.keyPoses) {
         for (const glm::vec3 &pos : keyPoses.positions) {
           animationPositions.push_back(glm::vec4(pos, 1.0f));
@@ -112,6 +136,23 @@ int main() {
 
       addWizardBehavior(wizardEntity);
     }
+
+    ogreMesh = generateAnimatedMesh(ogreModel, wizardAnimationPositionCount);
+
+    int ogreEntity = createEntity();
+    Renderable &ogreRenderable = addComponent<Renderable>(ogreEntity);
+    ogreRenderable.renderKind = ObjectRenderKind::Animated;
+    ogreRenderable.animatedMesh = &ogreMesh;
+    TransformComponent &ogreTransformComponent = addTransform(ogreEntity);
+
+    Transform ot = modelToTransform(ogreTransformComponent.model);
+    ot.position = glm::vec3(0.0f, 0.0f, 5.0f);
+
+    ogreTransformComponent.model =
+        transformToModel(ot.position, ot.rotation, ot.scale);
+
+    AnimationComponent &ogreAnimation = addAnimation(ogreEntity);
+    ogreAnimation.activeAnimation = 1;
   }
 
   initWizardBehaviors();

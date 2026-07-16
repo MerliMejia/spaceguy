@@ -21,11 +21,36 @@ struct AnimationKeyPose {
   std::vector<glm::vec3> positions;
 };
 
+struct TransformAnimationKeyPose {
+  int blenderFrame = 0;
+  glm::vec3 location{};
+  glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+  glm::vec3 scale{1.0f};
+};
+
+struct AttachmentAnimationKeyPose {
+  int blenderFrame = 0;
+  glm::vec3 location{};
+  glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+  glm::vec3 scale{1.0f};
+};
+
+struct AnimationAttachment {
+  std::string objectName;
+  std::string boneName;
+  std::vector<AttachmentAnimationKeyPose> keyPoses;
+};
+
+enum class AnimationKind { Vertex, Transform };
+
 struct AnimationClip {
   std::string name;
+  AnimationKind kind = AnimationKind::Vertex;
   int startFrame = 0;
   int endFrame = 0;
   std::vector<AnimationKeyPose> keyPoses;
+  std::vector<TransformAnimationKeyPose> transformKeyPoses;
+  std::vector<AnimationAttachment> attachments;
   bool loop = false;
 };
 
@@ -60,13 +85,6 @@ struct WorldData {
   ImporterTransform floor;
   Camera camera;
   Wizards wizards;
-};
-
-struct TransformAnimationKeyPose {
-  int blenderFrame = 0;
-  glm::vec3 location{};
-  glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
-  glm::vec3 scale{1.0f};
 };
 
 struct TransformAnimationClip {

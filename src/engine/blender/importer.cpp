@@ -55,7 +55,134 @@ static float readFloat() { return std::stof(next()); }
 
 static std::string readString() { return next(); }
 
-BlenderModel loadModel(const std::string &path) {
+static glm::vec3 readVec3() {
+  glm::vec3 value{};
+  value.x = readFloat();
+  value.y = readFloat();
+  value.z = readFloat();
+  return value;
+}
+
+static glm::quat readQuat() {
+  glm::quat value{};
+  value.w = readFloat();
+  value.x = readFloat();
+  value.y = readFloat();
+  value.z = readFloat();
+  return value;
+}
+
+static glm::quat quatFromEulerXYZ(const glm::vec3 &rotation) {
+  glm::mat4 matrix{1.0f};
+  matrix = glm::rotate(matrix, rotation.x, glm::vec3{1.0f, 0.0f, 0.0f});
+  matrix = glm::rotate(matrix, rotation.y, glm::vec3{0.0f, 1.0f, 0.0f});
+  matrix = glm::rotate(matrix, rotation.z, glm::vec3{0.0f, 0.0f, 1.0f});
+  return glm::quat_cast(matrix);
+}
+
+static AnimationKind readAnimationKind() {
+  const std::string kind = readString();
+
+  if (kind == "vertex") {
+    return AnimationKind::Vertex;
+  }
+
+  if (kind == "transform") {
+    return AnimationKind::Transform;
+  }
+
+  throw std::runtime_error("Unsupported animation type: " + kind);
+}
+
+static void readClipHeader(AnimationClip &clip) {
+  expect("loop");
+  clip.loop = readString() == "true";
+
+  expect("start_frame");
+  clip.startFrame = readInt();
+
+  expect("end_frame");
+  clip.endFrame = readInt();
+
+  expect("key_pose_count");
+}
+
+static void readVertexKeyPoses(AnimationClip &clip, std::size_t vertexCount,
+                               std::size_t frameCount) {
+  clip.keyPoses.resize(frameCount);
+
+  for (auto &keyPose : clip.keyPoses) {
+    expect("key_pose");
+    keyPose.blenderFrame = readInt();
+
+    keyPose.positions.resize(vertexCount);
+
+    for (auto &pos : keyPose.positions) {
+      pos = readVec3();
+    }
+  }
+}
+
+static AttachmentAnimationKeyPose readAttachmentKeyPose() {
+  AttachmentAnimationKeyPose keyPose{};
+  expect("key_pose");
+  keyPose.blenderFrame = readInt();
+  expect("location");
+  keyPose.location = readVec3();
+  expect("rotation_quaternion");
+  keyPose.rotation = readQuat();
+  expect("scale");
+  keyPose.scale = readVec3();
+  return keyPose;
+}
+
+static void readAttachments(AnimationClip &clip) {
+  expect("attachment_count");
+  const std::size_t attachmentCount = readSize();
+  clip.attachments.resize(attachmentCount);
+
+  for (AnimationAttachment &attachment : clip.attachments) {
+    expect("attachment");
+    attachment.objectName = readString();
+    expect("bone");
+    attachment.boneName = readString();
+    expect("key_pose_count");
+    const std::size_t keyPoseCount = readSize();
+    attachment.keyPoses.reserve(keyPoseCount);
+
+    for (std::size_t i = 0; i < keyPoseCount; ++i) {
+      attachment.keyPoses.push_back(readAttachmentKeyPose());
+    }
+  }
+}
+
+static void readTransformKeyPoses(AnimationClip &clip,
+                                  std::size_t frameCount) {
+  clip.transformKeyPoses.resize(frameCount);
+
+  for (auto &keyPose : clip.transformKeyPoses) {
+    expect("key_pose");
+    keyPose.blenderFrame = readInt();
+
+    expect("location");
+    keyPose.location = readVec3();
+
+    const std::string rotationToken = next();
+    if (rotationToken == "rotation_quaternion") {
+      keyPose.rotation = readQuat();
+    } else if (rotationToken == "rotation") {
+      keyPose.rotation = quatFromEulerXYZ(readVec3());
+    } else {
+      throw std::runtime_error("Expected rotation token, got '" +
+                               rotationToken + "'");
+    }
+
+    expect("scale");
+    keyPose.scale = readVec3();
+  }
+}
+
+static BlenderModel loadAnyModel(const std::string &path) {
   std::ifstream file(path);
 
   if (!file) {
@@ -69,11 +196,16 @@ BlenderModel loadModel(const std::string &path) {
 
   currentTokens = readTokensIgnoringComments(file);
 
-  expect("spaceguy_3d");
-
+  const std::string magic = readString();
   const int version = readInt();
+  const bool isLegacyVertex = magic == "spaceguy_3d" && version == 2;
+  const bool isUnified =
+      magic == "spaceguy_3d" && (version == 3 || version == 4);
+  const bool hasAttachments = magic == "spaceguy_3d" && version >= 4;
+  const bool isLegacyTransform =
+      magic == "spaceguy_3d_transform" && (version == 1 || version == 2);
 
-  if (version != 2) {
+  if (!isLegacyVertex && !isUnified && !isLegacyTransform) {
     throw std::runtime_error("Unsupported .3d version");
   }
 
@@ -125,31 +257,25 @@ BlenderModel loadModel(const std::string &path) {
     expect("animation");
     clip.name = readString();
 
-    expect("loop");
-    clip.loop = readString() == "true";
+    if (isUnified) {
+      expect("type");
+      clip.kind = readAnimationKind();
+    } else if (isLegacyTransform) {
+      clip.kind = AnimationKind::Transform;
+    } else {
+      clip.kind = AnimationKind::Vertex;
+    }
 
-    expect("start_frame");
-    clip.startFrame = readInt();
-
-    expect("end_frame");
-    clip.endFrame = readInt();
-
-    expect("key_pose_count");
+    readClipHeader(clip);
     const std::size_t frameCount = readSize();
 
-    clip.keyPoses.resize(frameCount);
-
-    for (auto &keyPose : clip.keyPoses) {
-      expect("key_pose");
-      keyPose.blenderFrame = readInt();
-
-      keyPose.positions.resize(vertexCount);
-
-      for (auto &pos : keyPose.positions) {
-        pos.x = readFloat();
-        pos.y = readFloat();
-        pos.z = readFloat();
+    if (clip.kind == AnimationKind::Vertex) {
+      readVertexKeyPoses(clip, vertexCount, frameCount);
+      if (hasAttachments) {
+        readAttachments(clip);
       }
+    } else {
+      readTransformKeyPoses(clip, frameCount);
     }
 
     model.animations.push_back(std::move(clip));
@@ -161,30 +287,7 @@ BlenderModel loadModel(const std::string &path) {
   return model;
 }
 
-static glm::vec3 readVec3() {
-  glm::vec3 value{};
-  value.x = readFloat();
-  value.y = readFloat();
-  value.z = readFloat();
-  return value;
-}
-
-static glm::quat readQuat() {
-  glm::quat value{};
-  value.w = readFloat();
-  value.x = readFloat();
-  value.y = readFloat();
-  value.z = readFloat();
-  return value;
-}
-
-static glm::quat quatFromEulerXYZ(const glm::vec3 &rotation) {
-  glm::mat4 matrix{1.0f};
-  matrix = glm::rotate(matrix, rotation.x, glm::vec3{1.0f, 0.0f, 0.0f});
-  matrix = glm::rotate(matrix, rotation.y, glm::vec3{0.0f, 1.0f, 0.0f});
-  matrix = glm::rotate(matrix, rotation.z, glm::vec3{0.0f, 0.0f, 1.0f});
-  return glm::quat_cast(matrix);
-}
+BlenderModel loadModel(const std::string &path) { return loadAnyModel(path); }
 
 static ImporterTransform readTransform() {
   ImporterTransform transform{};
@@ -258,114 +361,27 @@ WorldData loadWorldData() {
 }
 
 BlenderTransformModel loadTransformModel(const std::string &path) {
-  std::ifstream file(path);
+  BlenderModel source = loadAnyModel(path);
 
-  if (!file) {
-    throw std::runtime_error("Could not open file: " + path);
-  }
+  BlenderTransformModel model{};
+  model.name = source.name;
+  model.fps = source.fps;
+  model.vertices = std::move(source.vertices);
+  model.indices = std::move(source.indices);
 
-  currentTokens.clear();
-  cursor = 0;
-
-  BlenderTransformModel model;
-  currentTokens = readTokensIgnoringComments(file);
-
-  expect("spaceguy_3d_transform");
-
-  const int version = readInt();
-
-  if (version != 1 && version != 2) {
-    throw std::runtime_error("Unsupported transform .3d version");
-  }
-
-  expect("object_name");
-  model.name = readString();
-
-  expect("fps");
-  model.fps = readFloat();
-
-  expect("vertex_count");
-  const std::size_t vertexCount = readSize();
-
-  expect("index_count");
-  const std::size_t indexCount = readSize();
-
-  expect("animation_count");
-  const std::size_t animationCount = readSize();
-
-  expect("vertices");
-
-  model.vertices.resize(vertexCount);
-
-  for (auto &vertex : model.vertices) {
-    vertex.pos.x = readFloat();
-    vertex.pos.y = readFloat();
-    vertex.pos.z = readFloat();
-
-    vertex.color.x = readFloat();
-    vertex.color.y = readFloat();
-    vertex.color.z = readFloat();
-  }
-
-  expect("indices");
-
-  model.indices.resize(indexCount);
-
-  for (auto &index : model.indices) {
-    index = readUInt32();
-  }
-
-  expect("animations");
-
-  model.animations.reserve(animationCount);
-
-  for (std::size_t animationIndex = 0; animationIndex < animationCount;
-       ++animationIndex) {
-    TransformAnimationClip clip;
-
-    expect("animation");
-    clip.name = readString();
-
-    expect("loop");
-    clip.loop = readString() == "true";
-
-    expect("start_frame");
-    clip.startFrame = readInt();
-
-    expect("end_frame");
-    clip.endFrame = readInt();
-
-    expect("key_pose_count");
-    const std::size_t frameCount = readSize();
-
-    clip.keyPoses.resize(frameCount);
-
-    for (auto &keyPose : clip.keyPoses) {
-      expect("key_pose");
-      keyPose.blenderFrame = readInt();
-
-      expect("location");
-      keyPose.location = readVec3();
-
-      const std::string rotationToken = next();
-      if (rotationToken == "rotation_quaternion") {
-        keyPose.rotation = readQuat();
-      } else if (rotationToken == "rotation") {
-        keyPose.rotation = quatFromEulerXYZ(readVec3());
-      } else {
-        throw std::runtime_error("Expected rotation token, got '" +
-                                 rotationToken + "'");
-      }
-
-      expect("scale");
-      keyPose.scale = readVec3();
+  for (const AnimationClip &sourceClip : source.animations) {
+    if (sourceClip.kind != AnimationKind::Transform) {
+      continue;
     }
 
+    TransformAnimationClip clip{};
+    clip.name = sourceClip.name;
+    clip.startFrame = sourceClip.startFrame;
+    clip.endFrame = sourceClip.endFrame;
+    clip.keyPoses = sourceClip.transformKeyPoses;
+    clip.loop = sourceClip.loop;
     model.animations.push_back(std::move(clip));
   }
-
-  currentTokens = {};
-  cursor = 0;
 
   return model;
 }

@@ -65,10 +65,9 @@ struct AnimatedMesh {
 
 enum WizardAnimationMapping : uint32_t {
   Attacking = 0,
-  BeingAttacked = 1,
-  Iddle = 2,
-  Kicking = 3,
-  Running = 4
+  Iddle = 1,
+  Kicking = 2,
+  Running = 3,
 };
 
 struct TransformAnimationKeyPoseGPU {
