@@ -96,6 +96,18 @@ struct ParticleEmitterCpuComponent {
   ParticleEmitterShape shape = ParticleEmitterShape::Cone;
 };
 
+struct AttachmentAnimationComponent {
+  int entity = -1;
+  int parentEntity = -1;
+  // Normally attachments will be on all the animations
+  bool allAnimations = true;
+  // If at some point I decide to have an attachment be on only selected
+  // animations. I will need to implement that logic anyway...
+  std::vector<int> animationIndices;
+  // -1 to force myself to change it when adding the component.
+  int attachmentIndex = -1;
+};
+
 struct Resources {
   std::vector<Renderable> renderables;
   std::vector<TransformComponent> transforms;
@@ -103,6 +115,7 @@ struct Resources {
   std::vector<ProjectileComponent> projectiles;
   std::vector<WizardBehaviorComponent> wizardBehaviors;
   std::vector<ParticleEmitterCpuComponent> particleEmitterCpuComponents;
+  std::vector<AttachmentAnimationComponent> attachmentAnimationComponents;
 };
 
 extern Resources resources;
@@ -135,6 +148,10 @@ WizardBehaviorComponent *tryGetWizardBehavior(int entity);
 ParticleEmitterCpuComponent &addParticleEmitterCpuComponent(int entity);
 ParticleEmitterCpuComponent &getParticleEmitterCpuComponent(int entity);
 ParticleEmitterCpuComponent *tryGetParticleEmitterCpuComponent(int entity);
+
+AttachmentAnimationComponent &addAttachmentAnimationComponent(int entity);
+AttachmentAnimationComponent &getAttachmentAnimationComponent(int entity);
+AttachmentAnimationComponent *tryGetAttachmentAnimationComponent(int entity);
 
 void destroyEntity(int entity);
 void processDestroyQueue();

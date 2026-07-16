@@ -13,6 +13,7 @@ static std::unordered_map<int, int> entityToAnimations;
 static std::unordered_map<int, int> entityToProjectiles;
 static std::unordered_map<int, int> entityToWizardBehaviors;
 static std::unordered_map<int, int> entityToParticleEmitterCpuComponents;
+static std::unordered_map<int, int> entityToAttachmentAnimationComponents;
 static int nextEntityId = 1;
 
 static std::unordered_set<int> alive;
@@ -210,8 +211,8 @@ ParticleEmitterCpuComponent &addParticleEmitterCpuComponent(int entity) {
 }
 
 template <>
-ParticleEmitterCpuComponent &addComponent<ParticleEmitterCpuComponent>(
-    int entity) {
+ParticleEmitterCpuComponent &
+addComponent<ParticleEmitterCpuComponent>(int entity) {
   return addParticleEmitterCpuComponent(entity);
 }
 
@@ -228,6 +229,26 @@ ParticleEmitterCpuComponent *tryGetParticleEmitterCpuComponent(int entity) {
 }
 
 void destroyEntity(int entity) { destroyQueue.push_back(entity); }
+
+AttachmentAnimationComponent &addAttachmentAnimationComponent(int entity) {
+  return addComponent<AttachmentAnimationComponent>(
+      entity, entityToAttachmentAnimationComponents,
+      resources.attachmentAnimationComponents,
+      "attachment animation component");
+}
+
+AttachmentAnimationComponent &getAttachmentAnimationComponent(int entity) {
+  return getComponent<AttachmentAnimationComponent>(
+      entity, entityToAttachmentAnimationComponents,
+      resources.attachmentAnimationComponents,
+      "attachment animation component");
+}
+
+AttachmentAnimationComponent *tryGetAttachmentAnimationComponent(int entity) {
+  return tryGetComponent<AttachmentAnimationComponent>(
+      entity, entityToAttachmentAnimationComponents,
+      resources.attachmentAnimationComponents);
+}
 
 static void destroyRenderable(int entity) {
   destroyComponent<Renderable>(entity, entityToRenderables,

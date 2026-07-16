@@ -47,6 +47,17 @@ struct AnimationKeyPoseGpu {
   int blenderFrame = 0;
 };
 
+struct AttachmentAnimationClipGpuAttachmentKeyPose {
+  int blenderFrame = 0;
+  glm::vec3 location{};
+  glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+  glm::vec3 scale{1.0f};
+};
+
+struct AnimationClipGpuAttachment {
+  std::vector<AttachmentAnimationClipGpuAttachmentKeyPose> keyPoses;
+};
+
 struct AnimationClipGpu {
   std::string name;
   int startFrame = 0;
@@ -54,6 +65,7 @@ struct AnimationClipGpu {
   uint32_t firstKeyPose = 0;
   uint32_t keyPoseCount = 0;
   bool loop = false;
+  std::vector<AnimationClipGpuAttachment> attachments;
 };
 
 struct AnimatedMesh {

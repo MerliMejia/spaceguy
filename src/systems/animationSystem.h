@@ -1,7 +1,7 @@
 #pragma once
 
-#include "resourceManagementSystem.h"
 #include "../utils/time.h"
+#include "resourceManagementSystem.h"
 
 #include <cstdint>
 #include <vector>

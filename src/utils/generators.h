@@ -97,13 +97,36 @@ inline AnimatedMesh generateAnimatedMesh(const BlenderModel &model,
   uint32_t runningPositionOffset = firstGlobalPositionOffset;
 
   for (const AnimationClip &clip : model.animations) {
+
+    std::vector<AnimationClipGpuAttachment> attachments;
+    attachments.reserve(clip.attachments.size());
+
+    for (auto clipAttachment : clip.attachments) {
+      std::vector<AttachmentAnimationClipGpuAttachmentKeyPose>
+          attachmentKeyPoses;
+      attachmentKeyPoses.reserve(clipAttachment.keyPoses.size());
+
+      for (auto attachmentKeyPose : clipAttachment.keyPoses) {
+        attachmentKeyPoses.push_back(
+            AttachmentAnimationClipGpuAttachmentKeyPose{
+                .blenderFrame = attachmentKeyPose.blenderFrame,
+                .location = attachmentKeyPose.location,
+                .rotation = attachmentKeyPose.rotation,
+                .scale = attachmentKeyPose.scale});
+      }
+
+      attachments.push_back(
+          AnimationClipGpuAttachment{.keyPoses = attachmentKeyPoses});
+    }
+
     AnimationClipGpu gpuClip{.name = clip.name,
                              .startFrame = clip.startFrame,
                              .endFrame = clip.endFrame,
                              .firstKeyPose = runningKeyPoseIndex,
                              .keyPoseCount =
                                  static_cast<uint32_t>(clip.keyPoses.size()),
-                             .loop = clip.loop};
+                             .loop = clip.loop,
+                             .attachments = attachments};
 
     animated.animations.push_back(gpuClip);
 

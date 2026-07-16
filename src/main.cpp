@@ -49,6 +49,7 @@ int main() {
   Mesh floorMesh;
   AnimatedMesh wizardAnimatedMesh;
   AnimatedMesh ogreMesh;
+  Mesh ogreBladeMesh;
 
   {
     sceneContext.cameraPosition = worldData.camera.transform.position;
@@ -81,6 +82,7 @@ int main() {
 
     BlenderModel wizardModel = loadModel("assets/Wizzard_4.3d");
     BlenderModel ogreModel = loadModel("assets/Ogre.3d");
+    BlenderModel ogreBladeModel = loadModel("assets/Ogre_blade.3d");
 
     int wizardAnimationPositionCount = 0;
 
@@ -138,6 +140,8 @@ int main() {
     }
 
     ogreMesh = generateAnimatedMesh(ogreModel, wizardAnimationPositionCount);
+    ogreBladeMesh =
+        generateMesh(ogreBladeModel.vertices, ogreBladeModel.indices);
 
     int ogreEntity = createEntity();
     Renderable &ogreRenderable = addComponent<Renderable>(ogreEntity);
@@ -152,7 +156,19 @@ int main() {
         transformToModel(ot.position, ot.rotation, ot.scale);
 
     AnimationComponent &ogreAnimation = addAnimation(ogreEntity);
-    ogreAnimation.activeAnimation = 1;
+    ogreAnimation.activeAnimation = 3;
+
+    int ogreBladeEntity = createEntity();
+    Renderable &obRenderable = addRenderable(ogreBladeEntity);
+    obRenderable.mesh = &ogreBladeMesh;
+    obRenderable.renderKind = ObjectRenderKind::Static;
+
+    addTransform(ogreBladeEntity);
+
+    AttachmentAnimationComponent &attachmentComponent =
+        addAttachmentAnimationComponent(ogreBladeEntity);
+    attachmentComponent.parentEntity = ogreEntity;
+    attachmentComponent.attachmentIndex = 0;
   }
 
   initWizardBehaviors();

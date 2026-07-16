@@ -1,4 +1,5 @@
 #include "animationSystem.h"
+#include "../utils/math.h"
 #include "resourceManagementSystem.h"
 
 #include <glm/gtc/quaternion.hpp>
@@ -60,13 +61,13 @@ static void updateAnimation(int entity) {
     }
   }
 
-  const float currentFrame = getCurrentBlenderFrame(animation, renderable, clip);
+  const float currentFrame =
+      getCurrentBlenderFrame(animation, renderable, clip);
   animation.activeFrame = static_cast<uint32_t>(currentFrame);
 }
 
 static TransformAnimationDataFromObject
-getTransformAnimationDataFromEntity(int entity,
-                                    const Renderable &renderable) {
+getTransformAnimationDataFromEntity(int entity, const Renderable &renderable) {
   const AnimationComponent &animation = getAnimation(entity);
 
   if (renderable.renderKind != ObjectRenderKind::TransformAnimated ||
@@ -127,9 +128,10 @@ getTransformAnimationDataFromEntity(int entity,
   };
 }
 
-static float getCurrentTransformBlenderFrame(const AnimationComponent &animation,
-                                             const Renderable &renderable,
-                                             const AnimationClipGpu &clip) {
+static float
+getCurrentTransformBlenderFrame(const AnimationComponent &animation,
+                                const Renderable &renderable,
+                                const AnimationClipGpu &clip) {
   return static_cast<float>(clip.startFrame) +
          animation.animationTimeSeconds * renderable.transformAnimatedMesh->fps;
 }
@@ -202,15 +204,100 @@ static void updateTransformAnimation(int entity) {
   transformComponent.model = transformComponent.baseModel * transform;
 }
 
-void updateAnimations() {
-  for (Renderable &renderable : resources.renderables) {
-    if (!isEntityAlive(renderable.entity) || !renderable.visible)
-      continue;
-    if (tryGetAnimation(renderable.entity) == nullptr) {
+void updateAttachmentAnimations() {
+  for (AttachmentAnimationComponent &attachment :
+       resources.attachmentAnimationComponents) {
+    if (!isEntityAlive(attachment.entity) ||
+        !isEntityAlive(attachment.parentEntity)) {
       continue;
     }
-    updateAnimation(renderable.entity);
-    updateTransformAnimation(renderable.entity);
+
+    Renderable &parentRenderable = getRenderable(attachment.parentEntity);
+    AnimationComponent &parentAnimation = getAnimation(attachment.parentEntity);
+
+    if (parentRenderable.animatedMesh == nullptr) {
+      continue;
+    }
+
+    const AnimatedMesh &mesh = *parentRenderable.animatedMesh;
+
+    if (parentAnimation.activeAnimation >= mesh.animations.size()) {
+      continue;
+    }
+
+    const AnimationClipGpu &clip =
+        mesh.animations[parentAnimation.activeAnimation];
+
+    if (attachment.attachmentIndex < 0 ||
+        static_cast<size_t>(attachment.attachmentIndex) >=
+            clip.attachments.size()) {
+      continue;
+    }
+
+    const auto &keyPoses =
+        clip.attachments[attachment.attachmentIndex].keyPoses;
+
+    if (keyPoses.empty()) {
+      continue;
+    }
+
+    const float currentFrame = static_cast<float>(clip.startFrame) +
+                               parentAnimation.animationTimeSeconds * mesh.fps;
+
+    size_t previousIndex = 0;
+    size_t nextIndex = keyPoses.size() - 1;
+
+    for (size_t i = 0; i < keyPoses.size(); ++i) {
+      if (static_cast<float>(keyPoses[i].blenderFrame) <= currentFrame) {
+        previousIndex = i;
+      }
+
+      if (static_cast<float>(keyPoses[i].blenderFrame) >= currentFrame) {
+        nextIndex = i;
+        break;
+      }
+    }
+
+    const auto &previous = keyPoses[previousIndex];
+    const auto &next = keyPoses[nextIndex];
+
+    float interpolation = 0.0f;
+
+    if (next.blenderFrame != previous.blenderFrame) {
+      interpolation =
+          (currentFrame - static_cast<float>(previous.blenderFrame)) /
+          static_cast<float>(next.blenderFrame - previous.blenderFrame);
+
+      interpolation = glm::clamp(interpolation, 0.0f, 1.0f);
+    }
+
+    const glm::vec3 location =
+        glm::mix(previous.location, next.location, interpolation);
+
+    const glm::quat rotation = glm::normalize(
+        glm::slerp(previous.rotation, next.rotation, interpolation));
+
+    const glm::vec3 scale = glm::mix(previous.scale, next.scale, interpolation);
+
+    TransformComponent &attachmentTransform = getTransform(attachment.entity);
+
+    const TransformComponent &parentTransform =
+        getTransform(attachment.parentEntity);
+
+    const glm::mat4 localTransform =
+        transformToModel(location, rotation, scale);
+
+    attachmentTransform.model = parentTransform.model * localTransform;
+  }
+}
+
+void updateAnimations() {
+  for (AnimationComponent &animation : resources.animations) {
+    if (!isEntityAlive(animation.entity))
+      continue;
+    updateAnimation(animation.entity);
+    updateAttachmentAnimations();
+    updateTransformAnimation(animation.entity);
   }
 }
 
@@ -234,7 +321,8 @@ AnimationDataFromObject getAnimationDataFromEntity(int entity) {
     return {};
   }
 
-  const float currentFrame = getCurrentBlenderFrame(animation, renderable, clip);
+  const float currentFrame =
+      getCurrentBlenderFrame(animation, renderable, clip);
 
   uint32_t previousIndex = 0;
   uint32_t nextIndex = count - 1;
@@ -281,7 +369,8 @@ bool hasActiveAnimationEnded(int entity) {
   if (renderable.renderKind == ObjectRenderKind::Animated) {
     if (renderable.animatedMesh == nullptr ||
         renderable.animatedMesh->animations.empty() ||
-        animation.activeAnimation >= renderable.animatedMesh->animations.size()) {
+        animation.activeAnimation >=
+            renderable.animatedMesh->animations.size()) {
       return false;
     }
 

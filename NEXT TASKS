@@ -1,15 +1,60 @@
-Particles Life Time System
+Attached 3d objects inside bones transformation
 
-Simple... What if we just take the emitter.particleLifetime as the "how much time this emitter needs to wait before being destroyed".
+The new exporter importer now includes:
 
-Also we immediatly set spawn rate and spaw speed to 0 so the emitter doesn't emit more particles.
+std::vector<AnimationAttachment> attachments;
 
-The idea is "At this point, the particles should just die at their time".
+So each animation clip has
 
-So each emitter should be put on a list of "emitters to be destroyed".
+struct AttachmentAnimationKeyPose {
+  int blenderFrame = 0;
+  glm::vec3 location{};
+  glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+  glm::vec3 scale{1.0f};
+};
 
-When put there, we set the amount of time to wait (the particleLifetime), spawn rate and spaw speed to 0 and initialize a counter for that emitter.
+struct AnimationAttachment {
+  std::string objectName;
+  std::string boneName;
+  std::vector<AttachmentAnimationKeyPose> keyPoses;
+};
 
-Each frame we check that list and on each one we substract timestate.deltaTime
 
-We check if the counter is less or equal than 0 and if it is we remove that emitter from the list (by swapping with the last one).
+So the logic in a high level is:
+
+- Each object that is an attachment should have maybe like a component that tell us who are attachment of (using entity id I guess is best)
+- Because this object has this component, we should be able to get:
+    - entity id of the parent.
+    - all the animation clips of the parent.
+    - all the attachments of all the animation clips.
+    - So the attached object should have a list of index of animations where it is attached. Also a list of attachment index per animation clip (initial will be just 0).
+    - At that moment the attached component should have everything needed for applying transformation based on the animation.
+
+- All of the above can be set before the game loop once.
+
+So the  component would look like:
+
+{
+entity
+parentEntity
+animationIndices[] //which animations of the parent is this part of
+attachmentIndices[] //which of the parent animation and attachments is this part of
+}
+
+So the animation system can handle this. Init will be just filling all of that information of every entity with AttachmentAnimationComponent
+
+Update will be:
+
+Per each entity with AttachmentAnimationComponent
+
+- Get the animation component of the parent entity (that will give us all the animation clips)
+- Loop trhough all the animationIndices. Per each one, loop trhough all the attachmentIndices. Per each one:
+
+    - You end up getting:
+    struct AttachmentAnimationKeyPose {
+        int blenderFrame = 0;
+        glm::vec3 location{};
+        glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+        glm::vec3 scale{1.0f};
+    };
+    - Use that to apply transformation to the attached object.
