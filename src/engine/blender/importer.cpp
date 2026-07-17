@@ -327,6 +327,15 @@ WorldData loadWorldData() {
   expect("floor");
   data.floor = readTransform();
 
+  expect("floor_details");
+  data.floor_details = readTransform();
+
+  expect("water");
+  data.water = readTransform();
+
+  expect("water_details");
+  data.water_details = readTransform();
+
   expect("camera");
   data.camera.transform = readTransform();
 

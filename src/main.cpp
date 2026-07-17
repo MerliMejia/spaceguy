@@ -1,4 +1,7 @@
+#include "glm/ext/matrix_transform.hpp"
+#include "glm/ext/vector_float3.hpp"
 #include "glm/fwd.hpp"
+#include "glm/trigonometric.hpp"
 #include "utils/math.h"
 #include "utils/types.h"
 #include <GLFW/glfw3.h>
@@ -47,9 +50,14 @@ int main() {
   auto worldData = loadWorldData();
 
   Mesh floorMesh;
+  Mesh floorDetailsMesh;
+  Mesh waterMesh;
+  Mesh waterDetailsMesh;
   AnimatedMesh wizardAnimatedMesh;
   AnimatedMesh ogreMesh;
   Mesh ogreBladeMesh;
+
+  int waterDetailsEntity = -1;
 
   {
     sceneContext.cameraPosition = worldData.camera.transform.position;
@@ -60,6 +68,17 @@ int main() {
 
     BlenderModel floorModel = loadModel("assets/floor.3d");
     floorMesh = generateMesh(floorModel.vertices, floorModel.indices);
+
+    BlenderModel floorDetailModel = loadModel("assets/floor_details.3d");
+    floorDetailsMesh =
+        generateMesh(floorDetailModel.vertices, floorDetailModel.indices);
+
+    BlenderModel waterModel = loadModel("assets/water.3d");
+    waterMesh = generateMesh(waterModel.vertices, waterModel.indices);
+
+    BlenderModel waterDetailsModel = loadModel("assets/water_details.3d");
+    waterDetailsMesh =
+        generateMesh(waterDetailsModel.vertices, waterDetailsModel.indices);
 
     glm::vec3 rotation = glm::radians(worldData.floor.rotation);
 
@@ -77,6 +96,24 @@ int main() {
 
     TransformComponent &floorTransform = addTransform(floorEntity);
     floorTransform.model = model;
+
+    int floorDetailsEntity = createEntity();
+    Renderable &fdRenderable = addRenderable(floorDetailsEntity);
+    fdRenderable.renderKind = ObjectRenderKind::Static;
+    fdRenderable.mesh = &floorDetailsMesh;
+    addTransform(floorDetailsEntity);
+
+    int waterEntity = createEntity();
+    Renderable &wRenderable = addRenderable(waterEntity);
+    wRenderable.renderKind = ObjectRenderKind::Static;
+    wRenderable.mesh = &waterMesh;
+    addTransform(waterEntity);
+
+    waterDetailsEntity = createEntity();
+    Renderable &wdRenderable = addRenderable(waterDetailsEntity);
+    wdRenderable.renderKind = ObjectRenderKind::Static;
+    wdRenderable.mesh = &waterDetailsMesh;
+    addTransform(waterDetailsEntity);
 
     std::vector<glm::vec4> animationPositions;
 
@@ -177,9 +214,19 @@ int main() {
   initializeProjectiles();
   initSpacialGridHash();
 
+  TransformComponent &wdtc = getTransform(waterDetailsEntity);
+
   while (!glfwWindowShouldClose(vulkanContext.window)) {
     glfwPollEvents();
     updateTime();
+
+    Transform wdt = modelToTransform(wdtc.model);
+    wdt.rotation =
+        glm::rotate(wdt.rotation, glm::radians(2 * timeState.deltaTime),
+                    glm::vec3(0, 0, 1));
+
+    wdtc.model = transformToModel(wdt.position, wdt.rotation, wdt.scale);
+
     clearDebugShapes();
     updateSpacialGridHash();
     updateProjectiles();

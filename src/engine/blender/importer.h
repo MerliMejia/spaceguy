@@ -88,6 +88,9 @@ struct Ogres {
 
 struct WorldData {
   ImporterTransform floor;
+  ImporterTransform floor_details;
+  ImporterTransform water;
+  ImporterTransform water_details;
   Camera camera;
   Wizards wizards;
   Ogres ogres;

@@ -19,6 +19,8 @@ struct RendererConfig {
   float renderScale = 0.5f;
   vk::SampleCountFlagBits preferredMsaaSamples = vk::SampleCountFlagBits::e1;
   vk::Filter upscaleFilter = vk::Filter::eNearest;
+  // Same color as the water
+  std::array<float, 4> clearColor = {0.012832f, 0.161624f, 0.800007f, 1.0f};
 };
 
 // Will store/handle every vulkan stuff that can change depending of how we

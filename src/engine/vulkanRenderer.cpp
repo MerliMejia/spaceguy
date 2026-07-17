@@ -982,7 +982,7 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
 
   vk::ClearValue clearColor{
       .color = vk::ClearColorValue{
-          .float32 = std::array<float, 4>{0.02f, 0.02f, 0.04f, 1.0f}}};
+          .float32 = vulkanRendererContext.config.clearColor}};
 
   vk::RenderingAttachmentInfo colorAttachment{
       .imageView = useOffscreenColor
