@@ -1,4 +1,5 @@
 #include "importer.h"
+#include <cmath>
 
 static std::vector<std::string> currentTokens;
 static std::size_t cursor = 0;
@@ -199,8 +200,9 @@ static BlenderModel loadAnyModel(const std::string &path) {
   const int version = readInt();
   const bool isLegacyVertex = magic == "spaceguy_3d" && version == 2;
   const bool isUnified =
-      magic == "spaceguy_3d" && (version == 3 || version == 4);
+      magic == "spaceguy_3d" && (version >= 3 && version <= 5);
   const bool hasAttachments = magic == "spaceguy_3d" && version >= 4;
+  const bool hasNormals = magic == "spaceguy_3d" && version >= 5;
   const bool isLegacyTransform =
       magic == "spaceguy_3d_transform" && (version == 1 || version == 2);
 
@@ -235,6 +237,12 @@ static BlenderModel loadAnyModel(const std::string &path) {
     vertex.color.x = readFloat();
     vertex.color.y = readFloat();
     vertex.color.z = readFloat();
+
+    if (hasNormals) {
+      vertex.normal.x = readFloat();
+      vertex.normal.y = readFloat();
+      vertex.normal.z = readFloat();
+    }
   }
 
   expect("indices");
@@ -243,6 +251,25 @@ static BlenderModel loadAnyModel(const std::string &path) {
 
   for (auto &index : model.indices) {
     index = readUInt32();
+  }
+
+  if (!hasNormals) {
+    for (std::size_t i = 0; i + 2 < model.indices.size(); i += 3) {
+      Vertex &a = model.vertices[model.indices[i]];
+      Vertex &b = model.vertices[model.indices[i + 1]];
+      Vertex &c = model.vertices[model.indices[i + 2]];
+      const glm::vec3 faceNormal = glm::cross(b.pos - a.pos, c.pos - a.pos);
+      a.normal += faceNormal;
+      b.normal += faceNormal;
+      c.normal += faceNormal;
+    }
+
+    for (Vertex &vertex : model.vertices) {
+      const float lengthSquared = glm::dot(vertex.normal, vertex.normal);
+      vertex.normal = lengthSquared > 0.0f
+                          ? vertex.normal / std::sqrt(lengthSquared)
+                          : glm::vec3{0.0f, 0.0f, 1.0f};
+    }
   }
 
   expect("animations");

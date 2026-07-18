@@ -18,6 +18,7 @@
 #include "engine/vulkanBackend.h"
 #include "engine/vulkanRenderer.h"
 #include "systems/animationSystem.h"
+#include "systems/lightsSystem.h"
 #include "systems/particleLifeSystem.h"
 #include "systems/projectileSystem.h"
 #include "systems/resourceManagementSystem.h"
@@ -52,7 +53,6 @@ int main() {
   Mesh floorMesh;
   Mesh floorDetailsMesh;
   Mesh waterMesh;
-  Mesh waterDetailsMesh;
   AnimatedMesh wizardAnimatedMesh;
   AnimatedMesh ogreMesh;
   Mesh ogreBladeMesh;
@@ -75,10 +75,6 @@ int main() {
 
     BlenderModel waterModel = loadModel("assets/water.3d");
     waterMesh = generateMesh(waterModel.vertices, waterModel.indices);
-
-    BlenderModel waterDetailsModel = loadModel("assets/water_details.3d");
-    waterDetailsMesh =
-        generateMesh(waterDetailsModel.vertices, waterDetailsModel.indices);
 
     glm::vec3 rotation = glm::radians(worldData.floor.rotation);
 
@@ -108,12 +104,6 @@ int main() {
     wRenderable.renderKind = ObjectRenderKind::Static;
     wRenderable.mesh = &waterMesh;
     addTransform(waterEntity);
-
-    waterDetailsEntity = createEntity();
-    Renderable &wdRenderable = addRenderable(waterDetailsEntity);
-    wdRenderable.renderKind = ObjectRenderKind::Static;
-    wdRenderable.mesh = &waterDetailsMesh;
-    addTransform(waterDetailsEntity);
 
     std::vector<glm::vec4> animationPositions;
 
@@ -214,20 +204,31 @@ int main() {
   initializeProjectiles();
   initSpacialGridHash();
 
-  TransformComponent &wdtc = getTransform(waterDetailsEntity);
+  int sunEntity = createEntity();
+  SunLightComponent &sun = addSunLight(sunEntity);
+  sun.direction = glm::normalize(glm::vec3{0.0f, 0.0f, 1.0f});
+  sun.color = glm::vec3{1.0f, 1.0f, 1.0f};
+  sun.intensity = 0.9f;
+
+  // int pointLightEntity = createEntity();
+  // PointLightComponent &pointLight = addPointLight(pointLightEntity);
+  // pointLight.position = glm::vec3{0.0f, 0.0f, 1.0f};
+  // pointLight.color = glm::vec3{0.3f, 0.55f, 1.0f};
+  // pointLight.intensity = 0.1f;
+  // pointLight.attenuation = glm::vec3{0.01f, 0.01f, 0.01f};
+
+  // int warmPointLightEntity = createEntity();
+  // PointLightComponent &warmPointLight = addPointLight(warmPointLightEntity);
+  // warmPointLight.position = glm::vec3{-18.0f, 4.0f, 1.0f};
+  // warmPointLight.color = glm::vec3{1.0f, 0.35f, 0.12f};
+  // warmPointLight.intensity = 0.1f;
+  // warmPointLight.attenuation = glm::vec3{0.01f, 0.01f, 0.01f};
 
   while (!glfwWindowShouldClose(vulkanContext.window)) {
     glfwPollEvents();
     updateTime();
-
-    Transform wdt = modelToTransform(wdtc.model);
-    wdt.rotation =
-        glm::rotate(wdt.rotation, glm::radians(2 * timeState.deltaTime),
-                    glm::vec3(0, 0, 1));
-
-    wdtc.model = transformToModel(wdt.position, wdt.rotation, wdt.scale);
-
     clearDebugShapes();
+    updateLightsSystem();
     updateSpacialGridHash();
     updateProjectiles();
     updateWizardBehaviors();

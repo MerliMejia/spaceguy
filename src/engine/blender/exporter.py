@@ -60,15 +60,21 @@ def collect_export_geometry(eval_obj, eval_mesh):
 
         tri_indices = []
 
-        for source_vertex_index in tri.vertices:
-            key = (source_vertex_index, color)
+        for source_vertex_index, loop_index in zip(tri.vertices, tri.loops):
+            try:
+                normal = eval_mesh.corner_normals[loop_index].vector.copy()
+            except AttributeError:
+                normal = eval_mesh.loops[loop_index].normal.copy()
+
+            normal_key = tuple(round(component, 9) for component in normal)
+            key = (source_vertex_index, color, normal_key)
 
             if key not in vertex_map:
                 export_index = len(export_vertices)
                 vertex_map[key] = export_index
 
                 pos = eval_mesh.vertices[source_vertex_index].co.copy()
-                export_vertices.append((source_vertex_index, pos, color))
+                export_vertices.append((source_vertex_index, pos, color, normal))
 
             tri_indices.append(vertex_map[key])
 
@@ -472,7 +478,7 @@ def read_existing_animation_manifest(filepath):
     elif magic == "spaceguy_3d_transform" and version in (1, 2):
         default_kind = "transform"
         unified = False
-    elif magic == "spaceguy_3d" and version in (3, 4):
+    elif magic == "spaceguy_3d" and version in (3, 4, 5):
         default_kind = None
         unified = True
     else:
@@ -490,7 +496,8 @@ def read_existing_animation_manifest(filepath):
     animation_count = reader.read_int()
 
     reader.expect("vertices")
-    for _value in range(vertex_count * 6):
+    values_per_vertex = 9 if magic == "spaceguy_3d" and version >= 5 else 6
+    for _value in range(vertex_count * values_per_vertex):
         reader.next()
 
     reader.expect("indices")
@@ -802,7 +809,7 @@ def write_vertex_clip(file, clip, obj, export_vertices, source_vertex_count, sce
                 )
 
             file.write(f"\nkey_pose {frame}\n")
-            for source_vertex_index, _base_pos, _color in export_vertices:
+            for source_vertex_index, _base_pos, _color, _normal in export_vertices:
                 vertex = eval_mesh.vertices[source_vertex_index]
                 write_vec3(file, vertex.co)
         finally:
@@ -909,7 +916,7 @@ def export_spaceguy_3d(filepath, obj=None):
     state = capture_scene_state(scene, owners)
 
     with filepath.open("w", encoding="utf-8") as file:
-        file.write("spaceguy_3d 4\n")
+        file.write("spaceguy_3d 5\n")
         file.write(f"object_name {safe_filename(obj.name)}\n")
         file.write(f"fps {fps:.6f}\n")
         file.write(f"vertex_count {len(export_vertices)}\n")
@@ -918,10 +925,14 @@ def export_spaceguy_3d(filepath, obj=None):
         file.write("\n")
 
         file.write("vertices\n")
-        file.write("# x y z r g b\n")
-        for _source_vertex_index, pos, color in export_vertices:
+        file.write("# x y z r g b nx ny nz\n")
+        for _source_vertex_index, pos, color, normal in export_vertices:
             r, g, b = color
-            file.write(f"{pos.x:.9f} {pos.y:.9f} {pos.z:.9f} {r:.6f} {g:.6f} {b:.6f}\n")
+            file.write(
+                f"{pos.x:.9f} {pos.y:.9f} {pos.z:.9f} "
+                f"{r:.6f} {g:.6f} {b:.6f} "
+                f"{normal.x:.9f} {normal.y:.9f} {normal.z:.9f}\n"
+            )
 
         file.write("\n")
         file.write("indices\n")

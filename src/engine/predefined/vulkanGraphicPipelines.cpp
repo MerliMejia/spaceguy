@@ -205,7 +205,7 @@ void DEFAULT_GRAPHICS_PIPELINE() {
       .stride = sizeof(Vertex),
       .inputRate = vk::VertexInputRate::eVertex};
 
-  std::array<vk::VertexInputAttributeDescription, 2> attributeDescriptions = {
+  std::array<vk::VertexInputAttributeDescription, 3> attributeDescriptions = {
       {{.location = 0,
         .binding = 0,
         .format = vk::Format::eR32G32B32Sfloat,
@@ -213,7 +213,11 @@ void DEFAULT_GRAPHICS_PIPELINE() {
        {.location = 1,
         .binding = 0,
         .format = vk::Format::eR32G32B32Sfloat,
-        .offset = offsetof(Vertex, color)}}};
+        .offset = offsetof(Vertex, color)},
+       {.location = 2,
+        .binding = 0,
+        .format = vk::Format::eR32G32B32Sfloat,
+        .offset = offsetof(Vertex, normal)}}};
 
   vk::PipelineVertexInputStateCreateInfo vertexInputInfo{
       .vertexBindingDescriptionCount = 1,
@@ -335,12 +339,17 @@ void ANIMATED_GRAPHICS_PIPELINE() {
       .stride = sizeof(AnimatedVertex),
       .inputRate = vk::VertexInputRate::eVertex};
 
-  std::array<vk::VertexInputAttributeDescription, 1> attributeDescriptions{
+  std::array<vk::VertexInputAttributeDescription, 2> attributeDescriptions{
       vk::VertexInputAttributeDescription{
           .location = 0,
           .binding = 0,
           .format = vk::Format::eR32G32B32Sfloat,
-          .offset = offsetof(AnimatedVertex, color)}};
+          .offset = offsetof(AnimatedVertex, color)},
+      vk::VertexInputAttributeDescription{
+          .location = 1,
+          .binding = 0,
+          .format = vk::Format::eR32G32B32Sfloat,
+          .offset = offsetof(AnimatedVertex, normal)}};
 
   vk::PipelineVertexInputStateCreateInfo vertexInputInfo{
       .vertexBindingDescriptionCount = 1,

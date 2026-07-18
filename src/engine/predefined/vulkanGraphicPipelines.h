@@ -14,10 +14,26 @@ extern void ANIMATED_GRAPHICS_PIPELINE();
 extern void DEBUG_GRAPHICS_PIPELINE();
 
 // Different uniform buffers and push constants
-struct CameraBufferObject {
+constexpr uint32_t MAX_POINT_LIGHTS = 32;
+
+struct alignas(16) PointLightGpu {
+  glm::vec4 position;
+  glm::vec4 colorIntensity;
+  glm::vec4 attenuation;
+};
+
+struct SceneBufferObject {
   alignas(16) glm::mat4 view;
   alignas(16) glm::mat4 proj;
+  alignas(16) glm::vec4 viewPosition;
+  alignas(16) glm::vec4 sunDirection;
+  alignas(16) glm::vec4 sunColorIntensity;
+  alignas(16) glm::uvec4 lightCounts;
+  PointLightGpu pointLights[MAX_POINT_LIGHTS];
 };
+
+static_assert(sizeof(PointLightGpu) == 48);
+static_assert(sizeof(SceneBufferObject) % 16 == 0);
 
 struct ObjectPushConstants {
   glm::mat4 model;

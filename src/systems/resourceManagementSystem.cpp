@@ -14,6 +14,8 @@ static std::unordered_map<int, int> entityToProjectiles;
 static std::unordered_map<int, int> entityToWizardBehaviors;
 static std::unordered_map<int, int> entityToParticleEmitterCpuComponents;
 static std::unordered_map<int, int> entityToAttachmentAnimationComponents;
+static std::unordered_map<int, int> entityToSunLights;
+static std::unordered_map<int, int> entityToPointLights;
 static int nextEntityId = 1;
 
 static std::unordered_set<int> alive;
@@ -250,6 +252,46 @@ AttachmentAnimationComponent *tryGetAttachmentAnimationComponent(int entity) {
       resources.attachmentAnimationComponents);
 }
 
+SunLightComponent &addSunLight(int entity) {
+  return addComponent<SunLightComponent>(
+      entity, entityToSunLights, resources.sunLights, "sun light component");
+}
+
+template <> SunLightComponent &addComponent<SunLightComponent>(int entity) {
+  return addSunLight(entity);
+}
+
+SunLightComponent &getSunLight(int entity) {
+  return getComponent<SunLightComponent>(
+      entity, entityToSunLights, resources.sunLights, "sun light component");
+}
+
+SunLightComponent *tryGetSunLight(int entity) {
+  return tryGetComponent<SunLightComponent>(entity, entityToSunLights,
+                                            resources.sunLights);
+}
+
+PointLightComponent &addPointLight(int entity) {
+  return addComponent<PointLightComponent>(entity, entityToPointLights,
+                                           resources.pointLights,
+                                           "point light component");
+}
+
+template <> PointLightComponent &addComponent<PointLightComponent>(int entity) {
+  return addPointLight(entity);
+}
+
+PointLightComponent &getPointLight(int entity) {
+  return getComponent<PointLightComponent>(entity, entityToPointLights,
+                                           resources.pointLights,
+                                           "point light component");
+}
+
+PointLightComponent *tryGetPointLight(int entity) {
+  return tryGetComponent<PointLightComponent>(entity, entityToPointLights,
+                                              resources.pointLights);
+}
+
 static void destroyRenderable(int entity) {
   destroyComponent<Renderable>(entity, entityToRenderables,
                                resources.renderables);
@@ -271,6 +313,15 @@ static void destroyProjectile(int entity) {
 }
 
 static void destroyWizardBehavior(int entity) {
+  if (WizardBehaviorComponent *wizard = tryGetWizardBehavior(entity)) {
+    if (wizard->shootEffecEntity != -1) {
+      destroyEntity(wizard->shootEffecEntity);
+    }
+    if (wizard->attackLightEntity != -1) {
+      destroyEntity(wizard->attackLightEntity);
+    }
+  }
+
   destroyComponent<WizardBehaviorComponent>(entity, entityToWizardBehaviors,
                                             resources.wizardBehaviors);
 }
@@ -281,8 +332,27 @@ static void destroyParticleEmitterCpuComponent(int entity) {
       resources.particleEmitterCpuComponents);
 }
 
+static void destroySunLight(int entity) {
+  destroyComponent<SunLightComponent>(entity, entityToSunLights,
+                                      resources.sunLights);
+}
+
+static void destroyPointLight(int entity) {
+  destroyComponent<PointLightComponent>(entity, entityToPointLights,
+                                        resources.pointLights);
+}
+
+static void destroyAttachmentAnimationComponent(int entity) {
+  destroyComponent<AttachmentAnimationComponent>(
+      entity, entityToAttachmentAnimationComponents,
+      resources.attachmentAnimationComponents);
+}
+
 void processDestroyQueue() {
-  for (int entity : destroyQueue) {
+  // Destruction can enqueue owned child entities. Indexing remains valid if
+  // the vector reallocates while those dependencies are appended.
+  for (std::size_t i = 0; i < destroyQueue.size(); ++i) {
+    const int entity = destroyQueue[i];
     if (!alive.contains(entity)) {
       continue;
     }
@@ -292,6 +362,9 @@ void processDestroyQueue() {
     destroyProjectile(entity);
     destroyWizardBehavior(entity);
     destroyParticleEmitterCpuComponent(entity);
+    destroySunLight(entity);
+    destroyPointLight(entity);
+    destroyAttachmentAnimationComponent(entity);
     alive.erase(entity);
   }
 

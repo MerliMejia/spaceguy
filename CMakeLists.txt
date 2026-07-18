@@ -27,6 +27,7 @@ add_executable(spaceguy
     src/engine/blender/importer.cpp
     src/utils/buffers.cpp
     src/systems/animationSystem.cpp
+    src/systems/lightsSystem.cpp
     src/utils/input.cpp
     src/utils/time.cpp
     src/systems/sceneContext.cpp

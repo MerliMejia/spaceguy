@@ -23,6 +23,9 @@ constexpr float PROJECTILE_LOOKAHEAD = 14.0f;
 constexpr float PROJECTILE_DANGER_RADIUS = 1.35f;
 constexpr float WIZARD_AVOID_RADIUS = 2.0f;
 constexpr float EVADE_DISTANCE = 4.0f;
+constexpr float ATTACK_LIGHT_INITIAL_INTENSITY = 0.0f;
+constexpr float ATTACK_LIGHT_MAX_INTENSITY = 0.5f;
+constexpr float ATTACK_LIGHT_GROWTH_PER_SECOND = 0.1f;
 constexpr float MIN_MOVE_STAMINA = 0.08f;
 constexpr float WIZARD_PROJECTILE_SPEED = 20.0f;
 constexpr float WIZARD_RUN_ANIMATION_SPEED = 1.0f;
@@ -394,6 +397,13 @@ DecisionStatus attackLogic(int entity) {
     shootEffectAnimation.activeAnimation = 0;
     shootEffectAnimation.animationTimeSeconds = 0.0f;
     shootEffectAnimation.animationPlaySpeed = 1.8f;
+
+    wizard.attackLightEntity = createEntity();
+    PointLightComponent &attackLight = addPointLight(wizard.attackLightEntity);
+    attackLight.position = modelToTransform(thisWizardTC.model).position;
+    attackLight.color = {1.0f, 0.0f, 0.0f};
+    attackLight.intensity = ATTACK_LIGHT_INITIAL_INTENSITY;
+    attackLight.attenuation = glm::vec3{0.01f, 0.01f, 0.01f};
   }
 
   TransformComponent &wtc = getTransform(entity);
@@ -408,6 +418,10 @@ DecisionStatus attackLogic(int entity) {
   if (nextAttack == nullptr || !isEntityAlive(wizard.nextAttackEntity)) {
     wizard.nextAttackEntity = -1;
     destroyEntity(wizard.shootEffecEntity);
+    if (wizard.attackLightEntity != -1) {
+      destroyEntity(wizard.attackLightEntity);
+      wizard.attackLightEntity = -1;
+    }
     return DecisionStatus::Done;
   }
 
@@ -429,15 +443,33 @@ DecisionStatus attackLogic(int entity) {
     aimDistanceSqr = targetDistanceSqr;
   }
 
+  if (PointLightComponent *attackLight =
+          tryGetPointLight(wizard.attackLightEntity)) {
+    glm::vec3 chargeDirection{0.0f, -1.0f, 0.0f};
+    if (aimDistanceSqr > 0.001f) {
+      const glm::vec2 normalizedAimDir = glm::normalize(aimDir);
+      chargeDirection = glm::vec3{normalizedAimDir.x, normalizedAimDir.y, 0.0f};
+    }
+
+    attackLight->position = wt.position + chargeDirection;
+    attackLight->intensity =
+        glm::min(ATTACK_LIGHT_MAX_INTENSITY,
+                 attackLight->intensity +
+                     ATTACK_LIGHT_GROWTH_PER_SECOND * timeState.deltaTime);
+  }
+
   if (hasActiveAnimationEnded(wizard.shootEffecEntity)) {
     wizard.state = WizzardState::None;
+    const int projectileLightEntity = wizard.attackLightEntity;
+    wizard.attackLightEntity = -1;
 
     if (aimDistanceSqr > 0.001f) {
       glm::vec2 normalizedAimDir = glm::normalize(aimDir);
       spawnWizardProjectile(
-          entity, glm::vec3{normalizedAimDir.x, normalizedAimDir.y, 0.0f});
+          entity, glm::vec3{normalizedAimDir.x, normalizedAimDir.y, 0.0f},
+          projectileLightEntity);
     } else {
-      spawnWizardProjectile(entity);
+      spawnWizardProjectile(entity, projectileLightEntity);
     }
     destroyEntity(wizard.shootEffecEntity);
 

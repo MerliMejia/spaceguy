@@ -72,6 +72,7 @@ struct WizardBehaviorComponent {
 
   int attackCounter = 0;
   int shootEffecEntity = -1;
+  int attackLightEntity = -1;
 };
 
 struct ParticleEmitterCpuComponent {
@@ -94,6 +95,12 @@ struct ParticleEmitterCpuComponent {
   glm::vec3 position{0.0f};
   glm::vec3 direction{0.0f, 0.0f, 1.0f};
   ParticleEmitterShape shape = ParticleEmitterShape::Cone;
+  int lightEntity = -1;
+  int secondaryLightEntity = -1;
+  float lightStartIntensity = 0.0f;
+  float lightTargetIntensity = -1.0f;
+  float secondaryLightStartIntensity = 0.0f;
+  float secondaryLightTargetIntensity = -1.0f;
 };
 
 struct AttachmentAnimationComponent {
@@ -108,6 +115,21 @@ struct AttachmentAnimationComponent {
   int attachmentIndex = -1;
 };
 
+struct SunLightComponent {
+  int entity = -1;
+  glm::vec3 direction{-0.4f, 0.5f, -1.0f};
+  glm::vec3 color{1.0f, 0.95f, 0.85f};
+  float intensity = 1.0f;
+};
+
+struct PointLightComponent {
+  int entity = -1;
+  glm::vec3 position{0.0f};
+  glm::vec3 color{1.0f};
+  glm::vec3 attenuation{1.0f, 0.09f, 0.032f};
+  float intensity = 1.0f;
+};
+
 struct Resources {
   std::vector<Renderable> renderables;
   std::vector<TransformComponent> transforms;
@@ -116,6 +138,8 @@ struct Resources {
   std::vector<WizardBehaviorComponent> wizardBehaviors;
   std::vector<ParticleEmitterCpuComponent> particleEmitterCpuComponents;
   std::vector<AttachmentAnimationComponent> attachmentAnimationComponents;
+  std::vector<SunLightComponent> sunLights;
+  std::vector<PointLightComponent> pointLights;
 };
 
 extern Resources resources;
@@ -152,6 +176,14 @@ ParticleEmitterCpuComponent *tryGetParticleEmitterCpuComponent(int entity);
 AttachmentAnimationComponent &addAttachmentAnimationComponent(int entity);
 AttachmentAnimationComponent &getAttachmentAnimationComponent(int entity);
 AttachmentAnimationComponent *tryGetAttachmentAnimationComponent(int entity);
+
+SunLightComponent &addSunLight(int entity);
+SunLightComponent &getSunLight(int entity);
+SunLightComponent *tryGetSunLight(int entity);
+
+PointLightComponent &addPointLight(int entity);
+PointLightComponent &getPointLight(int entity);
+PointLightComponent *tryGetPointLight(int entity);
 
 void destroyEntity(int entity);
 void processDestroyQueue();

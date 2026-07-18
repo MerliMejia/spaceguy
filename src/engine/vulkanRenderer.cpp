@@ -1,5 +1,6 @@
 #include "vulkanRenderer.h"
 #include "../systems/animationSystem.h"
+#include "../systems/lightsSystem.h"
 #include "../systems/resourceManagementSystem.h"
 #include "../systems/sceneContext.h"
 #include "../utils/buffers.h"
@@ -118,7 +119,7 @@ void createParticleDescriptorSets() {
     vk::DescriptorBufferInfo cameraBufferInfo{
         .buffer = *vulkanRendererContext.uniformBuffers[i],
         .offset = 0,
-        .range = sizeof(CameraBufferObject),
+        .range = sizeof(SceneBufferObject),
     };
 
     vk::DescriptorBufferInfo particleBufferInfo{
@@ -203,7 +204,7 @@ void createStaticDescriptorSets() {
     vk::DescriptorBufferInfo cameraBufferInfo{
         .buffer = *vulkanRendererContext.uniformBuffers[i],
         .offset = 0,
-        .range = sizeof(CameraBufferObject)};
+        .range = sizeof(SceneBufferObject)};
 
     vk::WriteDescriptorSet descriptorWrite{
         .dstSet = *vulkanRendererContext.descriptorSets[i],
@@ -232,7 +233,7 @@ void createAnimatedDescriptorSets() {
     vk::DescriptorBufferInfo cameraBufferInfo{
         .buffer = *vulkanRendererContext.uniformBuffers[i],
         .offset = 0,
-        .range = sizeof(CameraBufferObject)};
+        .range = sizeof(SceneBufferObject)};
 
     vk::DescriptorBufferInfo animationBufferInfo{
         .buffer = *vulkanRendererContext.animationPositionsBuffer,
@@ -289,7 +290,7 @@ void createDebugBuffers() {
 }
 
 void createUniformBuffers() {
-  vk::DeviceSize bufferSize = sizeof(CameraBufferObject);
+  vk::DeviceSize bufferSize = sizeof(SceneBufferObject);
 
   vulkanRendererContext.uniformBuffers.clear();
   vulkanRendererContext.uniformBuffersMemory.clear();
@@ -1179,7 +1180,7 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
       commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,
                                  *vulkanRendererContext.debugGraphicsPipeline);
 
-      CameraBufferObject camera{};
+      SceneBufferObject camera{};
       camera.view =
           glm::lookAt(sceneContext.cameraPosition,
                       sceneContext.cameraPosition + sceneContext.cameraLookAt,
@@ -1296,23 +1297,26 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
 
 // Need to update this
 void updateUniformBuffer(uint32_t currentImage) {
-  CameraBufferObject camera{};
+  SceneBufferObject scene{};
 
-  camera.view =
+  scene.view =
       glm::lookAt(sceneContext.cameraPosition,
                   sceneContext.cameraPosition + sceneContext.cameraLookAt,
                   glm::vec3{0.0f, 0.0f, 1.0f});
 
-  camera.proj = glm::perspective(
+  scene.proj = glm::perspective(
       sceneContext.cameraFovY,
       static_cast<float>(vulkanContext.swapchainExtent.width) /
           static_cast<float>(vulkanContext.swapchainExtent.height),
       sceneContext.cameraClipStart, sceneContext.cameraClipEnd);
 
-  camera.proj[1][1] *= -1.0f;
+  scene.proj[1][1] *= -1.0f;
+  scene.viewPosition = glm::vec4(sceneContext.cameraPosition, 1.0f);
 
-  memcpy(vulkanRendererContext.uniformBuffersMapped[currentImage], &camera,
-         sizeof(camera));
+  writeLightsToSceneBuffer(scene);
+
+  memcpy(vulkanRendererContext.uniformBuffersMapped[currentImage], &scene,
+         sizeof(scene));
 }
 
 void updateParticleSimParams(uint32_t frameIndex) {

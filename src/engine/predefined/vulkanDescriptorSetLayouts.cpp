@@ -81,7 +81,8 @@ void DEFAULT_DESCRIPTOR_SET_LAYOUT(
       .binding = 0,
       .descriptorType = vk::DescriptorType::eUniformBuffer,
       .descriptorCount = 1,
-      .stageFlags = vk::ShaderStageFlagBits::eVertex,
+      .stageFlags =
+          vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
       .pImmutableSamplers = nullptr};
 
   vk::DescriptorSetLayoutCreateInfo layoutInfo{.bindingCount = 1,
@@ -111,7 +112,8 @@ void ANIMATED_DESCRIPTOR_SET_LAYOUT(
           .binding = 0,
           .descriptorType = vk::DescriptorType::eUniformBuffer,
           .descriptorCount = 1,
-          .stageFlags = vk::ShaderStageFlagBits::eVertex,
+          .stageFlags = vk::ShaderStageFlagBits::eVertex |
+                        vk::ShaderStageFlagBits::eFragment,
           .pImmutableSamplers = nullptr,
       },
       vk::DescriptorSetLayoutBinding{

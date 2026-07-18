@@ -57,6 +57,7 @@ inline AnimatedMesh generateAnimatedMesh(const BlenderModel &model,
   for (const Vertex &vertex : model.vertices) {
     vertices.push_back(AnimatedVertex{
         .color = vertex.color,
+        .normal = vertex.normal,
     });
   }
 
@@ -181,18 +182,22 @@ inline Mesh generateQuadMesh() {
       Vertex{
           .pos = {-0.5f, -0.5f, 0.0f},
           .color = {1.0f, 1.0f, 1.0f},
+          .normal = {0.0f, 0.0f, 1.0f},
       },
       Vertex{
           .pos = {0.5f, -0.5f, 0.0f},
           .color = {1.0f, 1.0f, 1.0f},
+          .normal = {0.0f, 0.0f, 1.0f},
       },
       Vertex{
           .pos = {0.5f, 0.5f, 0.0f},
           .color = {1.0f, 1.0f, 1.0f},
+          .normal = {0.0f, 0.0f, 1.0f},
       },
       Vertex{
           .pos = {-0.5f, 0.5f, 0.0f},
           .color = {1.0f, 1.0f, 1.0f},
+          .normal = {0.0f, 0.0f, 1.0f},
       },
   };
 

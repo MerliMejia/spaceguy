@@ -13,7 +13,55 @@
 static Mesh wizardProjectileMesh;
 std::unordered_set<int> projectileHits;
 
-const constexpr float timeToDie = 4.0f;
+const constexpr float timeToDie = 5.0f;
+const constexpr float explosionLightIntensityMultiplier = 2.0f;
+
+static void destroyProjectileWithEffects(int projectileEntity) {
+  ProjectileComponent *projectile = tryGetProjectile(projectileEntity);
+  if (projectile == nullptr) {
+    return;
+  }
+
+  const int emitterEntity = projectile->travelEffectEmitter;
+  if (emitterEntity == -1) {
+    return;
+  }
+
+  // Mark teardown immediately so another collision in this frame cannot
+  // schedule the same emitter and light a second time.
+  projectile->travelEffectEmitter = -1;
+
+  if (ParticleEmitterCpuComponent *emitter =
+          tryGetParticleEmitterCpuComponent(emitterEntity)) {
+    const int lightEntity = emitter->lightEntity;
+    emitter->lightEntity = -1;
+
+    if (lightEntity != -1) {
+      destroyEntity(lightEntity);
+    }
+
+    addParticleEmitterToBeDestroyed(emitterEntity);
+  }
+
+  destroyEntity(projectileEntity);
+}
+
+static int takeProjectileLight(int projectileEntity) {
+  ProjectileComponent *projectile = tryGetProjectile(projectileEntity);
+  if (projectile == nullptr || projectile->travelEffectEmitter == -1) {
+    return -1;
+  }
+
+  ParticleEmitterCpuComponent *emitter =
+      tryGetParticleEmitterCpuComponent(projectile->travelEffectEmitter);
+  if (emitter == nullptr) {
+    return -1;
+  }
+
+  const int lightEntity = emitter->lightEntity;
+  emitter->lightEntity = -1;
+  return lightEntity;
+}
 
 void initializeProjectiles() {
   BlenderModel wizardProjectile = loadModel("assets/Wizard_Projectile.3d");
@@ -21,17 +69,17 @@ void initializeProjectiles() {
       generateMesh(wizardProjectile.vertices, wizardProjectile.indices);
 }
 
-void spawnWizardProjectile(int wizard) {
+void spawnWizardProjectile(int wizard, int lightEntity) {
   TransformComponent tc = getTransform(wizard);
   Transform wizardTransform = modelToTransform(tc.model);
 
   glm::vec3 localForward{0.0f, -1.0f, 0.0f};
   glm::vec3 forward = glm::normalize(wizardTransform.rotation * localForward);
 
-  spawnWizardProjectile(wizard, forward);
+  spawnWizardProjectile(wizard, forward, lightEntity);
 }
 
-void spawnWizardProjectile(int wizard, glm::vec3 direction) {
+void spawnWizardProjectile(int wizard, glm::vec3 direction, int lightEntity) {
   TransformComponent tc = getTransform(wizard);
   Transform wizardTransform = modelToTransform(tc.model);
 
@@ -59,6 +107,23 @@ void spawnWizardProjectile(int wizard, glm::vec3 direction) {
 
   generateLongTrailParticleEmitter(emitter, initialPos, forward);
 
+  int particleLightEntity = lightEntity;
+  PointLightComponent *lightComponent = nullptr;
+
+  if (particleLightEntity != -1 && isEntityAlive(particleLightEntity)) {
+    lightComponent = tryGetPointLight(particleLightEntity);
+  }
+
+  if (lightComponent == nullptr) {
+    particleLightEntity = createEntity();
+    lightComponent = &addPointLight(particleLightEntity);
+    lightComponent->color = {1.0f, 0.0f, 0.0f};
+    lightComponent->intensity = 0.1f;
+    lightComponent->attenuation = glm::vec3{0.01f, 0.01f, 0.01f};
+  }
+
+  lightComponent->position = initialPos;
+
   // At some point should be a constant
   emitter.lifeColorStart = {1.0f, 0.0f, 0.0f, 1.0f};
   emitter.lifeColorEnd = {0.0f, 0.0f, 1.0f, 1.0f};
@@ -71,15 +136,18 @@ void spawnWizardProjectile(int wizard, glm::vec3 direction) {
   emitter.entity = travelEffectEmitterEntity;
 
   emitter.owner = projectile;
+  emitter.lightEntity = particleLightEntity;
   projectileComponent.travelEffectEmitter = travelEffectEmitterEntity;
 }
 
 void updateProjectiles() {
   for (ProjectileComponent &projectile : resources.projectiles) {
+    if (projectile.travelEffectEmitter == -1) {
+      continue;
+    }
 
     if (projectile.timeAlive >= timeToDie) {
-      addParticleEmitterToBeDestroyed(projectile.travelEffectEmitter);
-      destroyEntity(projectile.entity);
+      destroyProjectileWithEffects(projectile.entity);
       continue;
     }
 
@@ -100,13 +168,18 @@ void updateProjectiles() {
     travelEmitter.position = transform.position;
     travelEmitter.direction = projectile.direction;
 
+    PointLightComponent &particleLight =
+        getPointLight(travelEmitter.lightEntity);
+    particleLight.position = transform.position;
+
     // Check hits
     CellCoord center =
         worldToCell(transform.position, spacialGridContext.cellWidth,
                     spacialGridContext.cellHeight);
 
     executeOnNearbyCells(center, [transform, projectile](int closeEntity) {
-      auto explodeAtProjectile = [&]() {
+      auto explodeAtProjectile = [&](int lightEntity,
+                                     int secondaryLightEntity = -1) {
         int explosionEffect = createEntity();
 
         ParticleEmitterCpuComponent &emitter =
@@ -120,6 +193,22 @@ void updateProjectiles() {
         emitter.speedColorSlow = {1.0f, 0.0f, 0.0f, 1.0f};
         emitter.speedColorFast = {1.0f, 0.0f, 0.0f, 1.0f};
         emitter.entity = explosionEffect;
+        emitter.lightEntity = lightEntity;
+        emitter.secondaryLightEntity = secondaryLightEntity;
+
+        if (PointLightComponent *light = tryGetPointLight(lightEntity)) {
+          light->position = transform.position;
+          light->intensity *= explosionLightIntensityMultiplier;
+          emitter.lightStartIntensity = light->intensity;
+          emitter.lightTargetIntensity = 0.0f;
+        }
+        if (PointLightComponent *light =
+                tryGetPointLight(secondaryLightEntity)) {
+          light->position = transform.position;
+          light->intensity *= explosionLightIntensityMultiplier;
+          emitter.secondaryLightStartIntensity = light->intensity;
+          emitter.secondaryLightTargetIntensity = 0.0f;
+        }
 
         addParticleEmitterToBeDestroyed(explosionEffect, 0.2f);
       };
@@ -134,13 +223,13 @@ void updateProjectiles() {
                                              glm::vec2{wt.position});
 
           if (distanceSqr <= 1.0f) {
-            explodeAtProjectile();
-
-            addParticleEmitterToBeDestroyed(projectile.travelEffectEmitter);
+            const int explosionLight =
+                takeProjectileLight(projectile.entity);
+            explodeAtProjectile(explosionLight);
 
             destroyEntity(wizard->shootEffecEntity);
             destroyEntity(closeEntity);
-            destroyEntity(projectile.entity);
+            destroyProjectileWithEffects(projectile.entity);
 
             return ExecuteOnNearbyCellsStatus::Done;
           }
@@ -151,6 +240,7 @@ void updateProjectiles() {
       if (ProjectileComponent *otherProjectile =
               tryGetProjectile(closeEntity)) {
         if (otherProjectile->entity != projectile.entity &&
+            otherProjectile->travelEffectEmitter != -1 &&
             otherProjectile->ownerEntity != projectile.ownerEntity) {
           TransformComponent &otc = getTransform(closeEntity);
           const Transform &ot = modelToTransform(otc.model);
@@ -159,14 +249,14 @@ void updateProjectiles() {
                                              glm::vec2{ot.position});
 
           if (distanceSqr <= 1.0f) {
-            explodeAtProjectile();
+            const int explosionLight =
+                takeProjectileLight(projectile.entity);
+            const int otherExplosionLight =
+                takeProjectileLight(otherProjectile->entity);
+            explodeAtProjectile(explosionLight, otherExplosionLight);
 
-            addParticleEmitterToBeDestroyed(projectile.travelEffectEmitter);
-            addParticleEmitterToBeDestroyed(
-                otherProjectile->travelEffectEmitter);
-
-            destroyEntity(closeEntity);
-            destroyEntity(projectile.entity);
+            destroyProjectileWithEffects(closeEntity);
+            destroyProjectileWithEffects(projectile.entity);
 
             return ExecuteOnNearbyCellsStatus::Done;
           }
