@@ -4,7 +4,7 @@ include(FetchContent)
 
 project(spaceguy
     VERSION 0.1.0
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 find_package(Vulkan REQUIRED)
@@ -39,11 +39,25 @@ add_executable(spaceguy
     src/systems/particleLifeSystem.cpp
 )
 
+target_sources(spaceguy PRIVATE
+    src/utils/textMeshGenerator.cpp
+
+    external/libtess2/Source/bucketalloc.c
+    external/libtess2/Source/dict.c
+    external/libtess2/Source/geom.c
+    external/libtess2/Source/mesh.c
+    external/libtess2/Source/priorityq.c
+    external/libtess2/Source/sweep.c
+    external/libtess2/Source/tess.c
+)
+
 target_compile_features(spaceguy PRIVATE cxx_std_20)
 
 target_include_directories(spaceguy
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/stb
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/libtess2/Include
 )
 
 target_link_libraries(spaceguy

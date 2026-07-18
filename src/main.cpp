@@ -26,6 +26,7 @@
 #include "systems/spacialGridHashSystem.h"
 #include "systems/wizardBehaviorSystem.h"
 #include "utils/generators.h"
+#include "utils/textMeshGenerator.h"
 #include "utils/time.h"
 
 void cleanup() {
@@ -57,7 +58,9 @@ int main() {
   AnimatedMesh ogreMesh;
   Mesh ogreBladeMesh;
 
-  int waterDetailsEntity = -1;
+  TextMeshGenerator textGenerator{"assets/fonts/Roboto-Regular.ttf"};
+  Mesh testTextMesh = textGenerator.generateMesh("Hello World IOB8", 4.0f,
+                                                 glm::vec3{1.0f, 1.0f, 1.0f});
 
   {
     sceneContext.cameraPosition = worldData.camera.transform.position;
@@ -210,19 +213,15 @@ int main() {
   sun.color = glm::vec3{1.0f, 1.0f, 1.0f};
   sun.intensity = 0.9f;
 
-  // int pointLightEntity = createEntity();
-  // PointLightComponent &pointLight = addPointLight(pointLightEntity);
-  // pointLight.position = glm::vec3{0.0f, 0.0f, 1.0f};
-  // pointLight.color = glm::vec3{0.3f, 0.55f, 1.0f};
-  // pointLight.intensity = 0.1f;
-  // pointLight.attenuation = glm::vec3{0.01f, 0.01f, 0.01f};
+  int testTextEntity = createEntity();
+  Renderable &ttRenderable = addRenderable(testTextEntity);
+  ttRenderable.renderKind = ObjectRenderKind::Static;
+  ttRenderable.mesh = &testTextMesh;
 
-  // int warmPointLightEntity = createEntity();
-  // PointLightComponent &warmPointLight = addPointLight(warmPointLightEntity);
-  // warmPointLight.position = glm::vec3{-18.0f, 4.0f, 1.0f};
-  // warmPointLight.color = glm::vec3{1.0f, 0.35f, 0.12f};
-  // warmPointLight.intensity = 0.1f;
-  // warmPointLight.attenuation = glm::vec3{0.01f, 0.01f, 0.01f};
+  TransformComponent &tttc = addTransform(testTextEntity);
+  Transform tttt = modelToTransform(tttc.model);
+  tttt.position = glm::vec3{-10.0f, -10.0f, 2.0f};
+  tttc.model = transformToModel(tttt.position, tttt.rotation, tttt.scale);
 
   while (!glfwWindowShouldClose(vulkanContext.window)) {
     glfwPollEvents();
