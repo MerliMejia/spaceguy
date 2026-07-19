@@ -124,6 +124,17 @@ void main() {
 
     Emitter emitter = emitters[emitterIndex];
 
+    uint rangeBegin = emitter.rangeActive.x;
+    uint rangeEnd = rangeBegin + emitter.rangeActive.y;
+
+    if (i < rangeBegin || i >= rangeEnd) {
+        p.meta.y = 0u;
+        p.positionLifetime.w = 0.0;
+        p.color.a = 0.0;
+        particles[i] = p;
+        return;
+    }
+
     if (p.meta.y != 0u && p.positionLifetime.w > 0.0) {
         p.positionLifetime.xyz += p.velocitySize.xyz * sim.deltaTime;
         p.positionLifetime.w -= sim.deltaTime;

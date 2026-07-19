@@ -267,10 +267,11 @@ void DEFAULT_GRAPHICS_PIPELINE() {
   vk::DescriptorSetLayout setLayouts[] = {
       *vulkanRendererContext.descriptorSetLayout};
 
-  vk::PushConstantRange pushConstantRange{.stageFlags =
-                                              vk::ShaderStageFlagBits::eVertex,
-                                          .offset = 0,
-                                          .size = sizeof(ObjectPushConstants)};
+  vk::PushConstantRange pushConstantRange{
+      .stageFlags =
+          vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+      .offset = 0,
+      .size = sizeof(ObjectPushConstants)};
 
   vk::PipelineLayoutCreateInfo pipelineLayoutInfo{.setLayoutCount = 1,
                                                   .pSetLayouts = setLayouts,
@@ -400,7 +401,8 @@ void ANIMATED_GRAPHICS_PIPELINE() {
       *vulkanRendererContext.animatedDescriptorSetLayout};
 
   vk::PushConstantRange pushConstantRange{
-      .stageFlags = vk::ShaderStageFlagBits::eVertex,
+      .stageFlags =
+          vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
       .offset = 0,
       .size = sizeof(AnimatedObjectPushConstants)};
 

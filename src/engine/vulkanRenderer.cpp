@@ -1074,6 +1074,7 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
 
       AnimatedObjectPushConstants pushConstants{
           .model = transform.model,
+          .unlit = renderable.unlit ? 1u : 0u,
           .previousPositionOffset = animationData.previousPositionOffset,
           .nextPositionOffset = animationData.nextPositionOffset,
           .interpolation = animationData.interpolation,
@@ -1082,7 +1083,8 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
 
       commandBuffer.pushConstants<AnimatedObjectPushConstants>(
           *vulkanRendererContext.animatedPipelineLayout,
-          vk::ShaderStageFlagBits::eVertex, 0, pushConstants);
+          vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+          0, pushConstants);
 
       vk::Buffer vertexBuffers[] = {
           *renderable.animatedMesh->mesh.vertexBuffer};
@@ -1103,13 +1105,13 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
           *vulkanRendererContext.pipelineLayout, 0,
           *vulkanRendererContext.descriptorSets[frameIndex], nullptr);
 
-      ObjectPushConstants pushConstants{
-          .model = transform.model,
-      };
+      ObjectPushConstants pushConstants{.model = transform.model,
+                                        .unlit = renderable.unlit ? 1u : 0u};
 
       commandBuffer.pushConstants<ObjectPushConstants>(
           *vulkanRendererContext.pipelineLayout,
-          vk::ShaderStageFlagBits::eVertex, 0, pushConstants);
+          vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+          0, pushConstants);
 
       vk::Buffer vertexBuffers[] = {
           *renderable.transformAnimatedMesh->mesh.vertexBuffer,
@@ -1132,11 +1134,13 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
           *vulkanRendererContext.pipelineLayout, 0,
           *vulkanRendererContext.descriptorSets[frameIndex], nullptr);
 
-      ObjectPushConstants pushConstants{.model = transform.model};
+      ObjectPushConstants pushConstants{.model = transform.model,
+                                        .unlit = renderable.unlit ? 1u : 0u};
 
       commandBuffer.pushConstants<ObjectPushConstants>(
           *vulkanRendererContext.pipelineLayout,
-          vk::ShaderStageFlagBits::eVertex, 0, pushConstants);
+          vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+          0, pushConstants);
 
       vk::Buffer vertexBuffers[] = {*renderable.mesh->vertexBuffer};
       vk::DeviceSize offsets[] = {0};
@@ -1198,7 +1202,8 @@ void recordCommandBuffer(uint32_t frameIndex, uint32_t imageIndex) {
 
       commandBuffer.pushConstants<glm::mat4>(
           *vulkanRendererContext.debugPipelineLayout,
-          vk::ShaderStageFlagBits::eVertex, 0, viewProj);
+          vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+          0, viewProj);
 
       vk::Buffer vertexBuffers[] = {*debugFrame.vertexBuffer};
       vk::DeviceSize offsets[] = {0};

@@ -25,6 +25,7 @@ layout(binding = 0) uniform SceneBufferObject {
 
 layout(push_constant) uniform ObjectPushConstants {
     mat4 model;
+    uint unlit;
 } objectData;
 
 void main() {
@@ -33,7 +34,7 @@ void main() {
     fragColor = inColor;
     fragWorldPosition = worldPosition.xyz;
     fragWorldNormal = normalize(
-        transpose(inverse(mat3(objectData.model))) * inNormal
-    );
+            transpose(inverse(mat3(objectData.model))) * inNormal
+        );
     gl_Position = scene.proj * scene.view * worldPosition;
 }

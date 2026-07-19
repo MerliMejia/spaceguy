@@ -6,6 +6,11 @@ layout(location = 2) in vec3 fragWorldNormal;
 
 layout(location = 0) out vec4 outColor;
 
+layout(push_constant) uniform ObjectPushConstants {
+    mat4 model;
+    uint unlit;
+} objectData;
+
 struct PointLight {
     vec4 position;
     vec4 colorIntensity;
@@ -66,6 +71,11 @@ float pointLightAttenuation(float distanceToLight, float radius) {
 }
 
 void main() {
+    if (objectData.unlit != 0u) {
+        outColor = vec4(fragColor, 1.0);
+        return;
+    }
+
     vec3 V = normalize(
             scene.viewPosition.xyz - fragWorldPosition
         );

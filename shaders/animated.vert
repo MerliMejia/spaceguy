@@ -29,6 +29,7 @@ animationData;
 
 layout(push_constant) uniform AnimatedObjectPushConstants {
     mat4 model;
+    uint unlit;
     uint previousPositionOffset;
     uint nextPositionOffset;
     float interpolation;
@@ -36,7 +37,6 @@ layout(push_constant) uniform AnimatedObjectPushConstants {
 } objectData;
 
 void main() {
-
     uint vertexIndex = uint(gl_VertexIndex);
 
     vec3 previousPos =
@@ -50,8 +50,8 @@ void main() {
     vec4 worldPosition = objectData.model * vec4(pos, 1.0);
     fragWorldPosition = worldPosition.xyz;
     fragWorldNormal = normalize(
-        transpose(inverse(mat3(objectData.model))) * inNormal
-    );
+            transpose(inverse(mat3(objectData.model))) * inNormal
+        );
     gl_Position = scene.proj * scene.view * worldPosition;
     fragColor = inColor;
 }

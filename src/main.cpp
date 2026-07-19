@@ -41,6 +41,32 @@ void cleanup() {
   glfwTerminate();
 }
 
+void positionTextBottomLeft(TransformComponent &transform) {
+  constexpr float distance = 1.0f;
+  constexpr float textScale = 0.15f;
+  constexpr float marginFraction = 0.025f;
+
+  const glm::vec3 worldUp{0.0f, 0.0f, 1.0f};
+  const glm::vec3 forward = glm::normalize(sceneContext.cameraLookAt);
+  const glm::vec3 right = glm::normalize(glm::cross(forward, worldUp));
+  const glm::vec3 up = glm::normalize(glm::cross(right, forward));
+
+  const float aspect = static_cast<float>(vulkanContext.swapchainExtent.width) /
+                       static_cast<float>(vulkanContext.swapchainExtent.height);
+
+  const float halfHeight = distance * glm::tan(sceneContext.cameraFovY * 0.5f);
+
+  const float halfWidth = halfHeight * aspect;
+  const float margin = halfHeight * marginFraction;
+
+  const glm::vec3 position = sceneContext.cameraPosition + forward * distance -
+                             right * (halfWidth - margin) -
+                             up * (halfHeight - margin);
+
+  const glm::quat rotation = glm::quat_cast(glm::mat3{right, up, -forward});
+
+  transform.model = transformToModel(position, rotation, glm::vec3{textScale});
+}
 int main() {
   setupVulkan();
 
@@ -57,10 +83,6 @@ int main() {
   AnimatedMesh wizardAnimatedMesh;
   AnimatedMesh ogreMesh;
   Mesh ogreBladeMesh;
-
-  TextMeshGenerator textGenerator{"assets/fonts/Roboto-Regular.ttf"};
-  Mesh testTextMesh = textGenerator.generateMesh("Hello World IOB8", 4.0f,
-                                                 glm::vec3{1.0f, 1.0f, 1.0f});
 
   {
     sceneContext.cameraPosition = worldData.camera.transform.position;
@@ -213,19 +235,44 @@ int main() {
   sun.color = glm::vec3{1.0f, 1.0f, 1.0f};
   sun.intensity = 0.9f;
 
-  int testTextEntity = createEntity();
-  Renderable &ttRenderable = addRenderable(testTextEntity);
-  ttRenderable.renderKind = ObjectRenderKind::Static;
-  ttRenderable.mesh = &testTextMesh;
+  TextMeshGenerator textGenerator{"assets/fonts/Roboto-Regular.ttf"};
 
-  TransformComponent &tttc = addTransform(testTextEntity);
-  Transform tttt = modelToTransform(tttc.model);
-  tttt.position = glm::vec3{-10.0f, -10.0f, 2.0f};
-  tttc.model = transformToModel(tttt.position, tttt.rotation, tttt.scale);
+  Mesh fpsTextMesh =
+      textGenerator.generateMesh("FPS: 0", 1.0f, glm::vec3{1.0f});
+
+  int fpsTextEntity = createEntity();
+
+  Renderable &fpsRenderable = addRenderable(fpsTextEntity);
+  fpsRenderable.renderKind = ObjectRenderKind::Static;
+  fpsRenderable.mesh = &fpsTextMesh;
+  fpsRenderable.unlit = true;
+
+  TransformComponent &fpsTransform = addTransform(fpsTextEntity);
+
+  float fpsElapsedTime = 0.0f;
+  int frameCounter = 0;
 
   while (!glfwWindowShouldClose(vulkanContext.window)) {
     glfwPollEvents();
     updateTime();
+    fpsElapsedTime += timeState.deltaTime;
+    frameCounter++;
+
+    if (fpsElapsedTime >= 0.25f) {
+      const int fps =
+          static_cast<int>(static_cast<float>(frameCounter) / fpsElapsedTime);
+
+      vulkanContext.device.waitIdle();
+
+      fpsTextMesh = textGenerator.generateMesh("FPS: " + std::to_string(fps),
+                                               0.25f, glm::vec3{1.0f});
+
+      fpsRenderable.mesh = &fpsTextMesh;
+
+      frameCounter = 0;
+      fpsElapsedTime = 0.0f;
+    }
+    positionTextBottomLeft(fpsTransform);
     clearDebugShapes();
     updateLightsSystem();
     updateSpacialGridHash();

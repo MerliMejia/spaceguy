@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #define VULKAN_HPP_NO_CONSTRUCTORS
 #include <vulkan/vulkan_raii.hpp>
 
@@ -37,10 +38,12 @@ static_assert(sizeof(SceneBufferObject) % 16 == 0);
 
 struct ObjectPushConstants {
   glm::mat4 model;
+  uint32_t unlit;
 };
 
 struct AnimatedObjectPushConstants {
   glm::mat4 model;
+  uint32_t unlit;
   uint32_t previousPositionOffset;
   uint32_t nextPositionOffset;
   float interpolation;

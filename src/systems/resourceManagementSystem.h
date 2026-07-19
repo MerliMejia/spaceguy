@@ -14,6 +14,7 @@ struct Renderable {
   const AnimatedMesh *animatedMesh = nullptr;
   const TransformAnimatedMesh *transformAnimatedMesh = nullptr;
   bool visible = true;
+  bool unlit = false;
 };
 
 struct TransformComponent {
