@@ -12,6 +12,7 @@ static std::unordered_map<int, int> entityToTransforms;
 static std::unordered_map<int, int> entityToAnimations;
 static std::unordered_map<int, int> entityToProjectiles;
 static std::unordered_map<int, int> entityToWizardBehaviors;
+static std::unordered_map<int, int> entityToOgreBehaviors;
 static std::unordered_map<int, int> entityToParticleEmitterCpuComponents;
 static std::unordered_map<int, int> entityToAttachmentAnimationComponents;
 static std::unordered_map<int, int> entityToSunLights;
@@ -292,6 +293,23 @@ PointLightComponent *tryGetPointLight(int entity) {
                                               resources.pointLights);
 }
 
+OgreBehaviorComponent &addOgreBehaviorComponent(int entity) {
+  return addComponent<OgreBehaviorComponent>(entity, entityToOgreBehaviors,
+                                             resources.ogreBehaviors,
+                                             "ogre behavior component");
+}
+
+OgreBehaviorComponent &getOgreBehaviorComponent(int entity) {
+  return getComponent<OgreBehaviorComponent>(entity, entityToOgreBehaviors,
+                                             resources.ogreBehaviors,
+                                             "ogre behavior component");
+}
+
+OgreBehaviorComponent *tryGetOgreBehaviorComponent(int entity) {
+  return tryGetComponent<OgreBehaviorComponent>(entity, entityToOgreBehaviors,
+                                                resources.ogreBehaviors);
+}
+
 static void destroyRenderable(int entity) {
   destroyComponent<Renderable>(entity, entityToRenderables,
                                resources.renderables);
@@ -348,6 +366,10 @@ static void destroyAttachmentAnimationComponent(int entity) {
       resources.attachmentAnimationComponents);
 }
 
+static void destroyOgreBahaviorComponent(int entity) {
+  destroyComponent(entity, entityToOgreBehaviors, resources.ogreBehaviors);
+}
+
 void processDestroyQueue() {
   // Destruction can enqueue owned child entities. Indexing remains valid if
   // the vector reallocates while those dependencies are appended.
@@ -365,6 +387,7 @@ void processDestroyQueue() {
     destroySunLight(entity);
     destroyPointLight(entity);
     destroyAttachmentAnimationComponent(entity);
+    destroyOgreBahaviorComponent(entity);
     alive.erase(entity);
   }
 

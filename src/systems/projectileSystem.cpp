@@ -1,5 +1,6 @@
 #include "projectileSystem.h"
 #include "../engine/blender/importer.h"
+#include "../engine/vulkanRenderer.h"
 #include "../utils/generators.h"
 #include "../utils/math.h"
 #include "../utils/time.h"
@@ -7,8 +8,12 @@
 #include "glm/fwd.hpp"
 #include "particleLifeSystem.h"
 #include "resourceManagementSystem.h"
+#include "sceneContext.h"
 #include "spacialGridHashSystem.h"
+#include <iostream>
 #include <unordered_set>
+
+static std::unordered_map<int, float> previousProjectileDepths;
 
 static Mesh wizardProjectileMesh;
 std::unordered_set<int> projectileHits;
@@ -131,7 +136,7 @@ void spawnWizardProjectile(int wizard, glm::vec3 direction, int lightEntity) {
   emitter.speedColorSlow = {1.0f, 0.0f, 0.0f, 1.0f};
   emitter.speedColorFast = {1.0f, 0.0f, 0.0f, 1.0f};
 
-  emitter.particleStartSize = 0.5;
+  emitter.particleStartSize = 0.12;
   emitter.particleEndSize = 0.01;
   emitter.entity = travelEffectEmitterEntity;
 
@@ -155,6 +160,17 @@ void updateProjectiles() {
 
     TransformComponent &tc = getTransform(projectile.entity);
     Transform transform = modelToTransform(tc.model);
+
+    // Exclude if goes outside the camera
+    const glm::vec3 toCamera = transform.position - sceneContext.cameraPosition;
+
+    constexpr float cameraExclusionRadius = 1.0f;
+
+    if (glm::dot(toCamera, toCamera) <
+        cameraExclusionRadius * cameraExclusionRadius) {
+      destroyProjectileWithEffects(projectile.entity);
+      continue;
+    }
 
     transform.position +=
         projectile.direction * projectile.speed * timeState.deltaTime;
@@ -223,12 +239,35 @@ void updateProjectiles() {
                                              glm::vec2{wt.position});
 
           if (distanceSqr <= 1.0f) {
-            const int explosionLight =
-                takeProjectileLight(projectile.entity);
+            const int explosionLight = takeProjectileLight(projectile.entity);
             explodeAtProjectile(explosionLight);
 
             destroyEntity(wizard->shootEffecEntity);
             destroyEntity(closeEntity);
+            destroyProjectileWithEffects(projectile.entity);
+
+            return ExecuteOnNearbyCellsStatus::Done;
+          }
+        }
+      }
+
+      // Ogres
+      if (OgreBehaviorComponent *ogre =
+              tryGetOgreBehaviorComponent(closeEntity)) {
+        if (ogre->entity != projectile.ownerEntity) {
+          TransformComponent &ogreTransform = getTransform(ogre->entity);
+          const Transform &ogreWorld = modelToTransform(ogreTransform.model);
+
+          const float distanceSqr = getDistanceSqr(
+              glm::vec2{transform.position}, glm::vec2{ogreWorld.position});
+
+          if (distanceSqr <= 1.0f) {
+            const int explosionLight = takeProjectileLight(projectile.entity);
+
+            explodeAtProjectile(explosionLight);
+
+            destroyEntity(ogre->entity);
+            destroyEntity(ogre->bladeEntity);
             destroyProjectileWithEffects(projectile.entity);
 
             return ExecuteOnNearbyCellsStatus::Done;
@@ -249,8 +288,7 @@ void updateProjectiles() {
                                              glm::vec2{ot.position});
 
           if (distanceSqr <= 1.0f) {
-            const int explosionLight =
-                takeProjectileLight(projectile.entity);
+            const int explosionLight = takeProjectileLight(projectile.entity);
             const int otherExplosionLight =
                 takeProjectileLight(otherProjectile->entity);
             explodeAtProjectile(explosionLight, otherExplosionLight);

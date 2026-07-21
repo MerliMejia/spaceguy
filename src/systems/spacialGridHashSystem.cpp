@@ -121,6 +121,18 @@ static void buildSpacialGridHash() {
 
     spacialGridContext.grid[cellCoord].push_back(projectile.entity);
   }
+
+  for (OgreBehaviorComponent &ogre : resources.ogreBehaviors) {
+    TransformComponent &ptc = getTransform(ogre.entity);
+    const Transform &pt = modelToTransform(ptc.model);
+    glm::vec2 ogrePosition = glm::vec2{pt.position};
+
+    CellCoord cellCoord =
+        worldToCell(ogrePosition, spacialGridContext.cellWidth,
+                    spacialGridContext.cellHeight);
+
+    spacialGridContext.grid[cellCoord].push_back(ogre.entity);
+  }
 }
 
 void initSpacialGridHash() { spacialGridContext.grid.reserve(256); }

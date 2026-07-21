@@ -37,6 +37,7 @@ add_executable(spaceguy
     src/systems/wizardBehaviorSystem.cpp
     src/systems/spacialGridHashSystem.cpp
     src/systems/particleLifeSystem.cpp
+    src/systems/ogreBehaviorSystem.cpp
 )
 
 target_sources(spaceguy PRIVATE

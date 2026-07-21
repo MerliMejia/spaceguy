@@ -32,10 +32,8 @@ void writeLightsToSceneBuffer(SceneBufferObject &scene) {
   for (uint32_t i = 0; i < pointLightCount; ++i) {
     const PointLightComponent &pointLight = resources.pointLights[i];
     scene.pointLights[i] = PointLightGpu{
-        .position =
-            glm::vec4(getPointLightWorldPosition(pointLight), 1.0f),
-        .colorIntensity =
-            glm::vec4(pointLight.color, pointLight.intensity),
+        .position = glm::vec4(getPointLightWorldPosition(pointLight), 1.0f),
+        .colorIntensity = glm::vec4(pointLight.color, pointLight.intensity),
         .attenuation = glm::vec4(pointLight.attenuation, 0.0f),
     };
   }

@@ -19,6 +19,7 @@
 #include "engine/vulkanRenderer.h"
 #include "systems/animationSystem.h"
 #include "systems/lightsSystem.h"
+#include "systems/ogreBehaviorSystem.h"
 #include "systems/particleLifeSystem.h"
 #include "systems/projectileSystem.h"
 #include "systems/resourceManagementSystem.h"
@@ -222,10 +223,15 @@ int main() {
           addAttachmentAnimationComponent(ogreBladeEntity);
       attachmentComponent.parentEntity = ogreEntity;
       attachmentComponent.attachmentIndex = 0;
+
+      OgreBehaviorComponent &ogreBehavior =
+          addOgreBehaviorComponent(ogreEntity);
+      ogreBehavior.bladeEntity = ogreBladeEntity;
     }
   }
 
   initWizardBehaviors();
+  initOgres();
   initializeProjectiles();
   initSpacialGridHash();
 
@@ -242,12 +248,14 @@ int main() {
 
   int fpsTextEntity = createEntity();
 
-  Renderable &fpsRenderable = addRenderable(fpsTextEntity);
-  fpsRenderable.renderKind = ObjectRenderKind::Static;
-  fpsRenderable.mesh = &fpsTextMesh;
-  fpsRenderable.unlit = true;
+  {
+    Renderable &fpsRenderable = addRenderable(fpsTextEntity);
+    fpsRenderable.renderKind = ObjectRenderKind::Static;
+    fpsRenderable.mesh = &fpsTextMesh;
+    fpsRenderable.unlit = true;
+  }
 
-  TransformComponent &fpsTransform = addTransform(fpsTextEntity);
+  addTransform(fpsTextEntity);
 
   float fpsElapsedTime = 0.0f;
   int frameCounter = 0;
@@ -267,17 +275,18 @@ int main() {
       fpsTextMesh = textGenerator.generateMesh("FPS: " + std::to_string(fps),
                                                0.25f, glm::vec3{1.0f});
 
-      fpsRenderable.mesh = &fpsTextMesh;
+      getRenderable(fpsTextEntity).mesh = &fpsTextMesh;
 
       frameCounter = 0;
       fpsElapsedTime = 0.0f;
     }
-    positionTextBottomLeft(fpsTransform);
+    positionTextBottomLeft(getTransform(fpsTextEntity));
     clearDebugShapes();
     updateLightsSystem();
     updateSpacialGridHash();
     updateProjectiles();
     updateWizardBehaviors();
+    updateOgres();
     updateAnimations();
     drawFrame();
     processDestroyQueue();

@@ -100,21 +100,23 @@ bool positionIsFreeLogic(int entity) {
 
   executeOnNearbyCells(cell, [entity, thisWizard, &isFree](int checkEntity) {
     WizardBehaviorComponent *wizard = tryGetWizardBehavior(checkEntity);
+    OgreBehaviorComponent *ogre = nullptr;
 
     if (wizard == nullptr) {
-      return ExecuteOnNearbyCellsStatus::Running;
-    }
+      ogre = tryGetOgreBehaviorComponent(checkEntity);
 
-    if (wizard->entity == entity) {
-      return ExecuteOnNearbyCellsStatus::Running;
+      if (ogre == nullptr) {
+        return ExecuteOnNearbyCellsStatus::Running;
+      }
     }
 
     // So we don't take thisWizard into account
-    if (wizard->entity == entity) {
+    if (wizard != nullptr && wizard->entity == entity) {
       return ExecuteOnNearbyCellsStatus::Running;
     }
 
-    TransformComponent &t = getTransform(wizard->entity);
+    TransformComponent &t = wizard != nullptr ? getTransform(wizard->entity)
+                                              : getTransform(ogre->entity);
     Transform wt = modelToTransform(t.model);
 
     float distanceToWizardPosition = getDistanceSqr(
@@ -241,27 +243,33 @@ bool hasAvoidanceThreatLogic(int entity) {
   CellCoord cell = worldToCell(wizardPos, spacialGridContext.cellWidth,
                                spacialGridContext.cellHeight);
 
-  executeOnNearbyCells(
-      cell, [entity, wizardPos, &hasThreat, &avoidDir](int checkEntity) {
-        if (WizardBehaviorComponent *otherWizard =
-                tryGetWizardBehavior(checkEntity)) {
-          if (otherWizard->entity != entity) {
-            TransformComponent &otc = getTransform(otherWizard->entity);
-            const Transform &ot = modelToTransform(otc.model);
-            glm::vec2 otherWizardPos = glm::vec2{ot.position};
-            glm::vec2 away = wizardPos - otherWizardPos;
-            float distanceSqr = getDistanceSqr(wizardPos, otherWizardPos);
+  executeOnNearbyCells(cell, [entity, wizardPos, &hasThreat,
+                              &avoidDir](int checkEntity) {
+    WizardBehaviorComponent *otherWizard = tryGetWizardBehavior(checkEntity);
+    OgreBehaviorComponent *ogre = tryGetOgreBehaviorComponent(checkEntity);
 
-            if (distanceSqr <= WIZARD_AVOID_RADIUS * WIZARD_AVOID_RADIUS &&
-                distanceSqr > 0.001f) {
-              avoidDir += glm::normalize(away);
-              hasThreat = true;
-            }
-          }
-        }
-
+    if (otherWizard || ogre) {
+      if (otherWizard && otherWizard->entity == entity) {
         return ExecuteOnNearbyCellsStatus::Running;
-      });
+      }
+
+      TransformComponent &otc = otherWizard != nullptr
+                                    ? getTransform(otherWizard->entity)
+                                    : getTransform(ogre->entity);
+      const Transform &ot = modelToTransform(otc.model);
+      glm::vec2 otherWizardPos = glm::vec2{ot.position};
+      glm::vec2 away = wizardPos - otherWizardPos;
+      float distanceSqr = getDistanceSqr(wizardPos, otherWizardPos);
+
+      if (distanceSqr <= WIZARD_AVOID_RADIUS * WIZARD_AVOID_RADIUS &&
+          distanceSqr > 0.001f) {
+        avoidDir += glm::normalize(away);
+        hasThreat = true;
+      }
+    }
+
+    return ExecuteOnNearbyCellsStatus::Running;
+  });
 
   if (hasThreat && glm::dot(avoidDir, avoidDir) > 0.001f) {
     wizard.evadeDir = glm::normalize(avoidDir);
@@ -332,42 +340,37 @@ bool arrivedNewPositionLogic(int entity) {
 
 DecisionStatus chooseNextAttackEntityLogic(int entity) {
   WizardBehaviorComponent &wizard = getWizardBehavior(entity);
+  std::vector<int> candidates;
+  candidates.reserve(resources.wizardBehaviors.size() +
+                     resources.ogreBehaviors.size());
 
-  int nextWizardToAttackIndex = getRandom(resources.wizardBehaviors.size());
-  WizardBehaviorComponent nextWizardToAttack =
-      resources.wizardBehaviors[nextWizardToAttackIndex];
+  for (const WizardBehaviorComponent &candidate : resources.wizardBehaviors) {
+    if (candidate.entity != entity && isEntityAlive(candidate.entity)) {
+      candidates.push_back(candidate.entity);
+    }
+  }
 
-  if (resources.wizardBehaviors.size() < 2) {
+  for (const OgreBehaviorComponent &candidate : resources.ogreBehaviors) {
+    if (isEntityAlive(candidate.entity)) {
+      candidates.push_back(candidate.entity);
+    }
+  }
+
+  if (candidates.empty()) {
     wizard.nextAttackEntity = -1;
     wizard.state = WizzardState::None;
     return DecisionStatus::Done;
   }
 
-  while (nextWizardToAttack.entity == wizard.entity) {
-    nextWizardToAttackIndex = getRandom(resources.wizardBehaviors.size());
-    nextWizardToAttack = resources.wizardBehaviors[nextWizardToAttackIndex];
-  }
-
-  WizardBehaviorComponent *nextAttack =
-      tryGetWizardBehavior(nextWizardToAttack.entity);
-
-  if (nextAttack == nullptr || !isEntityAlive(nextWizardToAttack.entity)) {
-    wizard.nextAttackEntity = -1;
-    wizard.state = WizzardState::None;
-    return DecisionStatus::Done;
-  }
-
-  wizard.nextAttackEntity = nextAttack->entity;
-
+  wizard.nextAttackEntity = candidates[getRandom(candidates.size())];
   return DecisionStatus::Done;
 }
 
 DecisionStatus attackLogic(int entity) {
   WizardBehaviorComponent &wizard = getWizardBehavior(entity);
-  TransformComponent thisWizardTC = getTransform(entity);
+  TransformComponent &thisWizardTC = getTransform(entity);
 
   if (wizard.state != WizzardState::Attacking) {
-
     if (!spendStamina(wizard, wizard.attackStaminaCost)) {
       wizard.state = WizzardState::Recovering;
       return DecisionStatus::Done;
@@ -375,67 +378,87 @@ DecisionStatus attackLogic(int entity) {
 
     AnimationComponent &animation = getAnimation(entity);
     animation.activeAnimation = WizardAnimationMapping::Attacking;
-    animation.animationTimeSeconds = 0;
+    animation.animationTimeSeconds = 0.0f;
+
     wizard.state = WizzardState::Attacking;
     wizard.attackCounter++;
 
-    int shootEffectEntity = createEntity();
+    wizard.shootEffecEntity = createEntity();
 
-    wizard.shootEffecEntity = shootEffectEntity;
+    Renderable &renderable = addRenderable(wizard.shootEffecEntity);
+    renderable.renderKind = ObjectRenderKind::TransformAnimated;
+    renderable.transformAnimatedMesh = &shootEffectMesh;
+    renderable.visible = true;
 
-    Renderable &r = addRenderable(shootEffectEntity);
-    r.renderKind = ObjectRenderKind::TransformAnimated;
-    r.transformAnimatedMesh = &shootEffectMesh;
-    r.visible = true;
+    TransformComponent &effectTransform = addTransform(wizard.shootEffecEntity);
+    effectTransform.baseModel = thisWizardTC.model;
+    effectTransform.model = thisWizardTC.model;
 
-    TransformComponent &transform = addTransform(shootEffectEntity);
-    transform.baseModel = thisWizardTC.model;
-    transform.model = thisWizardTC.model;
-
-    AnimationComponent &shootEffectAnimation = addAnimation(shootEffectEntity);
-
-    shootEffectAnimation.activeAnimation = 0;
-    shootEffectAnimation.animationTimeSeconds = 0.0f;
-    shootEffectAnimation.animationPlaySpeed = 1.8f;
+    AnimationComponent &effectAnimation = addAnimation(wizard.shootEffecEntity);
+    effectAnimation.activeAnimation = 0;
+    effectAnimation.animationTimeSeconds = 0.0f;
+    effectAnimation.animationPlaySpeed = 1.8f;
 
     wizard.attackLightEntity = createEntity();
+
     PointLightComponent &attackLight = addPointLight(wizard.attackLightEntity);
     attackLight.position = modelToTransform(thisWizardTC.model).position;
     attackLight.color = {1.0f, 0.0f, 0.0f};
     attackLight.intensity = ATTACK_LIGHT_INITIAL_INTENSITY;
-    attackLight.attenuation = glm::vec3{0.01f, 0.01f, 0.01f};
+    attackLight.attenuation = {0.01f, 0.01f, 0.01f};
   }
 
-  TransformComponent &wtc = getTransform(entity);
-  const Transform &wt = modelToTransform(wtc.model);
-  glm::vec2 wtPos = glm::vec2{wt.position};
+  TransformComponent &wizardTransform = getTransform(entity);
+  const Transform &wizardWorld = modelToTransform(wizardTransform.model);
+  const glm::vec2 wizardPosition{wizardWorld.position};
 
-  wizard.attackTime = 0;
+  wizard.attackTime = 0.0f;
 
-  WizardBehaviorComponent *nextAttack =
-      tryGetWizardBehavior(wizard.nextAttackEntity);
+  const int targetEntity = wizard.nextAttackEntity;
 
-  if (nextAttack == nullptr || !isEntityAlive(wizard.nextAttackEntity)) {
+  WizardBehaviorComponent *targetWizard = tryGetWizardBehavior(targetEntity);
+  OgreBehaviorComponent *targetOgre = tryGetOgreBehaviorComponent(targetEntity);
+
+  const bool isValidTarget = isEntityAlive(targetEntity) &&
+                             (targetWizard != nullptr || targetOgre != nullptr);
+
+  if (!isValidTarget) {
     wizard.nextAttackEntity = -1;
-    destroyEntity(wizard.shootEffecEntity);
+
+    if (wizard.shootEffecEntity != -1) {
+      destroyEntity(wizard.shootEffecEntity);
+      wizard.shootEffecEntity = -1;
+    }
+
     if (wizard.attackLightEntity != -1) {
       destroyEntity(wizard.attackLightEntity);
       wizard.attackLightEntity = -1;
     }
+
+    wizard.state = WizzardState::None;
     return DecisionStatus::Done;
   }
 
-  TransformComponent &natc = getTransform(nextAttack->entity);
-  const Transform &nat = modelToTransform(natc.model);
-  glm::vec2 natPos = glm::vec2{nat.position};
-  glm::vec2 aimPos = predictAimPoint(wtPos, natPos, nextAttack->velocity);
-  glm::vec2 targetDir = natPos - wtPos;
-  glm::vec2 aimDir = aimPos - wtPos;
-  float targetDistanceSqr = getDistanceSqr(wtPos, natPos);
-  float aimDistanceSqr = getDistanceSqr(wtPos, aimPos);
+  TransformComponent &targetTransform = getTransform(targetEntity);
+  const Transform &targetWorld = modelToTransform(targetTransform.model);
+  const glm::vec2 targetPosition{targetWorld.position};
+
+  // Ogres currently have no velocity field, so aim at their current position.
+  const glm::vec2 targetVelocity =
+      targetWizard != nullptr ? targetWizard->velocity : glm::vec2{0.0f};
+
+  const glm::vec2 predictedPosition =
+      predictAimPoint(wizardPosition, targetPosition, targetVelocity);
+
+  const glm::vec2 targetDir = targetPosition - wizardPosition;
+  glm::vec2 aimDir = predictedPosition - wizardPosition;
+
+  const float targetDistanceSqr =
+      getDistanceSqr(wizardPosition, targetPosition);
+  float aimDistanceSqr = getDistanceSqr(wizardPosition, predictedPosition);
 
   if (targetDistanceSqr > 0.001f) {
-    faceTowardsDir(wtc.model, glm::normalize(targetDir));
+    faceTowardsDir(wizardTransform.model, glm::normalize(targetDir));
   }
 
   if (aimDistanceSqr <= 0.001f) {
@@ -446,39 +469,51 @@ DecisionStatus attackLogic(int entity) {
   if (PointLightComponent *attackLight =
           tryGetPointLight(wizard.attackLightEntity)) {
     glm::vec3 chargeDirection{0.0f, -1.0f, 0.0f};
+
     if (aimDistanceSqr > 0.001f) {
       const glm::vec2 normalizedAimDir = glm::normalize(aimDir);
-      chargeDirection = glm::vec3{normalizedAimDir.x, normalizedAimDir.y, 0.0f};
+      chargeDirection = {
+          normalizedAimDir.x,
+          normalizedAimDir.y,
+          0.0f,
+      };
     }
 
-    attackLight->position = wt.position + chargeDirection;
+    attackLight->position = wizardWorld.position + chargeDirection;
     attackLight->intensity =
         glm::min(ATTACK_LIGHT_MAX_INTENSITY,
                  attackLight->intensity +
                      ATTACK_LIGHT_GROWTH_PER_SECOND * timeState.deltaTime);
   }
 
-  if (hasActiveAnimationEnded(wizard.shootEffecEntity)) {
-    wizard.state = WizzardState::None;
-    const int projectileLightEntity = wizard.attackLightEntity;
-    wizard.attackLightEntity = -1;
-
-    if (aimDistanceSqr > 0.001f) {
-      glm::vec2 normalizedAimDir = glm::normalize(aimDir);
-      spawnWizardProjectile(
-          entity, glm::vec3{normalizedAimDir.x, normalizedAimDir.y, 0.0f},
-          projectileLightEntity);
-    } else {
-      spawnWizardProjectile(entity, projectileLightEntity);
-    }
-    destroyEntity(wizard.shootEffecEntity);
-
-    return DecisionStatus::Done;
+  if (!hasActiveAnimationEnded(wizard.shootEffecEntity)) {
+    return DecisionStatus::Running;
   }
 
-  return DecisionStatus::Running;
-}
+  wizard.state = WizzardState::None;
 
+  const int projectileLightEntity = wizard.attackLightEntity;
+  wizard.attackLightEntity = -1;
+
+  if (aimDistanceSqr > 0.001f) {
+    const glm::vec2 normalizedAimDir = glm::normalize(aimDir);
+
+    spawnWizardProjectile(entity,
+                          glm::vec3{
+                              normalizedAimDir.x,
+                              normalizedAimDir.y,
+                              0.0f,
+                          },
+                          projectileLightEntity);
+  } else {
+    spawnWizardProjectile(entity, projectileLightEntity);
+  }
+
+  destroyEntity(wizard.shootEffecEntity);
+  wizard.shootEffecEntity = -1;
+
+  return DecisionStatus::Done;
+}
 bool isSomeoneCloseLogic(int entity) {
 
   TransformComponent &wtc = getTransform(entity);
@@ -493,20 +528,25 @@ bool isSomeoneCloseLogic(int entity) {
   executeOnNearbyCells(cell, [entity, &isSomeoneClose,
                               wizardPos](int checkEntity) {
     WizardBehaviorComponent *checkWizard = tryGetWizardBehavior(checkEntity);
+    OgreBehaviorComponent *checkOgre = nullptr;
 
     if (checkWizard == nullptr) {
-      return ExecuteOnNearbyCellsStatus::Running;
+      checkOgre = tryGetOgreBehaviorComponent(checkEntity);
+
+      if (checkOgre == nullptr) {
+        return ExecuteOnNearbyCellsStatus::Running;
+      }
     }
 
-    if (entity == checkWizard->entity) {
-      return ExecuteOnNearbyCellsStatus::Running;
+    if (checkWizard != nullptr) {
+      if (entity == checkWizard->entity) {
+        return ExecuteOnNearbyCellsStatus::Running;
+      }
     }
 
-    if (entity == checkWizard->entity) {
-      return ExecuteOnNearbyCellsStatus::Running;
-    }
-
-    TransformComponent &cwtc = getTransform(checkWizard->entity);
+    TransformComponent &cwtc = checkWizard != nullptr
+                                   ? getTransform(checkWizard->entity)
+                                   : getTransform(checkOgre->entity);
     const Transform &cwt = modelToTransform(cwtc.model);
     glm::vec2 checkWizardPos = glm::vec2{cwt.position};
 

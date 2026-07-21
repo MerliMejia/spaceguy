@@ -76,6 +76,17 @@ struct WizardBehaviorComponent {
   int attackLightEntity = -1;
 };
 
+enum class OgreState {
+  None,
+  Iddle,
+};
+
+struct OgreBehaviorComponent {
+  int entity = -1;
+  OgreState state;
+  int bladeEntity = -1;
+};
+
 struct ParticleEmitterCpuComponent {
   int entity = -1;
   int owner = -1;
@@ -137,6 +148,7 @@ struct Resources {
   std::vector<AnimationComponent> animations;
   std::vector<ProjectileComponent> projectiles;
   std::vector<WizardBehaviorComponent> wizardBehaviors;
+  std::vector<OgreBehaviorComponent> ogreBehaviors;
   std::vector<ParticleEmitterCpuComponent> particleEmitterCpuComponents;
   std::vector<AttachmentAnimationComponent> attachmentAnimationComponents;
   std::vector<SunLightComponent> sunLights;
@@ -185,6 +197,10 @@ SunLightComponent *tryGetSunLight(int entity);
 PointLightComponent &addPointLight(int entity);
 PointLightComponent &getPointLight(int entity);
 PointLightComponent *tryGetPointLight(int entity);
+
+OgreBehaviorComponent &addOgreBehaviorComponent(int entity);
+OgreBehaviorComponent &getOgreBehaviorComponent(int entity);
+OgreBehaviorComponent *tryGetOgreBehaviorComponent(int entity);
 
 void destroyEntity(int entity);
 void processDestroyQueue();
