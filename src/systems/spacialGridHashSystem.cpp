@@ -62,11 +62,11 @@ static void rememberNearbyQueryCell(const CellCoord &cell) {
 
 void executeOnNearbyCells(
     const CellCoord &center,
-    std::function<ExecuteOnNearbyCellsStatus(int)> execute) {
-  for (int y = center.y - 1; y <= center.y + 1; y++) {
+    std::function<ExecuteOnNearbyCellsStatus(int)> execute, int square) {
+  for (int y = center.y - square; y <= center.y + square; y++) {
     bool shouldBreak = false;
 
-    for (int x = center.x - 1; x <= center.x + 1; x++) {
+    for (int x = center.x - square; x <= center.x + square; x++) {
       CellCoord cell{x, y};
 
       if (vulkanRendererContext.isDebug && isCellInBounds(cell)) {

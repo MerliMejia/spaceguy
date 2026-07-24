@@ -4,6 +4,9 @@ AI agents working in this folder must not change, edit, add, delete, move, renam
 
 When asked to make a change in this folder, agents should only explain how the requester can do it themselves. Provide clear guidance, commands, or code snippets as needed, but do not perform the action directly.
 
+By default, do not provide drop-in/copy-paste ready code, explain wha the user needs to do, answer he's questions and only if the user is explicitly
+telling you to provide the drop-in/copy-paste ready code you provide it.
+
 # Vulkan Direction
 
 This project should follow the current Khronos Vulkan Tutorial approach:

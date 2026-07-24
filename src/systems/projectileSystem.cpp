@@ -266,8 +266,9 @@ void updateProjectiles() {
 
             explodeAtProjectile(explosionLight);
 
-            destroyEntity(ogre->entity);
-            destroyEntity(ogre->bladeEntity);
+            // Need to add logic for taking damage instead of immediatly dying
+            // destroyEntity(ogre->entity);
+            // destroyEntity(ogre->bladeEntity);
             destroyProjectileWithEffects(projectile.entity);
 
             return ExecuteOnNearbyCellsStatus::Done;

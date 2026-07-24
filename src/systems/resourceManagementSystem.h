@@ -77,14 +77,16 @@ struct WizardBehaviorComponent {
 };
 
 enum class OgreState {
-  None,
-  Iddle,
+  CheckingSurrounding,
+  InitiatingAttackMode,
+  InAttackMode
 };
 
 struct OgreBehaviorComponent {
   int entity = -1;
-  OgreState state;
+  OgreState state = OgreState::CheckingSurrounding;
   int bladeEntity = -1;
+  int attackingEntity = -1;
 };
 
 struct ParticleEmitterCpuComponent {

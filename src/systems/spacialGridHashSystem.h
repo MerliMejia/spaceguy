@@ -38,7 +38,7 @@ enum class ExecuteOnNearbyCellsStatus { Done, Running };
 
 void executeOnNearbyCells(
     const CellCoord &center,
-    std::function<ExecuteOnNearbyCellsStatus(int)> execute);
+    std::function<ExecuteOnNearbyCellsStatus(int)> execute, int square = 1);
 
 void initSpacialGridHash();
 void updateSpacialGridHash();

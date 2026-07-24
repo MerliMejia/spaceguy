@@ -2,6 +2,7 @@
 #include "../behaviors/decisionTree.h"
 #include "../engine/blender/importer.h"
 #include "../engine/vulkanRenderer.h"
+#include "../utils/behaviors.h"
 #include "../utils/generators.h"
 #include "../utils/math.h"
 #include "../utils/time.h"
@@ -18,7 +19,6 @@
 // Almost the size of floor right now.
 constexpr float MOVING_AREA = 30.0F;
 constexpr float NEXT_POS_RADIUS = 1;
-constexpr float CLOSE_RADIUS = 1;
 constexpr float PROJECTILE_LOOKAHEAD = 14.0f;
 constexpr float PROJECTILE_DANGER_RADIUS = 1.35f;
 constexpr float WIZARD_AVOID_RADIUS = 2.0f;
@@ -514,57 +514,6 @@ DecisionStatus attackLogic(int entity) {
 
   return DecisionStatus::Done;
 }
-bool isSomeoneCloseLogic(int entity) {
-
-  TransformComponent &wtc = getTransform(entity);
-  const Transform &wt = modelToTransform(wtc.model);
-  glm::vec2 wizardPos = glm::vec2{wt.position};
-
-  CellCoord cell = worldToCell(wizardPos, spacialGridContext.cellWidth,
-                               spacialGridContext.cellHeight);
-
-  bool isSomeoneClose = false;
-
-  executeOnNearbyCells(cell, [entity, &isSomeoneClose,
-                              wizardPos](int checkEntity) {
-    WizardBehaviorComponent *checkWizard = tryGetWizardBehavior(checkEntity);
-    OgreBehaviorComponent *checkOgre = nullptr;
-
-    if (checkWizard == nullptr) {
-      checkOgre = tryGetOgreBehaviorComponent(checkEntity);
-
-      if (checkOgre == nullptr) {
-        return ExecuteOnNearbyCellsStatus::Running;
-      }
-    }
-
-    if (checkWizard != nullptr) {
-      if (entity == checkWizard->entity) {
-        return ExecuteOnNearbyCellsStatus::Running;
-      }
-    }
-
-    TransformComponent &cwtc = checkWizard != nullptr
-                                   ? getTransform(checkWizard->entity)
-                                   : getTransform(checkOgre->entity);
-    const Transform &cwt = modelToTransform(cwtc.model);
-    glm::vec2 checkWizardPos = glm::vec2{cwt.position};
-
-    float distance = getDistanceSqr(wizardPos, checkWizardPos);
-
-    constexpr float closeRadius = CLOSE_RADIUS;
-    constexpr float closeRadiusSqr = closeRadius * closeRadius;
-
-    if (distance <= closeRadiusSqr) {
-      isSomeoneClose = true;
-      return ExecuteOnNearbyCellsStatus::Done;
-    }
-
-    return ExecuteOnNearbyCellsStatus::Running;
-  });
-
-  return isSomeoneClose;
-}
 
 bool waitedForNextAttackLogic(int entity) {
   WizardBehaviorComponent &wizard = getWizardBehavior(entity);
@@ -670,7 +619,9 @@ struct WizardDecisionTree {
     attack.next = &isSomeoneClose;
 
     isSomeoneClose.conditions = [wizardEntity]() {
-      return isSomeoneCloseLogic(wizardEntity);
+      return BehaviorUtil::isSomeoneCloseLogic(wizardEntity,
+                                               BehaviorUtil::CheckType::All)
+          .isSomeoneClose;
     };
     isSomeoneClose.no = &waitedForNextAttack;
     isSomeoneClose.yes = &chooseNewPosition;
@@ -844,7 +795,8 @@ static void drawWizardDebug(const WizardBehaviorComponent &wizardBehavior) {
     break;
 
   case WizzardState::Waiting:
-    addDebugDiskXY(wt.position, CLOSE_RADIUS, wizardBehavior.debugColor);
+    addDebugDiskXY(wt.position, BehaviorUtil::CLOSE_RADIUS,
+                   wizardBehavior.debugColor);
     break;
 
   case WizzardState::ChoosingNewPosition:
@@ -863,7 +815,7 @@ static void drawWizardDebug(const WizardBehaviorComponent &wizardBehavior) {
     break;
 
   case WizzardState::Recovering:
-    addDebugDiskXY(wt.position, CLOSE_RADIUS,
+    addDebugDiskXY(wt.position, BehaviorUtil::CLOSE_RADIUS,
                    glm::vec4{1.0f, 0.45f, 0.0f, 1.0f});
     break;
 

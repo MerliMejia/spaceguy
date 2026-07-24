@@ -71,7 +71,7 @@ struct VulkanRendererContext {
   vk::raii::PipelineLayout animatedPipelineLayout = nullptr;
   vk::raii::Pipeline animatedGraphicsPipeline = nullptr;
   // Debug
-  bool isDebug = false;
+  bool isDebug = true;
   vk::raii::PipelineLayout debugPipelineLayout = nullptr;
   vk::raii::Pipeline debugGraphicsPipeline = nullptr;
   std::vector<DebugFrameData> debugFrames;
