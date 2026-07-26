@@ -412,3 +412,40 @@ bool hasActiveAnimationEnded(int entity) {
 
   return false;
 }
+
+bool hasActiveAnimationReachedFrame(int entity, float frame) {
+  const Renderable &renderable = getRenderable(entity);
+  const AnimationComponent &animation = getAnimation(entity);
+
+  if (renderable.renderKind == ObjectRenderKind::Animated) {
+    if (renderable.animatedMesh == nullptr ||
+        renderable.animatedMesh->animations.empty() ||
+        animation.activeAnimation >=
+            renderable.animatedMesh->animations.size()) {
+      return false;
+    }
+
+    const AnimationClipGpu &clip =
+        renderable.animatedMesh->animations[animation.activeAnimation];
+
+    float currentFrame = getCurrentBlenderFrame(animation, renderable, clip);
+    return currentFrame >= frame;
+  }
+
+  if (renderable.renderKind == ObjectRenderKind::TransformAnimated) {
+    if (renderable.transformAnimatedMesh == nullptr ||
+        renderable.transformAnimatedMesh->animations.empty() ||
+        animation.activeAnimation >=
+            renderable.transformAnimatedMesh->animations.size()) {
+      return false;
+    }
+
+    const AnimationClipGpu &clip =
+        renderable.transformAnimatedMesh->animations[animation.activeAnimation];
+
+    float currentFrame = getCurrentBlenderFrame(animation, renderable, clip);
+    return currentFrame >= frame;
+  }
+
+  return false;
+}

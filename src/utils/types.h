@@ -90,7 +90,8 @@ enum OgreAnimationMapping : uint32_t {
   OgreIddle = 1,
   OgreInitAttackMode = 2,
   OgreAttack1 = 3,
-  OgreRunning = 4
+  OgreRunning = 4,
+  OgreFlyingAttack = 5
 };
 
 struct TransformAnimationKeyPoseGPU {

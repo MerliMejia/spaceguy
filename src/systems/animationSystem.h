@@ -22,3 +22,4 @@ void updateAnimations();
 
 AnimationDataFromObject getAnimationDataFromEntity(int entity);
 bool hasActiveAnimationEnded(int entity);
+bool hasActiveAnimationReachedFrame(int entity, float frame);

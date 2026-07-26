@@ -254,25 +254,30 @@ void updateProjectiles() {
       // Ogres
       if (OgreBehaviorComponent *ogre =
               tryGetOgreBehaviorComponent(closeEntity)) {
-        if (ogre->entity != projectile.ownerEntity) {
-          TransformComponent &ogreTransform = getTransform(ogre->entity);
-          const Transform &ogreWorld = modelToTransform(ogreTransform.model);
 
-          const float distanceSqr = getDistanceSqr(
-              glm::vec2{transform.position}, glm::vec2{ogreWorld.position});
+        // If the Ogre is not attacking someone, attack whoever trhew this
+        // projectile.
+        if (ogre->attackingEntity == -1) {
+          ogre->attackingEntity = projectile.ownerEntity;
+        }
 
-          if (distanceSqr <= 1.0f) {
-            const int explosionLight = takeProjectileLight(projectile.entity);
+        TransformComponent &ogreTransform = getTransform(ogre->entity);
+        const Transform &ogreWorld = modelToTransform(ogreTransform.model);
 
-            explodeAtProjectile(explosionLight);
+        const float distanceSqr = getDistanceSqr(glm::vec2{transform.position},
+                                                 glm::vec2{ogreWorld.position});
 
-            // Need to add logic for taking damage instead of immediatly dying
-            // destroyEntity(ogre->entity);
-            // destroyEntity(ogre->bladeEntity);
-            destroyProjectileWithEffects(projectile.entity);
+        if (distanceSqr <= 1.0f) {
+          const int explosionLight = takeProjectileLight(projectile.entity);
 
-            return ExecuteOnNearbyCellsStatus::Done;
-          }
+          explodeAtProjectile(explosionLight);
+
+          // Need to add logic for taking damage instead of immediatly dying
+          // destroyEntity(ogre->entity);
+          // destroyEntity(ogre->bladeEntity);
+          destroyProjectileWithEffects(projectile.entity);
+
+          return ExecuteOnNearbyCellsStatus::Done;
         }
       }
 
