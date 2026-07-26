@@ -828,6 +828,7 @@ static void initWizard(WizardBehaviorComponent &wizardBehavior) {
   WizardDecisionTree &decisionTree = decisionTrees[wizardBehavior.entity];
   TransformComponent &wtc = getTransform(wizardBehavior.entity);
   const Transform &wt = modelToTransform(wtc.model);
+  addGravityComponent(wizardBehavior.entity);
 
   wizardBehavior.previousPosition = glm::vec2{wt.position};
   wizardBehavior.velocity = glm::vec2{0.0f};

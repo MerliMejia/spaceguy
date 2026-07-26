@@ -18,6 +18,7 @@
 #include "engine/vulkanBackend.h"
 #include "engine/vulkanRenderer.h"
 #include "systems/animationSystem.h"
+#include "systems/gravitySystem.h"
 #include "systems/lightsSystem.h"
 #include "systems/ogreBehaviorSystem.h"
 #include "systems/particleLifeSystem.h"
@@ -234,6 +235,7 @@ int main() {
   initOgres();
   initializeProjectiles();
   initSpacialGridHash();
+  initGravities();
 
   int sunEntity = createEntity();
   SunLightComponent &sun = addSunLight(sunEntity);
@@ -285,6 +287,7 @@ int main() {
     updateLightsSystem();
     updateSpacialGridHash();
     updateProjectiles();
+    updateGravities();
     updateWizardBehaviors();
     updateOgres();
     updateAnimations();

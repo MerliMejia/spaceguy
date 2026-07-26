@@ -17,6 +17,7 @@ static std::unordered_map<int, int> entityToParticleEmitterCpuComponents;
 static std::unordered_map<int, int> entityToAttachmentAnimationComponents;
 static std::unordered_map<int, int> entityToSunLights;
 static std::unordered_map<int, int> entityToPointLights;
+static std::unordered_map<int, int> entityToGravities;
 static int nextEntityId = 1;
 
 static std::unordered_set<int> alive;
@@ -310,6 +311,21 @@ OgreBehaviorComponent *tryGetOgreBehaviorComponent(int entity) {
                                                 resources.ogreBehaviors);
 }
 
+GravityComponent &addGravityComponent(int entity) {
+  return addComponent<GravityComponent>(
+      entity, entityToGravities, resources.gravities, "gravity component");
+}
+
+GravityComponent &getGravityComponent(int entity) {
+  return getComponent<GravityComponent>(
+      entity, entityToGravities, resources.gravities, "gravity component");
+}
+
+GravityComponent *tryGetGravityComponent(int entity) {
+  return tryGetComponent<GravityComponent>(entity, entityToGravities,
+                                           resources.gravities);
+}
+
 static void destroyRenderable(int entity) {
   destroyComponent<Renderable>(entity, entityToRenderables,
                                resources.renderables);
@@ -370,6 +386,10 @@ static void destroyOgreBahaviorComponent(int entity) {
   destroyComponent(entity, entityToOgreBehaviors, resources.ogreBehaviors);
 }
 
+static void destroyGravity(int entity) {
+  destroyComponent(entity, entityToGravities, resources.gravities);
+}
+
 void processDestroyQueue() {
   // Destruction can enqueue owned child entities. Indexing remains valid if
   // the vector reallocates while those dependencies are appended.
@@ -388,6 +408,7 @@ void processDestroyQueue() {
     destroyPointLight(entity);
     destroyAttachmentAnimationComponent(entity);
     destroyOgreBahaviorComponent(entity);
+    destroyGravity(entity);
     alive.erase(entity);
   }
 

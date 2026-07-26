@@ -40,6 +40,7 @@ add_executable(spaceguy
     src/systems/ogreBehaviorSystem.cpp
     src/utils/behaviors.cpp
     src/utils/behaviors/ogre.cpp
+    src/systems/gravitySystem.cpp
 )
 
 target_sources(spaceguy PRIVATE

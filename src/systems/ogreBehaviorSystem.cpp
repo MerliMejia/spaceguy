@@ -91,6 +91,7 @@ std::unordered_map<int, OgreDecisionTree> decisionTrees;
 void initOgres() {
   for (OgreBehaviorComponent &ogreBehavior : resources.ogreBehaviors) {
     OgreDecisionTree &decisionTree = decisionTrees[ogreBehavior.entity];
+    addGravityComponent(ogreBehavior.entity);
 
     decisionTree = OgreDecisionTree{};
 

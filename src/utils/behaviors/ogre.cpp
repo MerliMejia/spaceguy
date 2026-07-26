@@ -3,6 +3,8 @@
 #include "../../systems/resourceManagementSystem.h"
 #include "../behaviors.h"
 #include "../math.h"
+#include "glm/ext/vector_float3.hpp"
+#include "glm/geometric.hpp"
 
 constexpr int SQUARES_TO_CHECK = 8;
 constexpr float WAIT_TIME_INIT_MOVE = 1;
@@ -169,13 +171,24 @@ DecisionStatus flyingAttackLogic(int entity) {
     animation.animationTimeSeconds = 0;
   }
 
-  if (hasActiveAnimationReachedFrame(entity, 35)) {
-    // For now let's just kill the target if it's a wizard. Will definetly come
-    // back for an actual health implementation.
+  if (hasActiveAnimationReachedFrame(entity, 25)) {
+    // Send the wizard flying...
     if (WizardBehaviorComponent *wizard =
             tryGetWizardBehavior(behavior.attackingEntity)) {
-      destroyEntity(behavior.attackingEntity);
-      behavior.attackingEntity = -1;
+      // destroyEntity(behavior.attackingEntity);
+      // behavior.attackingEntity = -1;
+
+      GravityComponent &wizzardGravity = getGravityComponent(wizard->entity);
+
+      TransformComponent otc = getTransform(entity);
+      TransformComponent wtc = getTransform(wizard->entity);
+      Transform ot = modelToTransform(otc.model);
+      Transform wt = modelToTransform(wtc.model);
+
+      glm::vec3 delta = wt.position - ot.position;
+      glm::vec3 dir = glm::normalize(delta);
+
+      wizzardGravity.velocity += glm::vec3(dir.x, dir.y, 0.75f);
     }
   }
 

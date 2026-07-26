@@ -148,6 +148,11 @@ struct PointLightComponent {
   float intensity = 1.0f;
 };
 
+struct GravityComponent {
+  int entity = -1;
+  glm::vec3 velocity{0.0f};
+};
+
 struct Resources {
   std::vector<Renderable> renderables;
   std::vector<TransformComponent> transforms;
@@ -159,6 +164,7 @@ struct Resources {
   std::vector<AttachmentAnimationComponent> attachmentAnimationComponents;
   std::vector<SunLightComponent> sunLights;
   std::vector<PointLightComponent> pointLights;
+  std::vector<GravityComponent> gravities;
 };
 
 extern Resources resources;
@@ -207,6 +213,10 @@ PointLightComponent *tryGetPointLight(int entity);
 OgreBehaviorComponent &addOgreBehaviorComponent(int entity);
 OgreBehaviorComponent &getOgreBehaviorComponent(int entity);
 OgreBehaviorComponent *tryGetOgreBehaviorComponent(int entity);
+
+GravityComponent &addGravityComponent(int entity);
+GravityComponent &getGravityComponent(int entity);
+GravityComponent *tryGetGravityComponent(int entity);
 
 void destroyEntity(int entity);
 void processDestroyQueue();
