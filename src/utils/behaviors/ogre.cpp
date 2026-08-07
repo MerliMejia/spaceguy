@@ -188,7 +188,11 @@ DecisionStatus flyingAttackLogic(int entity) {
       glm::vec3 delta = wt.position - ot.position;
       glm::vec3 dir = glm::normalize(delta);
 
-      wizzardGravity.velocity += glm::vec3(dir.x, dir.y, 0.75f);
+      wizzardGravity.velocity +=
+          glm::vec3(dir.x * 75.0f, dir.y * 75.0f, 75.0f) * timeState.deltaTime;
+
+      wizard->gotHitHard = true;
+      wizard->attackerEntity = behavior.entity;
     }
   }
 

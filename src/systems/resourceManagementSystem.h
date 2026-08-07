@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../utils/types.h"
+#include "glm/fwd.hpp"
 #include <vector>
 
 enum class ObjectRenderKind { Static, Animated, TransformAnimated };
@@ -47,7 +48,9 @@ enum class WizzardState {
   Attacking,
   Waiting,
   Evading,
-  Recovering
+  Recovering,
+  Flying,
+  OnTheFloor
 };
 
 struct WizardBehaviorComponent {
@@ -63,6 +66,7 @@ struct WizardBehaviorComponent {
   float moveStaminaPerSecond = 0.18f;
   float evadeStaminaCost = 0.28f;
   float attackStaminaCost = 0.32f;
+  glm::vec3 initialPos = glm::vec3{0.0f};
 
   glm::vec2 evadeDir{0.0f};
   glm::vec2 previousPosition{0.0f};
@@ -70,10 +74,14 @@ struct WizardBehaviorComponent {
 
   int nextAttackEntity = -1;
   float attackTime = 0;
+  float toBeDestroyedTime = 0;
 
   int attackCounter = 0;
   int shootEffecEntity = -1;
   int attackLightEntity = -1;
+
+  bool gotHitHard = false;
+  int attackerEntity = -1;
 };
 
 enum class OgreState {

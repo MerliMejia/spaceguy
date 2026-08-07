@@ -15,6 +15,8 @@
 #include "spacialGridHashSystem.h"
 #include "unordered_map"
 #include <cmath>
+#include <iostream>
+#include <string>
 
 // Almost the size of floor right now.
 constexpr float MOVING_AREA = 30.0F;
@@ -30,6 +32,7 @@ constexpr float MIN_MOVE_STAMINA = 0.08f;
 constexpr float WIZARD_PROJECTILE_SPEED = 20.0f;
 constexpr float WIZARD_RUN_ANIMATION_SPEED = 1.0f;
 constexpr float AIM_VELOCITY_SMOOTHING = 0.25f;
+constexpr float TIME_TO_BE_DESTROYED = 3.0f;
 
 static TransformAnimatedMesh shootEffectMesh{};
 static BlenderTransformModel shootModel{};
@@ -530,11 +533,78 @@ bool waitedForNextAttackLogic(int entity) {
   return wizard.attackTime >= 0.5 && wizard.stamina >= wizard.maxStamina;
 }
 
+bool checkGotHitHardLogic(int entity) {
+  WizardBehaviorComponent &wizard = getWizardBehavior(entity);
+  return wizard.gotHitHard;
+}
+
+DecisionStatus checkIfIsFlyingLogic(int entity) {
+  WizardBehaviorComponent &wizard = getWizardBehavior(entity);
+  TransformComponent &tc = getTransform(entity);
+  Transform transform = modelToTransform(tc.model);
+
+  float delta = transform.position.z - wizard.initialPos.z;
+  AnimationComponent &animation = getAnimation(entity);
+
+  if (delta > 0.1) {
+
+    TransformComponent &attackerTransformComponent =
+        getTransform(wizard.attackerEntity);
+    Transform attackerTransform =
+        modelToTransform(attackerTransformComponent.model);
+
+    glm::vec3 deltaPos = attackerTransform.position - transform.position;
+    glm::vec3 dir = glm::normalize(deltaPos);
+
+    faceTowardsDir(tc.model, dir);
+
+    animation.activeAnimation = WizardAnimationMapping::WizardFlyingHit;
+    WizardBehaviorComponent &wizard = getWizardBehavior(entity);
+    wizard.gotHitHard = false;
+    return DecisionStatus::Done;
+  }
+
+  return DecisionStatus::Running;
+}
+
+DecisionStatus checkIfOnTheFloorLogic(int entity) {
+  WizardBehaviorComponent &wizard = getWizardBehavior(entity);
+  TransformComponent &tc = getTransform(entity);
+  Transform transform = modelToTransform(tc.model);
+
+  float delta = transform.position.z - wizard.initialPos.z;
+  AnimationComponent &animation = getAnimation(entity);
+
+  if (delta <= 0) {
+    animation.activeAnimation = WizardAnimationMapping::WizardGotInFloorFromHit;
+    return DecisionStatus::Done;
+  }
+
+  return DecisionStatus::Running;
+}
+
+DecisionStatus waitToBeDestroyedLogic(int entity) {
+  WizardBehaviorComponent &wizard = getWizardBehavior(entity);
+
+  wizard.toBeDestroyedTime += timeState.deltaTime;
+
+  if (wizard.toBeDestroyedTime < TIME_TO_BE_DESTROYED) {
+    return DecisionStatus::Running;
+  }
+
+  destroyEntity(wizard.entity);
+  return DecisionStatus::Done;
+}
+
 struct WizardDecisionTree {
   int entity = -1;
 
   DecisionTreeRunner runner;
 
+  DecisionNode gotHitHard{};
+  DecisionNode checkIfFlying{};
+  DecisionNode checkIfOnTheFloor{};
+  DecisionNode waitToBeDestroyed{};
   DecisionNode incrementAttackTimer{};
   DecisionNode attacked2Times{};
   DecisionNode waitedForNextAttack{};
@@ -554,6 +624,33 @@ struct WizardDecisionTree {
 
   void init(int wizardEntity) {
     entity = wizardEntity;
+
+    gotHitHard.conditions = [wizardEntity]() {
+      return checkGotHitHardLogic(wizardEntity);
+    };
+
+    gotHitHard.yes = &checkIfFlying;
+
+    checkIfFlying.execute = [wizardEntity]() {
+      return checkIfIsFlyingLogic(wizardEntity);
+    };
+
+    checkIfFlying.next = &checkIfOnTheFloor;
+
+    checkIfOnTheFloor.execute = [wizardEntity]() {
+      return checkIfOnTheFloorLogic(wizardEntity);
+    };
+
+    checkIfOnTheFloor.next = &waitToBeDestroyed;
+
+    waitToBeDestroyed.execute = [wizardEntity]() {
+      return waitToBeDestroyedLogic(wizardEntity);
+    };
+
+    gotHitHard.no = &chooseNewPosition;
+
+    runner.inBetween = &gotHitHard;
+
     chooseNewPosition.next = &positionIsFree;
     chooseNewPosition.execute = [wizardEntity]() {
       return choosNewPositionLogic(wizardEntity);
@@ -830,6 +927,7 @@ static void initWizard(WizardBehaviorComponent &wizardBehavior) {
   const Transform &wt = modelToTransform(wtc.model);
   addGravityComponent(wizardBehavior.entity);
 
+  wizardBehavior.initialPos = wt.position; // To know where the floor is
   wizardBehavior.previousPosition = glm::vec2{wt.position};
   wizardBehavior.velocity = glm::vec2{0.0f};
 
@@ -885,6 +983,13 @@ void updateWizardBehaviors() {
 
     if (vulkanRendererContext.isDebug) {
       drawWizardDebug(wizardBehavior);
+    }
+
+    if (vulkanRendererContext.isDebug) {
+      glm::vec4 color = wizardBehavior.gotHitHard ? glm::vec4{1, 0, 0, 1}
+                                                  : glm::vec4{0, 0, 1, 1};
+      addDebugLine(wt.position, glm::vec3{wt.position.x, wt.position.y, 100},
+                   color);
     }
 
     if (wizardBehavior.shootEffecEntity != -1 &&

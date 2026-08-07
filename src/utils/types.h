@@ -83,6 +83,8 @@ enum WizardAnimationMapping : uint32_t {
   Kicking = 2,
   Running = 3,
   WizardBeingAttacked = 4,
+  WizardFlyingHit = 5,
+  WizardGotInFloorFromHit = 6
 };
 
 enum OgreAnimationMapping : uint32_t {

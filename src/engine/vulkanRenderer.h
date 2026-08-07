@@ -16,7 +16,7 @@
 #include "vulkanGlobals.h"
 
 struct RendererConfig {
-  float renderScale = 0.5f;
+  float renderScale = 0.50f;
   vk::SampleCountFlagBits preferredMsaaSamples = vk::SampleCountFlagBits::e1;
   vk::Filter upscaleFilter = vk::Filter::eNearest;
   // Same color as the water

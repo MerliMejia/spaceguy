@@ -16,6 +16,7 @@ struct DecisionNode {
 struct DecisionTreeRunner {
   DecisionNode *root = nullptr;
   DecisionNode *current = nullptr;
+  DecisionNode *inBetween = nullptr;
 
   void reset(DecisionNode *node) {
     root = node;
@@ -30,6 +31,13 @@ struct DecisionTreeRunner {
     DecisionNode *node = current;
     if (node == nullptr) {
       return;
+    }
+
+    if (inBetween) {
+      bool isYes = inBetween->conditions();
+      if (isYes) {
+        node = inBetween->yes;
+      }
     }
 
     if (node->execute) {
