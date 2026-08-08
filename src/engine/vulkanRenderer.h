@@ -108,6 +108,10 @@ struct VulkanRendererContext {
   vk::raii::Buffer animationPositionsBuffer = nullptr;
   vk::raii::DeviceMemory animationPositionsMemory = nullptr;
   uint32_t animationPositionCount = 0;
+
+  vk::raii::Buffer animationNormalsBuffer = nullptr;
+  vk::raii::DeviceMemory animationNormalsMemory = nullptr;
+  uint32_t animationNormalCount = 0;
 };
 
 extern VulkanRendererContext vulkanRendererContext;
@@ -117,6 +121,7 @@ void setupRendererAfterAssetsLoaded();
 void drawFrame();
 
 void uploadAnimationPositions(const std::vector<glm::vec4> &positions);
+void uploadAnimationNormals(const std::vector<glm::vec4> &normals);
 
 void clearDebugShapes();
 void addDebugDiskXY(glm::vec3 center, float radius, glm::vec4 color);

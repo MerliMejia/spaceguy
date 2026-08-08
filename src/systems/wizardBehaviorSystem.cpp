@@ -577,6 +577,10 @@ DecisionStatus checkIfOnTheFloorLogic(int entity) {
 
   if (delta <= 0) {
     animation.activeAnimation = WizardAnimationMapping::WizardGotInFloorFromHit;
+    // Could be other entity?
+    OgreBehaviorComponent &ogre =
+        getOgreBehaviorComponent(wizard.attackerEntity);
+    ogre.attackingEntity = -1;
     return DecisionStatus::Done;
   }
 

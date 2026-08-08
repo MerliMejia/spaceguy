@@ -47,6 +47,13 @@ bool isAlreadyInAttackMode(int entity) {
 
   if (behavior.attackingEntity != -1) {
     if (isEntityAlive(behavior.attackingEntity)) {
+      // Could be other entity that is not a wizard?
+      WizardBehaviorComponent &wizard =
+          getWizardBehavior(behavior.attackingEntity);
+      if (wizard.gotHitHard) {
+        return false;
+      }
+
       return true;
     } else {
       behavior.attackingEntity = -1;

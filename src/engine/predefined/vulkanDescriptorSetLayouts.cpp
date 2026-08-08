@@ -107,7 +107,7 @@ void DEFAULT_DESCRIPTOR_POOL(vk::raii::DescriptorPool &descriptorPool,
 void ANIMATED_DESCRIPTOR_SET_LAYOUT(
     vk::raii::DescriptorSetLayout &descriptorSetLayout,
     vk::raii::Device &device) {
-  std::array<vk::DescriptorSetLayoutBinding, 2> bindings{
+  std::array<vk::DescriptorSetLayoutBinding, 3> bindings{
       vk::DescriptorSetLayoutBinding{
           .binding = 0,
           .descriptorType = vk::DescriptorType::eUniformBuffer,
@@ -118,6 +118,13 @@ void ANIMATED_DESCRIPTOR_SET_LAYOUT(
       },
       vk::DescriptorSetLayoutBinding{
           .binding = 1,
+          .descriptorType = vk::DescriptorType::eStorageBuffer,
+          .descriptorCount = 1,
+          .stageFlags = vk::ShaderStageFlagBits::eVertex,
+          .pImmutableSamplers = nullptr,
+      },
+      vk::DescriptorSetLayoutBinding{
+          .binding = 2,
           .descriptorType = vk::DescriptorType::eStorageBuffer,
           .descriptorCount = 1,
           .stageFlags = vk::ShaderStageFlagBits::eVertex,
@@ -141,7 +148,7 @@ void ANIMATED_DESCRIPTOR_POOL(vk::raii::DescriptorPool &descriptorPool,
       },
       vk::DescriptorPoolSize{
           .type = vk::DescriptorType::eStorageBuffer,
-          .descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+          .descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2),
       },
   };
 

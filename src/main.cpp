@@ -133,6 +133,7 @@ int main() {
     addTransform(waterEntity);
 
     std::vector<glm::vec4> animationPositions;
+    std::vector<glm::vec4> animationNormals;
 
     BlenderModel wizardModel = loadModel("assets/Wizzard_4.3d");
     BlenderModel ogreModel = loadModel("assets/Ogre.3d");
@@ -148,8 +149,9 @@ int main() {
       for (const AnimationKeyPose &keyPoses : clip.keyPoses) {
         wizardAnimationPositionCount +=
             static_cast<uint32_t>(keyPoses.positions.size());
-        for (const glm::vec3 &pos : keyPoses.positions) {
-          animationPositions.push_back(glm::vec4(pos, 1.0f));
+        for (std::size_t i = 0; i < keyPoses.positions.size(); ++i) {
+          animationPositions.emplace_back(keyPoses.positions[i], 1.0f);
+          animationNormals.emplace_back(keyPoses.normals[i], 0.0f);
         }
       }
     }
@@ -160,13 +162,20 @@ int main() {
       }
 
       for (const AnimationKeyPose &keyPoses : clip.keyPoses) {
-        for (const glm::vec3 &pos : keyPoses.positions) {
-          animationPositions.push_back(glm::vec4(pos, 1.0f));
+        for (std::size_t i = 0; i < keyPoses.positions.size(); ++i) {
+          animationPositions.emplace_back(keyPoses.positions[i], 1.0f);
+          animationNormals.emplace_back(keyPoses.normals[i], 0.0f);
         }
       }
     }
 
+    if (animationPositions.size() != animationNormals.size()) {
+      throw std::runtime_error(
+          "Animation position and normal counts do not match");
+    }
+
     uploadAnimationPositions(animationPositions);
+    uploadAnimationNormals(animationNormals);
 
     setupRendererAfterAssetsLoaded();
 
@@ -239,7 +248,7 @@ int main() {
 
   int sunEntity = createEntity();
   SunLightComponent &sun = addSunLight(sunEntity);
-  sun.direction = glm::normalize(glm::vec3{0.0f, 0.0f, 1.0f});
+  sun.direction = glm::normalize(glm::vec3{-0.6f, 0.4f, -1.0f});
   sun.color = glm::vec3{1.0f, 1.0f, 1.0f};
   sun.intensity = 0.9f;
 

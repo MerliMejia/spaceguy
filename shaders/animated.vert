@@ -27,6 +27,10 @@ layout(std430, binding = 1) readonly buffer AnimationPositions {
 }
 animationData;
 
+layout(std430, binding = 2) readonly buffer AnimationNormals {
+    vec4 normals[];
+} animationNormalData;
+
 layout(push_constant) uniform AnimatedObjectPushConstants {
     mat4 model;
     uint unlit;
@@ -47,10 +51,24 @@ void main() {
 
     vec3 pos = mix(previousPos, nextPos, objectData.interpolation);
 
+    vec3 previousNormal =
+        animationNormalData
+        .normals[objectData.previousPositionOffset + vertexIndex]
+        .xyz;
+
+    vec3 nextNormal =
+        animationNormalData
+        .normals[objectData.nextPositionOffset + vertexIndex]
+        .xyz;
+
+    vec3 animatedNormal = normalize(
+            mix(previousNormal, nextNormal, objectData.interpolation)
+        );
+
     vec4 worldPosition = objectData.model * vec4(pos, 1.0);
     fragWorldPosition = worldPosition.xyz;
     fragWorldNormal = normalize(
-            transpose(inverse(mat3(objectData.model))) * inNormal
+            transpose(inverse(mat3(objectData.model))) * animatedNormal
         );
     gl_Position = scene.proj * scene.view * worldPosition;
     fragColor = inColor;

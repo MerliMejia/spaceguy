@@ -44,10 +44,6 @@ float toonDiffuse(float ndotl) {
 void main() {
     vec3 N = normalize(fragWorldNormal);
 
-    if (!gl_FrontFacing) {
-        N = -N;
-    }
-
     float skyFactor = clamp(
             -N.z * 0.5 + 0.5,
             0.0,

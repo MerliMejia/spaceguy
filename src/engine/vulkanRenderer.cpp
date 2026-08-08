@@ -240,7 +240,13 @@ void createAnimatedDescriptorSets() {
         .offset = 0,
         .range = VK_WHOLE_SIZE};
 
-    std::array<vk::WriteDescriptorSet, 2> descriptorWrites{
+    vk::DescriptorBufferInfo animationNormalsBufferInfo{
+        .buffer = *vulkanRendererContext.animationNormalsBuffer,
+        .offset = 0,
+        .range = VK_WHOLE_SIZE,
+    };
+
+    std::array<vk::WriteDescriptorSet, 3> descriptorWrites{
         vk::WriteDescriptorSet{
             .dstSet = *vulkanRendererContext.animatedDescriptorSets[i],
             .dstBinding = 0,
@@ -252,7 +258,15 @@ void createAnimatedDescriptorSets() {
             .dstBinding = 1,
             .descriptorCount = 1,
             .descriptorType = vk::DescriptorType::eStorageBuffer,
-            .pBufferInfo = &animationBufferInfo}};
+            .pBufferInfo = &animationBufferInfo},
+        vk::WriteDescriptorSet{
+            .dstSet = *vulkanRendererContext.animatedDescriptorSets[i],
+            .dstBinding = 2,
+            .descriptorCount = 1,
+            .descriptorType = vk::DescriptorType::eStorageBuffer,
+            .pBufferInfo = &animationNormalsBufferInfo,
+        },
+    };
 
     vulkanContext.device.updateDescriptorSets(descriptorWrites, nullptr);
   }
@@ -1626,4 +1640,22 @@ void uploadAnimationPositions(const std::vector<glm::vec4> &positions) {
   vulkanRendererContext.animationPositionsMemory = std::move(buffer.memory);
   vulkanRendererContext.animationPositionCount =
       static_cast<uint32_t>(positions.size());
+}
+
+void uploadAnimationNormals(const std::vector<glm::vec4> &normals) {
+  vk::DeviceSize bufferSize = sizeof(glm::vec4) * normals.size();
+
+  BufferWithMemory buffer =
+      createBuffer(bufferSize, vk::BufferUsageFlagBits::eStorageBuffer,
+                   vk::MemoryPropertyFlagBits::eHostVisible |
+                       vk::MemoryPropertyFlagBits::eHostCoherent);
+
+  void *data = buffer.memory.mapMemory(0, bufferSize);
+  memcpy(data, normals.data(), static_cast<size_t>(bufferSize));
+  buffer.memory.unmapMemory();
+
+  vulkanRendererContext.animationNormalsBuffer = std::move(buffer.buffer);
+  vulkanRendererContext.animationNormalsMemory = std::move(buffer.memory);
+  vulkanRendererContext.animationNormalCount =
+      static_cast<uint32_t>(normals.size());
 }

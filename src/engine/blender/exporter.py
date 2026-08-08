@@ -74,7 +74,9 @@ def collect_export_geometry(eval_obj, eval_mesh):
                 vertex_map[key] = export_index
 
                 pos = eval_mesh.vertices[source_vertex_index].co.copy()
-                export_vertices.append((source_vertex_index, pos, color, normal))
+                export_vertices.append(
+                    (source_vertex_index, loop_index, pos, color, normal)
+                )
 
             tri_indices.append(vertex_map[key])
 
@@ -386,7 +388,7 @@ class TokenReader:
         return int(self.next())
 
 
-def skip_vertex_clip(reader, vertex_count):
+def skip_vertex_clip(reader, vertex_count, version):
     reader.expect("loop")
     reader.next()
     reader.expect("start_frame")
@@ -395,11 +397,12 @@ def skip_vertex_clip(reader, vertex_count):
     reader.next()
     reader.expect("key_pose_count")
     key_pose_count = reader.read_int()
+    values_per_vertex = 6 if version >= 6 else 3
 
     for _pose in range(key_pose_count):
         reader.expect("key_pose")
         reader.next()
-        for _value in range(vertex_count * 3):
+        for _ in range(vertex_count * values_per_vertex):
             reader.next()
 
 
@@ -478,7 +481,7 @@ def read_existing_animation_manifest(filepath):
     elif magic == "spaceguy_3d_transform" and version in (1, 2):
         default_kind = "transform"
         unified = False
-    elif magic == "spaceguy_3d" and version in (3, 4, 5):
+    elif magic == "spaceguy_3d" and version in (3, 4, 5, 6):
         default_kind = None
         unified = True
     else:
@@ -521,7 +524,7 @@ def read_existing_animation_manifest(filepath):
         manifest.append({"name": name, "kind": kind})
 
         if kind == "vertex":
-            skip_vertex_clip(reader, vertex_count)
+            skip_vertex_clip(reader, vertex_count, version)
             if version >= 4:
                 skip_attachments(reader)
         elif kind == "transform":
@@ -771,7 +774,9 @@ def write_attachment_sample(file, sample):
     write_vec3(file, sample["scale"])
 
 
-def write_vertex_clip(file, clip, obj, export_vertices, source_vertex_count, scene):
+def write_vertex_clip(
+    file, clip, obj, export_vertices, source_vertex_count, scene, source_loop_count
+):
     action = clip["action"]
     owner = clip["owner"]
     key_pose_frames = get_action_key_pose_frames(action, "vertex")
@@ -808,10 +813,29 @@ def write_vertex_clip(file, clip, obj, export_vertices, source_vertex_count, sce
                     f"{source_vertex_count}. Animated topology is not supported."
                 )
 
+            if len(eval_mesh.loops) != source_loop_count:
+                raise RuntimeError(
+                    f"Animation {action.name}, key pose frame {frame} changed "
+                    "the mesh corner topology."
+                )
+
             file.write(f"\nkey_pose {frame}\n")
-            for source_vertex_index, _base_pos, _color, _normal in export_vertices:
+            for (
+                source_vertex_index,
+                loop_index,
+                _base_pos,
+                _color,
+                _base_normal,
+            ) in export_vertices:
                 vertex = eval_mesh.vertices[source_vertex_index]
+
+                try:
+                    normal = eval_mesh.corner_normals[loop_index].vector.copy()
+                except AttributeError:
+                    normal = eval_mesh.loops[loop_index].normal.copy()
+
                 write_vec3(file, vertex.co)
+                write_vec3(file, normal)
         finally:
             eval_obj.to_mesh_clear()
 
@@ -898,6 +922,7 @@ def export_spaceguy_3d(filepath, obj=None):
 
     eval_obj = obj.evaluated_get(depsgraph)
     eval_mesh = eval_obj.to_mesh()
+    source_loop_count = len(eval_mesh.loops)
 
     source_vertex_count = len(eval_mesh.vertices)
     export_vertices, export_indices = collect_export_geometry(eval_obj, eval_mesh)
@@ -916,7 +941,7 @@ def export_spaceguy_3d(filepath, obj=None):
     state = capture_scene_state(scene, owners)
 
     with filepath.open("w", encoding="utf-8") as file:
-        file.write("spaceguy_3d 5\n")
+        file.write("spaceguy_3d 6\n")
         file.write(f"object_name {safe_filename(obj.name)}\n")
         file.write(f"fps {fps:.6f}\n")
         file.write(f"vertex_count {len(export_vertices)}\n")
@@ -926,7 +951,7 @@ def export_spaceguy_3d(filepath, obj=None):
 
         file.write("vertices\n")
         file.write("# x y z r g b nx ny nz\n")
-        for _source_vertex_index, pos, color, normal in export_vertices:
+        for _source_vertex_index, _loop_index, pos, color, normal in export_vertices:
             r, g, b = color
             file.write(
                 f"{pos.x:.9f} {pos.y:.9f} {pos.z:.9f} "
@@ -947,7 +972,13 @@ def export_spaceguy_3d(filepath, obj=None):
             for clip in clips:
                 if clip["kind"] == "vertex":
                     write_vertex_clip(
-                        file, clip, obj, export_vertices, source_vertex_count, scene
+                        file,
+                        clip,
+                        obj,
+                        export_vertices,
+                        source_vertex_count,
+                        scene,
+                        source_loop_count,
                     )
                 elif clip["kind"] == "transform":
                     write_transform_clip(file, clip, obj, scene)

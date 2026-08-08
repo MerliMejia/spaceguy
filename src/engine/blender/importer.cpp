@@ -109,17 +109,27 @@ static void readClipHeader(AnimationClip &clip) {
 }
 
 static void readVertexKeyPoses(AnimationClip &clip, std::size_t vertexCount,
-                               std::size_t frameCount) {
+                               std::size_t frameCount,
+                               bool hasAnimatedNormals) {
   clip.keyPoses.resize(frameCount);
 
-  for (auto &keyPose : clip.keyPoses) {
+  for (AnimationKeyPose &keyPose : clip.keyPoses) {
     expect("key_pose");
     keyPose.blenderFrame = readInt();
 
     keyPose.positions.resize(vertexCount);
 
-    for (auto &pos : keyPose.positions) {
-      pos = readVec3();
+    if (hasAnimatedNormals) {
+      keyPose.normals.resize(vertexCount);
+    }
+
+    for (std::size_t vertexIndex = 0; vertexIndex < vertexCount;
+         ++vertexIndex) {
+      keyPose.positions[vertexIndex] = readVec3();
+
+      if (hasAnimatedNormals) {
+        keyPose.normals[vertexIndex] = readVec3();
+      }
     }
   }
 }
@@ -200,7 +210,8 @@ static BlenderModel loadAnyModel(const std::string &path) {
   const int version = readInt();
   const bool isLegacyVertex = magic == "spaceguy_3d" && version == 2;
   const bool isUnified =
-      magic == "spaceguy_3d" && (version >= 3 && version <= 5);
+      magic == "spaceguy_3d" && (version >= 3 && version <= 6);
+  const bool hasAnimatedNormals = magic == "spaceguy_3d" && version >= 6;
   const bool hasAttachments = magic == "spaceguy_3d" && version >= 4;
   const bool hasNormals = magic == "spaceguy_3d" && version >= 5;
   const bool isLegacyTransform =
@@ -296,7 +307,7 @@ static BlenderModel loadAnyModel(const std::string &path) {
     const std::size_t frameCount = readSize();
 
     if (clip.kind == AnimationKind::Vertex) {
-      readVertexKeyPoses(clip, vertexCount, frameCount);
+      readVertexKeyPoses(clip, vertexCount, frameCount, hasAnimatedNormals);
       if (hasAttachments) {
         readAttachments(clip);
       }
