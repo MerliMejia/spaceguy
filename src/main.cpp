@@ -21,7 +21,8 @@ private:
 
   void initVulkan() {
     vInstance.create();
-    vDevice.pickAndCreate(vInstance.handler);
+    window.createSurface(vInstance.handler);
+    vDevice.pickAndCreate(vInstance.handler, window.surface);
   }
 
   void mainLoop() {

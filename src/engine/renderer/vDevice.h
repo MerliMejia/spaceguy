@@ -70,43 +70,49 @@ void pickPhysicalDevice(const vk::raii::Instance &instance,
 
 void createLogicalDevice(vk::raii::PhysicalDevice &physicalDevice,
                          vk::raii::Device &device,
-                         vk::raii::Queue &graphicsQueue) {
+                         vk::raii::Queue &graphicsQueue,
+                         vk::raii::SurfaceKHR &surface) {
+  // find the index of the first queue family that supports graphics
   std::vector<vk::QueueFamilyProperties> queueFamilyProperties =
       physicalDevice.getQueueFamilyProperties();
 
-  auto graphicsQueueFamilyProperty =
-      std::ranges::find_if(queueFamilyProperties, [](auto const &qfp) {
-        return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) !=
-               static_cast<vk::QueueFlags>(0);
-      });
+  // get the first index into queueFamilyProperties which supports both graphics
+  // and present
+  uint32_t queueIndex = ~0;
+  for (uint32_t qfpIndex = 0; qfpIndex < queueFamilyProperties.size();
+       qfpIndex++) {
+    if ((queueFamilyProperties[qfpIndex].queueFlags &
+         vk::QueueFlagBits::eGraphics) &&
+        physicalDevice.getSurfaceSupportKHR(qfpIndex, *surface)) {
+      // found a queue family that supports both graphics and present
+      queueIndex = qfpIndex;
+      break;
+    }
+  }
+  if (queueIndex == ~0) {
+    throw std::runtime_error(
+        "Could not find a queue for graphics and present -> terminating");
+  }
 
-  auto graphicsIndex = static_cast<uint32_t>(std::distance(
-      queueFamilyProperties.begin(), graphicsQueueFamilyProperty));
-
-  float queuePriority = 0.5f;
-  vk::DeviceQueueCreateInfo deviceQueueCreateInfo{
-      .queueFamilyIndex = graphicsIndex,
-      .queueCount = 1,
-      .pQueuePriorities = &queuePriority};
-
-  // Create a chain of feature structures
+  // query for Vulkan 1.3 features
   vk::StructureChain<vk::PhysicalDeviceFeatures2,
                      vk::PhysicalDeviceVulkan11Features,
                      vk::PhysicalDeviceVulkan13Features,
                      vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>
       featureChain = {
-          {}, // vk::PhysicalDeviceFeatures2 (empty for now)
-          {.shaderDrawParameters =
-               true}, // Enable shader draw parameters from Vulkan 1.1
-          {.dynamicRendering =
-               true}, // Enable dynamic rendering from Vulkan 1.3
+          {},                             // vk::PhysicalDeviceFeatures2
+          {.shaderDrawParameters = true}, // vk::PhysicalDeviceVulkan11Features
+          {.dynamicRendering = true},     // vk::PhysicalDeviceVulkan13Features
           {.extendedDynamicState =
-               true} // Enable extended dynamic state from the extension
+               true} // vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT
       };
 
-  std::vector<const char *> requiredDeviceExtension = {
-      vk::KHRSwapchainExtensionName};
-
+  // create a Device
+  float queuePriority = 0.5f;
+  vk::DeviceQueueCreateInfo deviceQueueCreateInfo{
+      .queueFamilyIndex = queueIndex,
+      .queueCount = 1,
+      .pQueuePriorities = &queuePriority};
   vk::DeviceCreateInfo deviceCreateInfo{
       .pNext = &featureChain.get<vk::PhysicalDeviceFeatures2>(),
       .queueCreateInfoCount = 1,
@@ -116,7 +122,7 @@ void createLogicalDevice(vk::raii::PhysicalDevice &physicalDevice,
       .ppEnabledExtensionNames = requiredDeviceExtension.data()};
 
   device = vk::raii::Device(physicalDevice, deviceCreateInfo);
-  graphicsQueue = vk::raii::Queue(device, graphicsIndex, 0);
+  graphicsQueue = vk::raii::Queue(device, queueIndex, 0);
 }
 } // namespace
 
@@ -127,9 +133,10 @@ struct VDevice {
   vk::PhysicalDeviceFeatures deviceFeatures;
   vk::raii::Queue graphicsQueue = nullptr;
 
-  void pickAndCreate(const vk::raii::Instance &instance) {
+  void pickAndCreate(const vk::raii::Instance &instance,
+                     vk::raii::SurfaceKHR &surface) {
     pickPhysicalDevice(instance, physicalDevice);
-    createLogicalDevice(physicalDevice, device, graphicsQueue);
+    createLogicalDevice(physicalDevice, device, graphicsQueue, surface);
   }
 };
 } // namespace Renderer
