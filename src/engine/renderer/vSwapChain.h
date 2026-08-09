@@ -52,6 +52,22 @@ vk::Extent2D chooseSwapExtent(vk::SurfaceCapabilitiesKHR const &capabilities,
           std::clamp<uint32_t>(height, capabilities.minImageExtent.height,
                                capabilities.maxImageExtent.height)};
 }
+
+void createImageViews(std::vector<vk::Image> &swapChainImages,
+                      std::vector<vk::raii::ImageView> &swapChainImageViews,
+                      vk::SurfaceFormatKHR &swapChainSurfaceFormat,
+                      vk::raii::Device &device) {
+  assert(swapChainImageViews.empty());
+
+  vk::ImageViewCreateInfo imageViewCreateInfo{
+      .viewType = vk::ImageViewType::e2D,
+      .format = swapChainSurfaceFormat.format,
+      .subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}};
+  for (auto &image : swapChainImages) {
+    imageViewCreateInfo.image = image;
+    swapChainImageViews.emplace_back(device, imageViewCreateInfo);
+  }
+}
 } // namespace
 
 namespace Renderer {
@@ -96,6 +112,9 @@ struct VSwapChain {
 
     swapChain = vk::raii::SwapchainKHR(device, swapChainCreateInfo);
     swapChainImages = swapChain.getImages();
+
+    createImageViews(swapChainImages, swapChainImageViews,
+                     swapChainSurfaceFormat, device);
   }
 };
 } // namespace Renderer
