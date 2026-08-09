@@ -1,21 +1,9 @@
-#include <memory>
-#if defined(__INTELLISENSE__) || !defined(USE_CPP20_MODULES)
-#include <vulkan/vulkan_raii.hpp>
-#else
-import vulkan_hpp;
-#endif
-#include <GLFW/glfw3.h>
-
+#include "engine/renderer/imports.h" // IWYU pragma: keep
 #include <cstdlib>
 #include <iostream>
-#include <stdexcept>
-
-#include "engine/renderer/window.h"
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
-
-Renderer::Window window;
 
 class HelloTriangleApplication {
 public:
@@ -27,7 +15,10 @@ public:
   }
 
 private:
-  void initVulkan() {}
+  Renderer::Window window;
+  Renderer::VInstance vInstance;
+
+  void initVulkan() { vInstance.create(); }
 
   void mainLoop() {
     window.update([]() {
@@ -35,7 +26,7 @@ private:
     });
   }
 
-  void cleanup() {}
+  void cleanup() { window.cleanup(); }
 };
 
 int main() {

@@ -2,8 +2,8 @@
 #include <GLFW/glfw3.h>
 
 #include <functional>
-#include <iostream>
-#include <string.h>
+#include <iostream> // IWYU pragma: keep
+#include <string.h> // IWYU pragma: keep
 
 namespace Renderer {
 
