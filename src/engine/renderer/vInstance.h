@@ -34,7 +34,7 @@ VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(
 namespace Renderer {
 
 struct VInstance {
-  vk::raii::Instance instance = nullptr;
+  vk::raii::Instance handler = nullptr;
   const std::vector<char const *> validationLayers = {
       "VK_LAYER_KHRONOS_validation"};
 
@@ -54,7 +54,7 @@ struct VInstance {
     return extensions;
   }
 
-  void setupDebugMessenger(vk::raii::Instance &instance) {
+  void setupDebugMessenger(vk::raii::Instance &handler) {
     if (!enableValidationLayers)
       return;
 
@@ -70,7 +70,7 @@ struct VInstance {
         .messageType = messageTypeFlags,
         .pfnUserCallback = &debugCallback};
     debugMessenger =
-        instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
+        handler.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
   }
 
   void create() {
@@ -129,7 +129,7 @@ struct VInstance {
         .enabledExtensionCount =
             static_cast<uint32_t>(requiredExtensions.size()),
         .ppEnabledExtensionNames = requiredExtensions.data()};
-    instance = vk::raii::Instance(context, createInfo);
+    handler = vk::raii::Instance(context, createInfo);
   }
 };
 } // namespace Renderer

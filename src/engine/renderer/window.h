@@ -8,7 +8,7 @@
 namespace Renderer {
 
 struct Window {
-  GLFWwindow *window = nullptr;
+  GLFWwindow *handler = nullptr;
 
   void init(const uint32_t width, const uint32_t heigth, std::string name) {
     glfwInit();
@@ -16,18 +16,18 @@ struct Window {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-    window = glfwCreateWindow(width, heigth, name.c_str(), nullptr, nullptr);
+    handler = glfwCreateWindow(width, heigth, name.c_str(), nullptr, nullptr);
   }
 
   void update(std::function<void()> callback) {
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(handler)) {
       glfwPollEvents();
       callback();
     }
   }
 
   void cleanup() {
-    glfwDestroyWindow(window);
+    glfwDestroyWindow(handler);
     glfwTerminate();
   }
 };
