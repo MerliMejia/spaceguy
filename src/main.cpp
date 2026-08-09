@@ -17,11 +17,11 @@ public:
 private:
   Renderer::Window window;
   Renderer::VInstance vInstance;
-  Renderer::VPhysicalDevice vPhysicalDevice;
+  Renderer::VDevice vDevice;
 
   void initVulkan() {
     vInstance.create();
-    vPhysicalDevice.pick(vInstance.handler);
+    vDevice.pickAndCreate(vInstance.handler);
   }
 
   void mainLoop() {
