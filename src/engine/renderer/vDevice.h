@@ -108,6 +108,8 @@ void createLogicalDevice(vk::raii::PhysicalDevice &physicalDevice,
       };
 
   // create a Device
+  std::vector requiredDeviceExtension = {vk::KHRSwapchainExtensionName};
+
   float queuePriority = 0.5f;
   vk::DeviceQueueCreateInfo deviceQueueCreateInfo{
       .queueFamilyIndex = queueIndex,
@@ -132,6 +134,8 @@ struct VDevice {
   vk::raii::Device device = nullptr;
   vk::PhysicalDeviceFeatures deviceFeatures;
   vk::raii::Queue graphicsQueue = nullptr;
+  std::vector<const char *> requiredDeviceExtension = {
+      vk::KHRSwapchainExtensionName};
 
   void pickAndCreate(const vk::raii::Instance &instance,
                      vk::raii::SurfaceKHR &surface) {

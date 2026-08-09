@@ -1,4 +1,5 @@
 #include "engine/renderer/imports.h" // IWYU pragma: keep
+#include "engine/renderer/vSwapChain.h"
 #include <cstdlib>
 #include <iostream>
 
@@ -15,14 +16,17 @@ public:
   }
 
 private:
-  Renderer::Window window;
   Renderer::VInstance vInstance;
+  Renderer::Window window;
   Renderer::VDevice vDevice;
+  Renderer::VSwapChain vSwapChain;
 
   void initVulkan() {
     vInstance.create();
     window.createSurface(vInstance.handler);
     vDevice.pickAndCreate(vInstance.handler, window.surface);
+    vSwapChain.create(vDevice.physicalDevice, window.surface, vDevice.device,
+                      window.handler);
   }
 
   void mainLoop() {
