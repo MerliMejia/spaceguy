@@ -6,3 +6,6 @@ glslc shaders/debug.frag -o shaders/debug.frag.spv
 glslc shaders/particles.comp -o shaders/particles.comp.spv
 glslc shaders/particles.vert -o shaders/particles.vert.spv
 glslc shaders/particles.frag -o shaders/particles.frag.spv
+
+
+slangc shaders/v2/default.slang -o shaders/v2/default.spv

@@ -1,4 +1,5 @@
 #include "engine/renderer/imports.h" // IWYU pragma: keep
+#include "engine/renderer/renderNode.h"
 #include "engine/renderer/vSwapChain.h"
 #include <cstdlib>
 #include <iostream>
@@ -21,12 +22,28 @@ private:
   Renderer::VDevice vDevice;
   Renderer::VSwapChain vSwapChain;
 
+  Renderer::RenderNode triangleNode;
+
   void initVulkan() {
     vInstance.create();
     window.createSurface(vInstance.handler);
     vDevice.pickAndCreate(vInstance.handler, window.surface);
     vSwapChain.create(vDevice.physicalDevice, window.surface, vDevice.device,
                       window.handler);
+
+    triangleNode.step1_initShaders(
+        vDevice.device,
+        Renderer::step1_initShadersProps{
+            .shaderCreateInfos = {
+                Renderer::ShaderCreateInfo{.type = Renderer::ShaderType::Vertex,
+                                           .name = "vertMain"},
+                Renderer::ShaderCreateInfo{.type =
+                                               Renderer::ShaderType::Fragment,
+                                           .name = "fragMain"}}});
+
+    triangleNode.step2_pipelineConfiguration(
+        vDevice.device, vSwapChain.swapChainSurfaceFormat,
+        Renderer::step2_pipelineConfigurationProps{});
   }
 
   void mainLoop() {
