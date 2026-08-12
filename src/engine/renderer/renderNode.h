@@ -1,5 +1,6 @@
 #pragma once
 
+#include "vSwapChain.h"
 #include <string>
 #include <vector>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
@@ -32,6 +33,7 @@ struct ShaderCreateInfo {
 
 struct step1_initShadersProps {
   std::vector<ShaderCreateInfo> shaderCreateInfos;
+  std::string shaderFile;
 };
 
 struct step2_pipelineConfigurationProps {
@@ -41,15 +43,27 @@ struct step2_pipelineConfigurationProps {
 
 struct RenderNode {
   vk::raii::ShaderModule shaderModule = nullptr;
-  std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
+  std::vector<ShaderCreateInfo> shaderCreateInfos;
   vk::raii::PipelineLayout pipelineLayout = nullptr;
   vk::raii::Pipeline graphicsPipeline = nullptr;
+  vk::raii::CommandPool commandPool = nullptr;
+  vk::raii::CommandBuffer commandBuffer = nullptr;
 
   void step1_initShaders(vk::raii::Device &device,
                          step1_initShadersProps props) {
-    shaderModule = createShaderModule(readFile("shaders/slang.spv"), device);
+    shaderModule = createShaderModule(readFile(props.shaderFile), device);
+    shaderCreateInfos = std::move(props.shaderCreateInfos);
+  }
 
-    for (ShaderCreateInfo info : props.shaderCreateInfos) {
+  // TODO - upgrade this later
+  void
+  step2_initPipelineConfiguration(vk::raii::Device &device,
+                                  vk::SurfaceFormatKHR &swapChainSurfaceFormat,
+                                  step2_pipelineConfigurationProps props) {
+
+    std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
+
+    for (const ShaderCreateInfo &info : shaderCreateInfos) {
       if (info.type == ShaderType::Vertex) {
         shaderStages.push_back(vk::PipelineShaderStageCreateInfo{
             .stage = vk::ShaderStageFlagBits::eVertex,
@@ -62,12 +76,6 @@ struct RenderNode {
             .pName = info.name.c_str()});
       }
     }
-  }
-
-  // TODO - upgrade this later
-  void step2_pipelineConfiguration(vk::raii::Device &device,
-                                   vk::SurfaceFormatKHR &swapChainSurfaceFormat,
-                                   step2_pipelineConfigurationProps props) {
 
     vk::PipelineVertexInputStateCreateInfo vertexInputInfo;
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly{.topology =
@@ -130,6 +138,117 @@ struct RenderNode {
     graphicsPipeline = vk::raii::Pipeline(
         device, nullptr,
         pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>());
+  }
+
+  // The initial image layout transition is from eUndefined to
+  // eColorAttachmentOptimal assumming that by default we always want to draw a
+  // color attachment. This should change later so I can define what's the
+  // initial layout transition. Probably eUndefined to depth, stencil, other?
+  void step3_initCommandBuffer(uint32_t queueIndex, vk::raii::Device &device) {
+    vk::CommandPoolCreateInfo poolInfo{
+        .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+        .queueFamilyIndex = queueIndex};
+
+    commandPool = vk::raii::CommandPool(device, poolInfo);
+
+    vk::CommandBufferAllocateInfo allocInfo{
+        .commandPool = commandPool,
+        .level = vk::CommandBufferLevel::ePrimary,
+        .commandBufferCount = 1};
+
+    commandBuffer =
+        std::move(vk::raii::CommandBuffers(device, allocInfo).front());
+  }
+
+  // Will definetly change. This is where each render node should define what to
+  // do when rendering each frame. Will it get an image as input? What's the
+  // output? which resources will bind?
+  void perFrame1_recordCommandBuffer(Renderer::VSwapChain &vSwapChain,
+                                     uint32_t imageIndex) {
+    commandBuffer.begin({});
+
+    // This whole block is for "transitioning" images and it's better to write
+    // it down manually to understand what it does. Before starting rendering,
+    // transition the swapchain image to
+    // vk::ImageLayout::eColorAttachmentOptimal
+    vk::ImageMemoryBarrier2 barrier = {
+        .srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+        .srcAccessMask = {}, // Because it doesn't have to wait for something to
+                             // finish in this case?
+        .dstStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+        .dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
+        .oldLayout = vk::ImageLayout::eUndefined,
+        .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = vSwapChain.swapChainImages[imageIndex],
+        .subresourceRange = {.aspectMask = vk::ImageAspectFlagBits::eColor,
+                             .baseMipLevel = 0,
+                             .levelCount = 1,
+                             .baseArrayLayer = 0,
+                             .layerCount = 1}};
+    vk::DependencyInfo dependency_info = {.dependencyFlags = {},
+                                          .imageMemoryBarrierCount = 1,
+                                          .pImageMemoryBarriers = &barrier};
+    commandBuffer.pipelineBarrier2(dependency_info);
+    // This whole block is for "transitioning" images and it's better to write
+    // it down manually to understand what it does.
+
+    vk::ClearValue clearColor = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f);
+    vk::RenderingAttachmentInfo attachmentInfo = {
+        .imageView = vSwapChain.swapChainImageViews[imageIndex],
+        .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+        .loadOp = vk::AttachmentLoadOp::eClear,
+        .storeOp = vk::AttachmentStoreOp::eStore,
+        .clearValue = clearColor};
+    vk::RenderingInfo renderingInfo = {
+        .renderArea = {.offset = {0, 0}, .extent = vSwapChain.swapChainExtent},
+        .layerCount = 1,
+        .colorAttachmentCount = 1,
+        .pColorAttachments = &attachmentInfo};
+
+    commandBuffer.beginRendering(renderingInfo);
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,
+                               *graphicsPipeline);
+    commandBuffer.setViewport(
+        0, vk::Viewport(0.0f, 0.0f,
+                        static_cast<float>(vSwapChain.swapChainExtent.width),
+                        static_cast<float>(vSwapChain.swapChainExtent.height),
+                        0.0f, 1.0f));
+    commandBuffer.setScissor(
+        0, vk::Rect2D(vk::Offset2D(0, 0), vSwapChain.swapChainExtent));
+    commandBuffer.draw(3, 1, 0, 0);
+    commandBuffer.endRendering();
+
+    // After rendering, transition the swapchain image to
+    // vk::ImageLayout::ePresentSrcKHR
+    vk::ImageMemoryBarrier2 barrier2 = {
+        .srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+        .srcAccessMask = vk::AccessFlagBits2::
+            eColorAttachmentWrite, // Now it needs to wait for
+                                   // eColorAttachmentWrite because before this
+                                   // we were transitioning from undefined to
+                                   // color attachment.
+        .dstStageMask =
+            vk::PipelineStageFlagBits2::eBottomOfPipe, // I guess it makes
+                                                       // sense?
+        .dstAccessMask = {},                           // No idea
+        .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
+        .newLayout = vk::ImageLayout::ePresentSrcKHR,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = vSwapChain.swapChainImages[imageIndex],
+        .subresourceRange = {.aspectMask = vk::ImageAspectFlagBits::eColor,
+                             .baseMipLevel = 0,
+                             .levelCount = 1,
+                             .baseArrayLayer = 0,
+                             .layerCount = 1}};
+    vk::DependencyInfo dependency_info2 = {.dependencyFlags = {},
+                                           .imageMemoryBarrierCount = 1,
+                                           .pImageMemoryBarriers = &barrier2};
+    commandBuffer.pipelineBarrier2(dependency_info2);
+
+    commandBuffer.end();
   }
 };
 } // namespace Renderer

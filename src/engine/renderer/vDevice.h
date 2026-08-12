@@ -7,7 +7,11 @@
 namespace {
 
 std::vector<const char *> requiredDeviceExtension = {
-    vk::KHRSwapchainExtensionName};
+    vk::KHRSwapchainExtensionName,
+#ifdef __APPLE__
+    "VK_KHR_portability_subset",
+#endif
+};
 
 bool isDeviceSuitable(vk::raii::PhysicalDevice const &physicalDevice) {
   // Check if the physicalDevice supports the Vulkan 1.3 API version
@@ -24,6 +28,7 @@ bool isDeviceSuitable(vk::raii::PhysicalDevice const &physicalDevice) {
   // Check if all required physicalDevice extensions are available
   auto availableDeviceExtensions =
       physicalDevice.enumerateDeviceExtensionProperties();
+
   bool supportsAllRequiredExtensions = std::ranges::all_of(
       requiredDeviceExtension,
       [&availableDeviceExtensions](auto const &requiredDeviceExtension) {
@@ -47,7 +52,9 @@ bool isDeviceSuitable(vk::raii::PhysicalDevice const &physicalDevice) {
       features.template get<vk::PhysicalDeviceVulkan13Features>()
           .dynamicRendering &&
       features.template get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>()
-          .extendedDynamicState;
+          .extendedDynamicState &&
+      features.template get<vk::PhysicalDeviceVulkan13Features>()
+          .synchronization2;
 
   // Return true if the physicalDevice meets all the criteria
   return supportsVulkan1_3 && supportsGraphics &&
@@ -71,14 +78,11 @@ void pickPhysicalDevice(const vk::raii::Instance &instance,
 void createLogicalDevice(vk::raii::PhysicalDevice &physicalDevice,
                          vk::raii::Device &device,
                          vk::raii::Queue &graphicsQueue,
-                         vk::raii::SurfaceKHR &surface) {
+                         vk::raii::SurfaceKHR &surface, uint32_t &queueIndex) {
   // find the index of the first queue family that supports graphics
   std::vector<vk::QueueFamilyProperties> queueFamilyProperties =
       physicalDevice.getQueueFamilyProperties();
 
-  // get the first index into queueFamilyProperties which supports both graphics
-  // and present
-  uint32_t queueIndex = ~0;
   for (uint32_t qfpIndex = 0; qfpIndex < queueFamilyProperties.size();
        qfpIndex++) {
     if ((queueFamilyProperties[qfpIndex].queueFlags &
@@ -89,7 +93,7 @@ void createLogicalDevice(vk::raii::PhysicalDevice &physicalDevice,
       break;
     }
   }
-  if (queueIndex == ~0) {
+  if (queueIndex == UINT32_MAX) {
     throw std::runtime_error(
         "Could not find a queue for graphics and present -> terminating");
   }
@@ -102,13 +106,13 @@ void createLogicalDevice(vk::raii::PhysicalDevice &physicalDevice,
       featureChain = {
           {},                             // vk::PhysicalDeviceFeatures2
           {.shaderDrawParameters = true}, // vk::PhysicalDeviceVulkan11Features
-          {.dynamicRendering = true},     // vk::PhysicalDeviceVulkan13Features
+          {.synchronization2 = true,
+           .dynamicRendering = true}, // vk::PhysicalDeviceVulkan13Features
           {.extendedDynamicState =
                true} // vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT
       };
 
   // create a Device
-  std::vector requiredDeviceExtension = {vk::KHRSwapchainExtensionName};
 
   float queuePriority = 0.5f;
   vk::DeviceQueueCreateInfo deviceQueueCreateInfo{
@@ -136,11 +140,15 @@ struct VDevice {
   vk::raii::Queue graphicsQueue = nullptr;
   std::vector<const char *> requiredDeviceExtension = {
       vk::KHRSwapchainExtensionName};
+  // get the first index into queueFamilyProperties which supports both graphics
+  // and present
+  uint32_t queueIndex = ~0;
 
   void pickAndCreate(const vk::raii::Instance &instance,
                      vk::raii::SurfaceKHR &surface) {
     pickPhysicalDevice(instance, physicalDevice);
-    createLogicalDevice(physicalDevice, device, graphicsQueue, surface);
+    createLogicalDevice(physicalDevice, device, graphicsQueue, surface,
+                        queueIndex);
   }
 };
 } // namespace Renderer

@@ -51,6 +51,10 @@ struct VInstance {
       extensions.push_back(vk::EXTDebugUtilsExtensionName);
     }
 
+#ifdef __APPLE__
+    extensions.push_back(vk::KHRPortabilityEnumerationExtensionName);
+#endif
+
     return extensions;
   }
 
@@ -128,8 +132,16 @@ struct VInstance {
         .ppEnabledLayerNames = requiredLayers.data(),
         .enabledExtensionCount =
             static_cast<uint32_t>(requiredExtensions.size()),
-        .ppEnabledExtensionNames = requiredExtensions.data()};
+        .ppEnabledExtensionNames = requiredExtensions.data(),
+    };
+
+#ifdef __APPLE__
+    createInfo.flags = vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
+#endif
+
     handler = vk::raii::Instance(context, createInfo);
+
+    setupDebugMessenger(handler);
   }
 };
 } // namespace Renderer

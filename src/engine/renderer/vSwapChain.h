@@ -1,7 +1,7 @@
 #pragma once
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
-#include <GLFW/glfw3.h>
 #include <vulkan/vulkan_raii.hpp>
+#include <GLFW/glfw3.h>
 
 namespace {
 static uint32_t

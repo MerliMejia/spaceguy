@@ -1,8 +1,10 @@
 #include "engine/renderer/imports.h" // IWYU pragma: keep
+#include "engine/renderer/renderGraph.h"
 #include "engine/renderer/renderNode.h"
 #include "engine/renderer/vSwapChain.h"
 #include <cstdlib>
 #include <iostream>
+#include <utility>
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -22,7 +24,8 @@ private:
   Renderer::VDevice vDevice;
   Renderer::VSwapChain vSwapChain;
 
-  Renderer::RenderNode triangleNode;
+  Renderer::RenderNode triangleNode{};
+  Renderer::RenderGraph renderGraph{};
 
   void initVulkan() {
     vInstance.create();
@@ -34,22 +37,32 @@ private:
     triangleNode.step1_initShaders(
         vDevice.device,
         Renderer::step1_initShadersProps{
-            .shaderCreateInfos = {
-                Renderer::ShaderCreateInfo{.type = Renderer::ShaderType::Vertex,
-                                           .name = "vertMain"},
-                Renderer::ShaderCreateInfo{.type =
-                                               Renderer::ShaderType::Fragment,
-                                           .name = "fragMain"}}});
+            .shaderCreateInfos = {Renderer::ShaderCreateInfo{
+                                      .type = Renderer::ShaderType::Vertex,
+                                      .name = "vertMain"},
+                                  Renderer::ShaderCreateInfo{
+                                      .type = Renderer::ShaderType::Fragment,
+                                      .name = "fragMain"}},
+            .shaderFile = "shaders/v2/default.spv"});
 
-    triangleNode.step2_pipelineConfiguration(
+    triangleNode.step2_initPipelineConfiguration(
         vDevice.device, vSwapChain.swapChainSurfaceFormat,
         Renderer::step2_pipelineConfigurationProps{});
+
+    triangleNode.step3_initCommandBuffer(vDevice.queueIndex, vDevice.device);
+
+    renderGraph.renderNodes.push_back(std::move(triangleNode));
+
+    renderGraph.init(vDevice.device);
   }
 
   void mainLoop() {
-    window.update([]() {
-
+    window.update([this]() {
+      renderGraph.prepareNodes(vDevice.device, vSwapChain);
+      renderGraph.submit(vDevice.graphicsQueue, vSwapChain);
     });
+
+    vDevice.device.waitIdle();
   }
 
   void cleanup() { window.cleanup(); }
