@@ -1,8 +1,7 @@
 #pragma once
 
-#include "vDevice.h"
+#include "bufferUtils.h"
 #include "vSwapChain.h"
-#include <stdexcept>
 #include <string>
 #include <vector>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
@@ -76,8 +75,11 @@ struct RenderNode {
   std::vector<vk::raii::CommandBuffer> commandBuffers;
   vk::raii::Buffer vertexBuffer = nullptr;
   vk::raii::DeviceMemory vertexBufferMemory = nullptr;
+  vk::raii::Buffer indexBuffer = nullptr;
+  vk::raii::DeviceMemory indexBufferMemory = nullptr;
   // TODO - Default vertex for now, will change as this grows
   std::vector<Renderer::DefaultVertex> vertices;
+  std::vector<uint32_t> indices;
 
   void step1_initShaders(vk::raii::Device &device,
                          step1_initShadersProps props) {
@@ -89,127 +91,40 @@ struct RenderNode {
   // chancge
   void step_1_1_createAndFillVertexBuffer(
       // TODO - Default vertex for now, will change as this grows
-      std::vector<Renderer::DefaultVertex> incommingVertices,
-      VDevice &vDevice) {
+      std::vector<Renderer::DefaultVertex> incomingVertices, VDevice &vDevice) {
 
-    // Coomand pool needs to be created here because we're going to do a copy
-    // command from the staging buffer to the actual vertex buffer.
+    vertices = std::move(incomingVertices);
+
     vk::CommandPoolCreateInfo poolInfo{
         .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-        .queueFamilyIndex = vDevice.queueIndex};
+        .queueFamilyIndex = vDevice.queueIndex,
+    };
 
-    commandPool = vk::raii::CommandPool(vDevice.device, poolInfo);
+    commandPool = vk::raii::CommandPool{
+        vDevice.device,
+        poolInfo,
+    };
 
-    vertices = std::move(incommingVertices);
+    BufferAllocation allocation = createDeviceLocalBuffer(
+        vDevice, commandPool,
+        std::span<const Renderer::DefaultVertex>{vertices},
+        vk::BufferUsageFlagBits::eVertexBuffer);
 
-    vk::DeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+    vertexBuffer = std::move(allocation.buffer);
+    vertexBufferMemory = std::move(allocation.memory);
+  }
 
-    // Create, bind the staging buffer
-    vk::BufferCreateInfo stagingBufferInfo{
-        .size = bufferSize,
-        .usage = vk::BufferUsageFlagBits::eTransferSrc,
-        .sharingMode = vk::SharingMode::eExclusive};
-    vk::raii::Buffer stagingBuffer =
-        vk::raii::Buffer(vDevice.device, stagingBufferInfo);
-    vk::MemoryRequirements stagingMemRequirements =
-        stagingBuffer.getMemoryRequirements();
+  void
+  step_1_2_createAndFillIndicesBuffer(std::vector<uint32_t> incomingIndices,
+                                      VDevice &vDevice) {
 
-    // find memory type for staging buffer:
-    vk::PhysicalDeviceMemoryProperties memProperties =
-        vDevice.physicalDevice.getMemoryProperties();
+    indices = std::move(incomingIndices);
+    BufferAllocation allocation = createDeviceLocalBuffer(
+        vDevice, commandPool, std::span<const uint32_t>{indices},
+        vk::BufferUsageFlagBits::eIndexBuffer);
 
-    vk::MemoryPropertyFlags properties =
-        vk::MemoryPropertyFlagBits::eHostVisible |
-        vk::MemoryPropertyFlagBits::eHostCoherent;
-
-    uint32_t selectedMemoryTypeStaging = -1;
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-      if ((stagingMemRequirements.memoryTypeBits & (1 << i)) &&
-          (memProperties.memoryTypes[i].propertyFlags & properties) ==
-              properties) {
-        selectedMemoryTypeStaging = i;
-      }
-    }
-
-    if (selectedMemoryTypeStaging == -1) {
-      throw std::runtime_error("failed to find suitable memory type!");
-    }
-
-    vk::MemoryAllocateInfo allocInfo{
-        .allocationSize = stagingMemRequirements.size,
-        .memoryTypeIndex = selectedMemoryTypeStaging};
-    vk::raii::DeviceMemory stagingBufferMemory =
-        vk::raii::DeviceMemory(vDevice.device, allocInfo);
-    stagingBuffer.bindMemory(*stagingBufferMemory, 0);
-
-    // Fill staging buffer
-    void *dataStaging = stagingBufferMemory.mapMemory(0, bufferSize);
-    memcpy(dataStaging, vertices.data(), bufferSize);
-    stagingBufferMemory.unmapMemory();
-
-    // Create the vertex buffer
-    vk::BufferCreateInfo actualNewVertexBufferCreateInfo{
-        .size = bufferSize,
-        .usage = vk::BufferUsageFlagBits::eVertexBuffer |
-                 vk::BufferUsageFlagBits::eTransferDst,
-        .sharingMode = vk::SharingMode::eExclusive};
-
-    vertexBuffer =
-        vk::raii::Buffer(vDevice.device, actualNewVertexBufferCreateInfo);
-
-    vk::MemoryRequirements actualVertexgMemRequirements =
-        vertexBuffer.getMemoryRequirements();
-
-    // find memory type for vertex buffer:
-    vk::PhysicalDeviceMemoryProperties actualVertexMemProperties =
-        vDevice.physicalDevice.getMemoryProperties();
-
-    vk::MemoryPropertyFlags actualVertexProperties =
-        vk::MemoryPropertyFlagBits::eDeviceLocal;
-
-    uint32_t actualVertexSelectedMemoryTypeStaging = -1;
-
-    for (uint32_t i = 0; i < actualVertexMemProperties.memoryTypeCount; i++) {
-      if ((actualVertexgMemRequirements.memoryTypeBits & (1 << i)) &&
-          (actualVertexMemProperties.memoryTypes[i].propertyFlags &
-           actualVertexProperties) == actualVertexProperties) {
-        actualVertexSelectedMemoryTypeStaging = i;
-      }
-    }
-
-    if (actualVertexSelectedMemoryTypeStaging == -1) {
-      throw std::runtime_error("failed to find suitable memory type!");
-    }
-
-    vk::MemoryAllocateInfo actualVertexAllocInfo{
-        .allocationSize = actualVertexgMemRequirements.size,
-        .memoryTypeIndex = actualVertexSelectedMemoryTypeStaging};
-
-    vertexBufferMemory =
-        vk::raii::DeviceMemory(vDevice.device, actualVertexAllocInfo);
-    vertexBuffer.bindMemory(*vertexBufferMemory, 0);
-
-    // Copy the staging buffer to the actual vertex buffer.
-    vk::CommandBufferAllocateInfo copyAllocInfo{
-        .commandPool = commandPool,
-        .level = vk::CommandBufferLevel::ePrimary,
-        .commandBufferCount = 1};
-
-    vk::raii::CommandBuffer commandCopyBuffer =
-        std::move(vDevice.device.allocateCommandBuffers(copyAllocInfo).front());
-
-    commandCopyBuffer.begin(
-        {.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-    commandCopyBuffer.copyBuffer(*stagingBuffer, *vertexBuffer,
-                                 vk::BufferCopy(0, 0, bufferSize));
-    commandCopyBuffer.end();
-
-    vDevice.graphicsQueue.submit(
-        vk::SubmitInfo{.commandBufferCount = 1,
-                       .pCommandBuffers = &*commandCopyBuffer},
-        nullptr);
-    vDevice.graphicsQueue.waitIdle();
+    indexBuffer = std::move(allocation.buffer);
+    indexBufferMemory = std::move(allocation.memory);
   }
 
   // TODO - upgrade this later
@@ -380,9 +295,12 @@ struct RenderNode {
         0, vk::Rect2D(vk::Offset2D(0, 0), vSwapChain.swapChainExtent));
 
     commandBuffers[frameIndex].bindVertexBuffers(0, *vertexBuffer, {0});
+    commandBuffers[frameIndex].bindIndexBuffer(*indexBuffer, 0,
+                                               vk::IndexType::eUint32);
 
-    commandBuffers[frameIndex].draw(static_cast<uint32_t>(vertices.size()), 1,
-                                    0, 0);
+    commandBuffers[frameIndex].drawIndexed(
+        static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+
     commandBuffers[frameIndex].endRendering();
 
     // After rendering, transition the swapchain image to

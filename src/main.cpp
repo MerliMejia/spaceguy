@@ -46,12 +46,17 @@ private:
             .shaderFile = "shaders/v2/default.spv"});
 
     // step 1.1: define vertex input the same as in the shader:
-    std::vector<Renderer::DefaultVertex> vertices{
-        {{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
-        {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+    const std::vector<Renderer::DefaultVertex> vertices{
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
+
+    const std::vector<uint32_t> indices = {0, 1, 2, 2, 3, 0};
 
     triangleNode.step_1_1_createAndFillVertexBuffer(vertices, vDevice);
+
+    triangleNode.step_1_2_createAndFillIndicesBuffer(indices, vDevice);
 
     triangleNode.step2_initPipelineConfiguration(
         vDevice.device, vSwapChain.swapChainSurfaceFormat,
