@@ -53,7 +53,7 @@ private:
 
     renderGraph.renderNodes.push_back(std::move(triangleNode));
 
-    renderGraph.init(vDevice.device);
+    renderGraph.init(vDevice.device, vSwapChain.swapChainImages);
   }
 
   void mainLoop() {

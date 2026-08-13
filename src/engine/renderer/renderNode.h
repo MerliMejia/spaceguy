@@ -19,6 +19,7 @@ vk::raii::ShaderModule createShaderModule(const std::vector<char> &code,
 } // namespace
 
 namespace Renderer {
+constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
 enum class ShaderType {
   None,
@@ -47,7 +48,7 @@ struct RenderNode {
   vk::raii::PipelineLayout pipelineLayout = nullptr;
   vk::raii::Pipeline graphicsPipeline = nullptr;
   vk::raii::CommandPool commandPool = nullptr;
-  vk::raii::CommandBuffer commandBuffer = nullptr;
+  std::vector<vk::raii::CommandBuffer> commandBuffers;
 
   void step1_initShaders(vk::raii::Device &device,
                          step1_initShadersProps props) {
@@ -154,18 +155,17 @@ struct RenderNode {
     vk::CommandBufferAllocateInfo allocInfo{
         .commandPool = commandPool,
         .level = vk::CommandBufferLevel::ePrimary,
-        .commandBufferCount = 1};
+        .commandBufferCount = Renderer::MAX_FRAMES_IN_FLIGHT};
 
-    commandBuffer =
-        std::move(vk::raii::CommandBuffers(device, allocInfo).front());
+    commandBuffers = vk::raii::CommandBuffers(device, allocInfo);
   }
 
   // Will definetly change. This is where each render node should define what to
   // do when rendering each frame. Will it get an image as input? What's the
   // output? which resources will bind?
   void perFrame1_recordCommandBuffer(Renderer::VSwapChain &vSwapChain,
-                                     uint32_t imageIndex) {
-    commandBuffer.begin({});
+                                     uint32_t imageIndex, uint32_t frameIndex) {
+    commandBuffers[frameIndex].begin({});
 
     // This whole block is for "transitioning" images and it's better to write
     // it down manually to understand what it does. Before starting rendering,
@@ -190,7 +190,7 @@ struct RenderNode {
     vk::DependencyInfo dependency_info = {.dependencyFlags = {},
                                           .imageMemoryBarrierCount = 1,
                                           .pImageMemoryBarriers = &barrier};
-    commandBuffer.pipelineBarrier2(dependency_info);
+    commandBuffers[frameIndex].pipelineBarrier2(dependency_info);
     // This whole block is for "transitioning" images and it's better to write
     // it down manually to understand what it does.
 
@@ -207,18 +207,18 @@ struct RenderNode {
         .colorAttachmentCount = 1,
         .pColorAttachments = &attachmentInfo};
 
-    commandBuffer.beginRendering(renderingInfo);
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,
-                               *graphicsPipeline);
-    commandBuffer.setViewport(
+    commandBuffers[frameIndex].beginRendering(renderingInfo);
+    commandBuffers[frameIndex].bindPipeline(vk::PipelineBindPoint::eGraphics,
+                                            *graphicsPipeline);
+    commandBuffers[frameIndex].setViewport(
         0, vk::Viewport(0.0f, 0.0f,
                         static_cast<float>(vSwapChain.swapChainExtent.width),
                         static_cast<float>(vSwapChain.swapChainExtent.height),
                         0.0f, 1.0f));
-    commandBuffer.setScissor(
+    commandBuffers[frameIndex].setScissor(
         0, vk::Rect2D(vk::Offset2D(0, 0), vSwapChain.swapChainExtent));
-    commandBuffer.draw(3, 1, 0, 0);
-    commandBuffer.endRendering();
+    commandBuffers[frameIndex].draw(3, 1, 0, 0);
+    commandBuffers[frameIndex].endRendering();
 
     // After rendering, transition the swapchain image to
     // vk::ImageLayout::ePresentSrcKHR
@@ -246,9 +246,9 @@ struct RenderNode {
     vk::DependencyInfo dependency_info2 = {.dependencyFlags = {},
                                            .imageMemoryBarrierCount = 1,
                                            .pImageMemoryBarriers = &barrier2};
-    commandBuffer.pipelineBarrier2(dependency_info2);
+    commandBuffers[frameIndex].pipelineBarrier2(dependency_info2);
 
-    commandBuffer.end();
+    commandBuffers[frameIndex].end();
   }
 };
 } // namespace Renderer
