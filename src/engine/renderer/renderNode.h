@@ -92,54 +92,124 @@ struct RenderNode {
       std::vector<Renderer::DefaultVertex> incommingVertices,
       VDevice &vDevice) {
 
+    // Coomand pool needs to be created here because we're going to do a copy
+    // command from the staging buffer to the actual vertex buffer.
+    vk::CommandPoolCreateInfo poolInfo{
+        .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+        .queueFamilyIndex = vDevice.queueIndex};
+
+    commandPool = vk::raii::CommandPool(vDevice.device, poolInfo);
+
     vertices = std::move(incommingVertices);
 
-    vk::BufferCreateInfo bufferInfo{
-        .size = sizeof(vertices[0]) * vertices.size(),
-        .usage = vk::BufferUsageFlagBits::eVertexBuffer,
+    vk::DeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+
+    // Create, bind the staging buffer
+    vk::BufferCreateInfo stagingBufferInfo{
+        .size = bufferSize,
+        .usage = vk::BufferUsageFlagBits::eTransferSrc,
         .sharingMode = vk::SharingMode::eExclusive};
+    vk::raii::Buffer stagingBuffer =
+        vk::raii::Buffer(vDevice.device, stagingBufferInfo);
+    vk::MemoryRequirements stagingMemRequirements =
+        stagingBuffer.getMemoryRequirements();
 
-    vertexBuffer = vk::raii::Buffer(vDevice.device, bufferInfo);
-
-    vk::MemoryRequirements memRequirements =
-        vertexBuffer.getMemoryRequirements();
-
+    // find memory type for staging buffer:
     vk::PhysicalDeviceMemoryProperties memProperties =
         vDevice.physicalDevice.getMemoryProperties();
 
-    uint32_t typeFilter = memRequirements.memoryTypeBits;
     vk::MemoryPropertyFlags properties =
         vk::MemoryPropertyFlagBits::eHostVisible |
         vk::MemoryPropertyFlagBits::eHostCoherent;
 
-    uint32_t selectedMemoryType = -1;
+    uint32_t selectedMemoryTypeStaging = -1;
 
     for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-      if ((typeFilter & (1 << i)) &&
+      if ((stagingMemRequirements.memoryTypeBits & (1 << i)) &&
           (memProperties.memoryTypes[i].propertyFlags & properties) ==
               properties) {
-        selectedMemoryType = i;
+        selectedMemoryTypeStaging = i;
       }
     }
 
-    if (selectedMemoryType == -1) {
+    if (selectedMemoryTypeStaging == -1) {
       throw std::runtime_error("failed to find suitable memory type!");
     }
 
-    vk::MemoryAllocateInfo memoryAllocateInfo{
-        .allocationSize = memRequirements.size,
-        .memoryTypeIndex = selectedMemoryType};
+    vk::MemoryAllocateInfo allocInfo{
+        .allocationSize = stagingMemRequirements.size,
+        .memoryTypeIndex = selectedMemoryTypeStaging};
+    vk::raii::DeviceMemory stagingBufferMemory =
+        vk::raii::DeviceMemory(vDevice.device, allocInfo);
+    stagingBuffer.bindMemory(*stagingBufferMemory, 0);
+
+    // Fill staging buffer
+    void *dataStaging = stagingBufferMemory.mapMemory(0, bufferSize);
+    memcpy(dataStaging, vertices.data(), bufferSize);
+    stagingBufferMemory.unmapMemory();
+
+    // Create the vertex buffer
+    vk::BufferCreateInfo actualNewVertexBufferCreateInfo{
+        .size = bufferSize,
+        .usage = vk::BufferUsageFlagBits::eVertexBuffer |
+                 vk::BufferUsageFlagBits::eTransferDst,
+        .sharingMode = vk::SharingMode::eExclusive};
+
+    vertexBuffer =
+        vk::raii::Buffer(vDevice.device, actualNewVertexBufferCreateInfo);
+
+    vk::MemoryRequirements actualVertexgMemRequirements =
+        vertexBuffer.getMemoryRequirements();
+
+    // find memory type for vertex buffer:
+    vk::PhysicalDeviceMemoryProperties actualVertexMemProperties =
+        vDevice.physicalDevice.getMemoryProperties();
+
+    vk::MemoryPropertyFlags actualVertexProperties =
+        vk::MemoryPropertyFlagBits::eDeviceLocal;
+
+    uint32_t actualVertexSelectedMemoryTypeStaging = -1;
+
+    for (uint32_t i = 0; i < actualVertexMemProperties.memoryTypeCount; i++) {
+      if ((actualVertexgMemRequirements.memoryTypeBits & (1 << i)) &&
+          (actualVertexMemProperties.memoryTypes[i].propertyFlags &
+           actualVertexProperties) == actualVertexProperties) {
+        actualVertexSelectedMemoryTypeStaging = i;
+      }
+    }
+
+    if (actualVertexSelectedMemoryTypeStaging == -1) {
+      throw std::runtime_error("failed to find suitable memory type!");
+    }
+
+    vk::MemoryAllocateInfo actualVertexAllocInfo{
+        .allocationSize = actualVertexgMemRequirements.size,
+        .memoryTypeIndex = actualVertexSelectedMemoryTypeStaging};
 
     vertexBufferMemory =
-        vk::raii::DeviceMemory(vDevice.device, memoryAllocateInfo);
-
+        vk::raii::DeviceMemory(vDevice.device, actualVertexAllocInfo);
     vertexBuffer.bindMemory(*vertexBufferMemory, 0);
 
-    // Fill
+    // Copy the staging buffer to the actual vertex buffer.
+    vk::CommandBufferAllocateInfo copyAllocInfo{
+        .commandPool = commandPool,
+        .level = vk::CommandBufferLevel::ePrimary,
+        .commandBufferCount = 1};
 
-    void *data = vertexBufferMemory.mapMemory(0, bufferInfo.size);
-    memcpy(data, vertices.data(), bufferInfo.size);
-    vertexBufferMemory.unmapMemory();
+    vk::raii::CommandBuffer commandCopyBuffer =
+        std::move(vDevice.device.allocateCommandBuffers(copyAllocInfo).front());
+
+    commandCopyBuffer.begin(
+        {.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+    commandCopyBuffer.copyBuffer(*stagingBuffer, *vertexBuffer,
+                                 vk::BufferCopy(0, 0, bufferSize));
+    commandCopyBuffer.end();
+
+    vDevice.graphicsQueue.submit(
+        vk::SubmitInfo{.commandBufferCount = 1,
+                       .pCommandBuffers = &*commandCopyBuffer},
+        nullptr);
+    vDevice.graphicsQueue.waitIdle();
   }
 
   // TODO - upgrade this later
@@ -243,12 +313,6 @@ struct RenderNode {
   // color attachment. This should change later so I can define what's the
   // initial layout transition. Probably eUndefined to depth, stencil, other?
   void step3_initCommandBuffer(uint32_t queueIndex, vk::raii::Device &device) {
-    vk::CommandPoolCreateInfo poolInfo{
-        .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-        .queueFamilyIndex = queueIndex};
-
-    commandPool = vk::raii::CommandPool(device, poolInfo);
-
     vk::CommandBufferAllocateInfo allocInfo{
         .commandPool = commandPool,
         .level = vk::CommandBufferLevel::ePrimary,
