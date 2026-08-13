@@ -45,6 +45,14 @@ private:
                                       .name = "fragMain"}},
             .shaderFile = "shaders/v2/default.spv"});
 
+    // step 1.1: define vertex input the same as in the shader:
+    std::vector<Renderer::DefaultVertex> vertices{
+        {{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+        {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+        {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+
+    triangleNode.step_1_1_createAndFillVertexBuffer(vertices, vDevice);
+
     triangleNode.step2_initPipelineConfiguration(
         vDevice.device, vSwapChain.swapChainSurfaceFormat,
         Renderer::step2_pipelineConfigurationProps{});

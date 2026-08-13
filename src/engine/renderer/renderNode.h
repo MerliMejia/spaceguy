@@ -1,10 +1,13 @@
 #pragma once
 
+#include "vDevice.h"
 #include "vSwapChain.h"
+#include <stdexcept>
 #include <string>
 #include <vector>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include "../../utils/file.h"
+#include <glm/glm.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
 namespace {
@@ -20,6 +23,28 @@ vk::raii::ShaderModule createShaderModule(const std::vector<char> &code,
 
 namespace Renderer {
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+
+struct DefaultVertex {
+  glm::vec2 pos;
+  glm::vec3 color;
+
+  static vk::VertexInputBindingDescription getBindingDescription() {
+    return {.binding = 0,
+            .stride = sizeof(DefaultVertex),
+            .inputRate = vk::VertexInputRate::eVertex};
+  }
+  static std::array<vk::VertexInputAttributeDescription, 2>
+  getAttributeDescriptions() {
+    return {{{.location = 0,
+              .binding = 0,
+              .format = vk::Format::eR32G32Sfloat,
+              .offset = offsetof(DefaultVertex, pos)},
+             {.location = 1,
+              .binding = 0,
+              .format = vk::Format::eR32G32B32Sfloat,
+              .offset = offsetof(DefaultVertex, color)}}};
+  }
+};
 
 enum class ShaderType {
   None,
@@ -49,11 +74,72 @@ struct RenderNode {
   vk::raii::Pipeline graphicsPipeline = nullptr;
   vk::raii::CommandPool commandPool = nullptr;
   std::vector<vk::raii::CommandBuffer> commandBuffers;
+  vk::raii::Buffer vertexBuffer = nullptr;
+  vk::raii::DeviceMemory vertexBufferMemory = nullptr;
+  // TODO - Default vertex for now, will change as this grows
+  std::vector<Renderer::DefaultVertex> vertices;
 
   void step1_initShaders(vk::raii::Device &device,
                          step1_initShadersProps props) {
     shaderModule = createShaderModule(readFile(props.shaderFile), device);
     shaderCreateInfos = std::move(props.shaderCreateInfos);
+  }
+
+  // For now let's assume we'll always use the default vertex... Will definetly
+  // chancge
+  void step_1_1_createAndFillVertexBuffer(
+      // TODO - Default vertex for now, will change as this grows
+      std::vector<Renderer::DefaultVertex> incommingVertices,
+      VDevice &vDevice) {
+
+    vertices = std::move(incommingVertices);
+
+    vk::BufferCreateInfo bufferInfo{
+        .size = sizeof(vertices[0]) * vertices.size(),
+        .usage = vk::BufferUsageFlagBits::eVertexBuffer,
+        .sharingMode = vk::SharingMode::eExclusive};
+
+    vertexBuffer = vk::raii::Buffer(vDevice.device, bufferInfo);
+
+    vk::MemoryRequirements memRequirements =
+        vertexBuffer.getMemoryRequirements();
+
+    vk::PhysicalDeviceMemoryProperties memProperties =
+        vDevice.physicalDevice.getMemoryProperties();
+
+    uint32_t typeFilter = memRequirements.memoryTypeBits;
+    vk::MemoryPropertyFlags properties =
+        vk::MemoryPropertyFlagBits::eHostVisible |
+        vk::MemoryPropertyFlagBits::eHostCoherent;
+
+    uint32_t selectedMemoryType = -1;
+
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+      if ((typeFilter & (1 << i)) &&
+          (memProperties.memoryTypes[i].propertyFlags & properties) ==
+              properties) {
+        selectedMemoryType = i;
+      }
+    }
+
+    if (selectedMemoryType == -1) {
+      throw std::runtime_error("failed to find suitable memory type!");
+    }
+
+    vk::MemoryAllocateInfo memoryAllocateInfo{
+        .allocationSize = memRequirements.size,
+        .memoryTypeIndex = selectedMemoryType};
+
+    vertexBufferMemory =
+        vk::raii::DeviceMemory(vDevice.device, memoryAllocateInfo);
+
+    vertexBuffer.bindMemory(*vertexBufferMemory, 0);
+
+    // Fill
+
+    void *data = vertexBufferMemory.mapMemory(0, bufferInfo.size);
+    memcpy(data, vertices.data(), bufferInfo.size);
+    vertexBufferMemory.unmapMemory();
   }
 
   // TODO - upgrade this later
@@ -78,7 +164,18 @@ struct RenderNode {
       }
     }
 
-    vk::PipelineVertexInputStateCreateInfo vertexInputInfo;
+    // TODO - Default vertex for now, will change as this grows
+    auto bindingDescription = Renderer::DefaultVertex::getBindingDescription();
+    auto attributeDescriptions =
+        Renderer::DefaultVertex::getAttributeDescriptions();
+
+    vk::PipelineVertexInputStateCreateInfo vertexInputInfo{
+        .vertexBindingDescriptionCount = 1,
+        .pVertexBindingDescriptions = &bindingDescription,
+        .vertexAttributeDescriptionCount =
+            static_cast<uint32_t>(attributeDescriptions.size()),
+        .pVertexAttributeDescriptions = attributeDescriptions.data()};
+
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly{.topology =
                                                                props.topology};
     vk::PipelineViewportStateCreateInfo viewportState{.viewportCount = 1,
@@ -217,7 +314,11 @@ struct RenderNode {
                         0.0f, 1.0f));
     commandBuffers[frameIndex].setScissor(
         0, vk::Rect2D(vk::Offset2D(0, 0), vSwapChain.swapChainExtent));
-    commandBuffers[frameIndex].draw(3, 1, 0, 0);
+
+    commandBuffers[frameIndex].bindVertexBuffers(0, *vertexBuffer, {0});
+
+    commandBuffers[frameIndex].draw(static_cast<uint32_t>(vertices.size()), 1,
+                                    0, 0);
     commandBuffers[frameIndex].endRendering();
 
     // After rendering, transition the swapchain image to
