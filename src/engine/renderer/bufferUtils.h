@@ -17,6 +17,10 @@ struct BufferAllocation {
   vk::raii::Buffer buffer = nullptr;
 };
 
+struct BufferAllocationWithMapped : public BufferAllocation {
+  void *mapped = nullptr;
+};
+
 inline uint32_t findMemoryType(const vk::raii::PhysicalDevice &physicalDevice,
                                uint32_t typeFilter,
                                vk::MemoryPropertyFlags requiredProperties) {

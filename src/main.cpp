@@ -54,11 +54,22 @@ private:
 
     const std::vector<uint32_t> indices = {0, 1, 2, 2, 3, 0};
 
-    triangleNode.step_1_1_createAndFillVertexBuffer(vertices, vDevice);
+    triangleNode.step_1_1_createAndFillVertexBuffer<Renderer::DefaultVertex>(
+        vertices, vDevice);
 
     triangleNode.step_1_2_createAndFillIndicesBuffer(indices, vDevice);
 
-    triangleNode.step2_initPipelineConfiguration(
+    triangleNode.step_1_3_createUniformBuffers(vDevice);
+
+    triangleNode.step_1_4_createDescriptorSetLayout(vDevice.device);
+
+    triangleNode.step_1_5_createDescriptorPool(vDevice.device);
+
+    triangleNode.step_1_6_allocateDescriptorSets(vDevice.device);
+
+    triangleNode.step_1_7_configureDescriptorSets(vDevice.device);
+
+    triangleNode.step2_initPipelineConfiguration<Renderer::DefaultVertex>(
         vDevice.device, vSwapChain.swapChainSurfaceFormat,
         Renderer::step2_pipelineConfigurationProps{});
 

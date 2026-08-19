@@ -1,12 +1,21 @@
 #pragma once
 
 #include "bufferUtils.h"
+#include "glm/fwd.hpp"
+#include "memoryUtils.h"
 #include "vSwapChain.h"
+#include "vulkan/vulkan.hpp"
+#include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include "../../utils/file.h"
+#include <chrono>
+#define GLM_FORCE_RADIANS
+#include "shaders.h"
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
 namespace {
@@ -22,6 +31,12 @@ vk::raii::ShaderModule createShaderModule(const std::vector<char> &code,
 
 namespace Renderer {
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+
+template <typename T>
+concept VertexType = requires {
+  T::getBindingDescription();
+  T::getAttributeDescriptions();
+};
 
 struct DefaultVertex {
   glm::vec2 pos;
@@ -66,6 +81,14 @@ struct step2_pipelineConfigurationProps {
   //... More stuff when dealing with more stuff
 };
 
+struct GlobalUniformBankBuffer {
+  std::array<glm::vec4, Renderer::Shaders::UniformBank::TOTAL_SLOTS> data;
+};
+
+struct PushConstants {
+  uint32_t modelIndex;
+};
+
 struct RenderNode {
   vk::raii::ShaderModule shaderModule = nullptr;
   std::vector<ShaderCreateInfo> shaderCreateInfos;
@@ -77,23 +100,39 @@ struct RenderNode {
   vk::raii::DeviceMemory vertexBufferMemory = nullptr;
   vk::raii::Buffer indexBuffer = nullptr;
   vk::raii::DeviceMemory indexBufferMemory = nullptr;
-  // TODO - Default vertex for now, will change as this grows
-  std::vector<Renderer::DefaultVertex> vertices;
   std::vector<uint32_t> indices;
+
+  // Everything we need for a global uniform bank
+  vk::raii::DescriptorSetLayout globalUniformBankDescriptorSetLayout = nullptr;
+  GlobalUniformBankBuffer globalUniformBufferData{};
+  std::vector<BufferAllocationWithMapped> globalUniformBankBuffers;
+  vk::raii::DescriptorPool globalUniformBankDescriptorPool = nullptr;
+  std::vector<vk::raii::DescriptorSet> globalUniformBankDescriptorSets;
+
+  PushConstants pushConstants{};
 
   void step1_initShaders(vk::raii::Device &device,
                          step1_initShadersProps props) {
+
+    // TODO - This is for testing.
+    glm::mat4 model = rotate(glm::mat4(1.0f), glm::radians(90.0f),
+                             glm::vec3(0.0f, 0.0f, 1.0f));
+
+    const uint32_t modelIndex = 0;
+
+    Renderer::Memory::updateMat4ByIndex(modelIndex,
+                                        globalUniformBufferData.data, model);
+
+    pushConstants.modelIndex = modelIndex;
+
     shaderModule = createShaderModule(readFile(props.shaderFile), device);
     shaderCreateInfos = std::move(props.shaderCreateInfos);
   }
 
-  // For now let's assume we'll always use the default vertex... Will definetly
-  // chancge
+  template <VertexType T>
   void step_1_1_createAndFillVertexBuffer(
       // TODO - Default vertex for now, will change as this grows
-      std::vector<Renderer::DefaultVertex> incomingVertices, VDevice &vDevice) {
-
-    vertices = std::move(incomingVertices);
+      std::vector<T> incomingVertices, VDevice &vDevice) {
 
     vk::CommandPoolCreateInfo poolInfo{
         .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
@@ -106,8 +145,7 @@ struct RenderNode {
     };
 
     BufferAllocation allocation = createDeviceLocalBuffer(
-        vDevice, commandPool,
-        std::span<const Renderer::DefaultVertex>{vertices},
+        vDevice, commandPool, std::span<const T>{incomingVertices},
         vk::BufferUsageFlagBits::eVertexBuffer);
 
     vertexBuffer = std::move(allocation.buffer);
@@ -127,7 +165,91 @@ struct RenderNode {
     indexBufferMemory = std::move(allocation.memory);
   }
 
-  // TODO - upgrade this later
+  void step_1_3_createUniformBuffers(VDevice &vDevice) {
+    // For now, only the uniform bank.
+    // We need one per each frame in flight.
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+
+      vk::DeviceSize bufferSize = sizeof(GlobalUniformBankBuffer);
+      BufferAllocationWithMapped newUniformBuffer{};
+
+      BufferAllocation alloc = createBuffer(
+          vDevice, bufferSize, vk::BufferUsageFlagBits::eUniformBuffer,
+          vk::MemoryPropertyFlagBits::eHostVisible |
+              vk::MemoryPropertyFlagBits::eHostCoherent);
+
+      newUniformBuffer.buffer = std::move(alloc.buffer);
+      newUniformBuffer.memory = std::move(alloc.memory);
+      newUniformBuffer.mapped =
+          newUniformBuffer.memory.mapMemory(0, bufferSize);
+
+      globalUniformBankBuffers.emplace_back(std::move(newUniformBuffer));
+    }
+  }
+
+  // Depends A LOT of the shader, need to create a way to define this as with
+  // the shader.
+  void step_1_4_createDescriptorSetLayout(vk::raii::Device &device) {
+    vk::DescriptorSetLayoutBinding uboLayoutBinding{
+        .binding = 0,
+        .descriptorType = vk::DescriptorType::eUniformBuffer,
+        .descriptorCount = 1,
+        .stageFlags = vk::ShaderStageFlagBits::eVertex};
+    vk::DescriptorSetLayoutCreateInfo layoutInfo{
+        .bindingCount = 1, .pBindings = &uboLayoutBinding};
+    globalUniformBankDescriptorSetLayout =
+        vk::raii::DescriptorSetLayout(device, layoutInfo);
+  }
+
+  // Right now this is only for the global uniforms bank. This will depend
+  // on the other data we're mapping to the gpu and if that data needs
+  // to be updated every frame.
+  void step_1_5_createDescriptorPool(vk::raii::Device &device) {
+    vk::DescriptorPoolSize poolSize{.type = vk::DescriptorType::eUniformBuffer,
+                                    .descriptorCount = MAX_FRAMES_IN_FLIGHT};
+
+    vk::DescriptorPoolCreateInfo poolInfo{
+        .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
+        .maxSets = MAX_FRAMES_IN_FLIGHT,
+        .poolSizeCount = 1,
+        .pPoolSizes = &poolSize};
+
+    globalUniformBankDescriptorPool =
+        vk::raii::DescriptorPool(device, poolInfo);
+  }
+
+  // Dito above
+  void step_1_6_allocateDescriptorSets(vk::raii::Device &device) {
+    std::vector<vk::DescriptorSetLayout> layouts(
+        MAX_FRAMES_IN_FLIGHT, *globalUniformBankDescriptorSetLayout);
+    vk::DescriptorSetAllocateInfo allocInfo{
+        .descriptorPool = globalUniformBankDescriptorPool,
+        .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+        .pSetLayouts = layouts.data()};
+
+    globalUniformBankDescriptorSets = device.allocateDescriptorSets(allocInfo);
+  }
+
+  // Dito above
+  void step_1_7_configureDescriptorSets(vk::raii::Device &device) {
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+      vk::DescriptorBufferInfo bufferInfo{
+          .buffer = globalUniformBankBuffers[i].buffer,
+          .offset = 0,
+          .range = sizeof(GlobalUniformBankBuffer)};
+      vk::WriteDescriptorSet descriptorWrite{
+          .dstSet = globalUniformBankDescriptorSets[i],
+          .dstBinding = 0,
+          .dstArrayElement = 0,
+          .descriptorCount = 1,
+          .descriptorType = vk::DescriptorType::eUniformBuffer,
+          .pBufferInfo = &bufferInfo};
+
+      device.updateDescriptorSets(descriptorWrite, {});
+    }
+  }
+
+  template <VertexType T>
   void
   step2_initPipelineConfiguration(vk::raii::Device &device,
                                   vk::SurfaceFormatKHR &swapChainSurfaceFormat,
@@ -149,10 +271,8 @@ struct RenderNode {
       }
     }
 
-    // TODO - Default vertex for now, will change as this grows
-    auto bindingDescription = Renderer::DefaultVertex::getBindingDescription();
-    auto attributeDescriptions =
-        Renderer::DefaultVertex::getAttributeDescriptions();
+    auto bindingDescription = T::getBindingDescription();
+    auto attributeDescriptions = T::getAttributeDescriptions();
 
     vk::PipelineVertexInputStateCreateInfo vertexInputInfo{
         .vertexBindingDescriptionCount = 1,
@@ -171,7 +291,7 @@ struct RenderNode {
         .rasterizerDiscardEnable = vk::False,
         .polygonMode = vk::PolygonMode::eFill,
         .cullMode = vk::CullModeFlagBits::eBack,
-        .frontFace = vk::FrontFace::eClockwise,
+        .frontFace = vk::FrontFace::eCounterClockwise,
         .depthBiasEnable = vk::False,
         .lineWidth = 1.0f};
 
@@ -197,8 +317,20 @@ struct RenderNode {
         .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
         .pDynamicStates = dynamicStates.data()};
 
+    // TODO - Flags should be defined by the person configuring the node.
+    vk::PushConstantRange pushConstantRange;
+    pushConstantRange.setStageFlags(vk::ShaderStageFlagBits::eVertex)
+        .setOffset(0)
+        .setSize(sizeof(PushConstants));
+
+    // We will definetely add more set layouts.
+    // Also, I think here's where I add the push constants.
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
-        .setLayoutCount = 0, .pushConstantRangeCount = 0};
+        .setLayoutCount = 1,
+        .pSetLayouts = &*globalUniformBankDescriptorSetLayout,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &pushConstantRange};
+
     pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
 
     vk::StructureChain<vk::GraphicsPipelineCreateInfo,
@@ -236,10 +368,45 @@ struct RenderNode {
     commandBuffers = vk::raii::CommandBuffers(device, allocInfo);
   }
 
+  // For now, just the global uniform bank.
+  // I think it depends on the node to update these.
+  // One node can do this but not all of the nodes.
+  void perFrame1_updateUniformBuffers(uint32_t frameIndex) {
+    static auto startTime = std::chrono::high_resolution_clock::now();
+
+    auto thisCurrentTime = std::chrono::high_resolution_clock::now();
+    float time =
+        std::chrono::duration<float>(thisCurrentTime - startTime).count();
+
+    glm::mat4 model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f),
+                             glm::vec3(0.0f, 0.0f, 1.0f));
+
+    glm::mat4 view =
+        lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+               glm::vec3(0.0f, 0.0f, 1.0f));
+
+    glm::mat4 proj = glm::perspective(
+        glm::radians(45.0f), static_cast<float>(800) / static_cast<float>(600),
+        0.1f, 10.0f);
+
+    proj[1][1] *= -1;
+
+    Renderer::Memory::updateMat4ByIndex(0, globalUniformBufferData.data, model);
+    Renderer::Memory::updateMat4ByIndex(
+        Renderer::Shaders::UniformBank::viewIndex, globalUniformBufferData.data,
+        view);
+    Renderer::Memory::updateMat4ByIndex(
+        Renderer::Shaders::UniformBank::projIndex, globalUniformBufferData.data,
+        proj);
+
+    memcpy(globalUniformBankBuffers[frameIndex].mapped,
+           &globalUniformBufferData, sizeof(globalUniformBufferData));
+  }
+
   // Will definetly change. This is where each render node should define what to
   // do when rendering each frame. Will it get an image as input? What's the
   // output? which resources will bind?
-  void perFrame1_recordCommandBuffer(Renderer::VSwapChain &vSwapChain,
+  void perFrame2_recordCommandBuffer(Renderer::VSwapChain &vSwapChain,
                                      uint32_t imageIndex, uint32_t frameIndex) {
     commandBuffers[frameIndex].begin({});
 
@@ -297,6 +464,14 @@ struct RenderNode {
     commandBuffers[frameIndex].bindVertexBuffers(0, *vertexBuffer, {0});
     commandBuffers[frameIndex].bindIndexBuffer(*indexBuffer, 0,
                                                vk::IndexType::eUint32);
+    commandBuffers[frameIndex].bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics, pipelineLayout, 0,
+        *globalUniformBankDescriptorSets[frameIndex], nullptr);
+
+    // TODO - The flags should be defined?
+    commandBuffers[frameIndex].pushConstants(
+        *pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0,
+        sizeof(PushConstants), &pushConstants);
 
     commandBuffers[frameIndex].drawIndexed(
         static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);

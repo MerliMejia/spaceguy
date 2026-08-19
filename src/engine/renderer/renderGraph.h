@@ -51,7 +51,8 @@ struct RenderGraph {
 
     for (RenderNode &node : renderNodes) {
       node.commandBuffers[frameIndex].reset();
-      node.perFrame1_recordCommandBuffer(vSwapChain, imageIndex, frameIndex);
+      node.perFrame1_updateUniformBuffers(frameIndex);
+      node.perFrame2_recordCommandBuffer(vSwapChain, imageIndex, frameIndex);
     }
 
     device.resetFences(*inFlightFences[frameIndex]);
