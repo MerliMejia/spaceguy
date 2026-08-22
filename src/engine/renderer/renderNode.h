@@ -3,6 +3,7 @@
 #include "bufferUtils.h"
 #include "glm/fwd.hpp"
 #include "memoryUtils.h"
+#include "renderGraphUtils.h"
 #include "vSwapChain.h"
 #include "vulkan/vulkan.hpp"
 #include <cstdint>
@@ -81,10 +82,6 @@ struct step2_pipelineConfigurationProps {
   //... More stuff when dealing with more stuff
 };
 
-struct GlobalUniformBankBuffer {
-  std::array<glm::vec4, Renderer::Shaders::UniformBank::TOTAL_SLOTS> data;
-};
-
 struct PushConstants {
   uint32_t modelIndex;
 };
@@ -102,14 +99,13 @@ struct RenderNode {
   vk::raii::DeviceMemory indexBufferMemory = nullptr;
   std::vector<uint32_t> indices;
 
-  // Everything we need for a global uniform bank
-  vk::raii::DescriptorSetLayout globalUniformBankDescriptorSetLayout = nullptr;
-  GlobalUniformBankBuffer globalUniformBufferData{};
-  std::vector<BufferAllocationWithMapped> globalUniformBankBuffers;
-  vk::raii::DescriptorPool globalUniformBankDescriptorPool = nullptr;
-  std::vector<vk::raii::DescriptorSet> globalUniformBankDescriptorSets;
+  Renderer::RenderGraph::Context *renderGraphContext = nullptr;
 
   PushConstants pushConstants{};
+
+  void preInit(Renderer::RenderGraph::Context &ctx) {
+    renderGraphContext = &ctx;
+  }
 
   void step1_initShaders(vk::raii::Device &device,
                          step1_initShadersProps props) {
@@ -120,8 +116,8 @@ struct RenderNode {
 
     const uint32_t modelIndex = 0;
 
-    Renderer::Memory::updateMat4ByIndex(modelIndex,
-                                        globalUniformBufferData.data, model);
+    Renderer::Memory::updateMat4ByIndex(
+        modelIndex, renderGraphContext->globalUniformBufferData.data, model);
 
     pushConstants.modelIndex = modelIndex;
 
@@ -170,7 +166,8 @@ struct RenderNode {
     // We need one per each frame in flight.
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 
-      vk::DeviceSize bufferSize = sizeof(GlobalUniformBankBuffer);
+      vk::DeviceSize bufferSize =
+          sizeof(RenderGraph::Context::GlobalUniformBankBuffer);
       BufferAllocationWithMapped newUniformBuffer{};
 
       BufferAllocation alloc = createBuffer(
@@ -183,7 +180,8 @@ struct RenderNode {
       newUniformBuffer.mapped =
           newUniformBuffer.memory.mapMemory(0, bufferSize);
 
-      globalUniformBankBuffers.emplace_back(std::move(newUniformBuffer));
+      renderGraphContext->globalUniformBankBuffers.emplace_back(
+          std::move(newUniformBuffer));
     }
   }
 
@@ -197,7 +195,7 @@ struct RenderNode {
         .stageFlags = vk::ShaderStageFlagBits::eVertex};
     vk::DescriptorSetLayoutCreateInfo layoutInfo{
         .bindingCount = 1, .pBindings = &uboLayoutBinding};
-    globalUniformBankDescriptorSetLayout =
+    renderGraphContext->globalUniformBankDescriptorSetLayout =
         vk::raii::DescriptorSetLayout(device, layoutInfo);
   }
 
@@ -214,31 +212,33 @@ struct RenderNode {
         .poolSizeCount = 1,
         .pPoolSizes = &poolSize};
 
-    globalUniformBankDescriptorPool =
+    renderGraphContext->globalUniformBankDescriptorPool =
         vk::raii::DescriptorPool(device, poolInfo);
   }
 
   // Dito above
   void step_1_6_allocateDescriptorSets(vk::raii::Device &device) {
     std::vector<vk::DescriptorSetLayout> layouts(
-        MAX_FRAMES_IN_FLIGHT, *globalUniformBankDescriptorSetLayout);
+        MAX_FRAMES_IN_FLIGHT,
+        *renderGraphContext->globalUniformBankDescriptorSetLayout);
     vk::DescriptorSetAllocateInfo allocInfo{
-        .descriptorPool = globalUniformBankDescriptorPool,
+        .descriptorPool = renderGraphContext->globalUniformBankDescriptorPool,
         .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
         .pSetLayouts = layouts.data()};
 
-    globalUniformBankDescriptorSets = device.allocateDescriptorSets(allocInfo);
+    renderGraphContext->globalUniformBankDescriptorSets =
+        device.allocateDescriptorSets(allocInfo);
   }
 
   // Dito above
   void step_1_7_configureDescriptorSets(vk::raii::Device &device) {
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
       vk::DescriptorBufferInfo bufferInfo{
-          .buffer = globalUniformBankBuffers[i].buffer,
+          .buffer = renderGraphContext->globalUniformBankBuffers[i].buffer,
           .offset = 0,
-          .range = sizeof(GlobalUniformBankBuffer)};
+          .range = sizeof(RenderGraph::Context::GlobalUniformBankBuffer)};
       vk::WriteDescriptorSet descriptorWrite{
-          .dstSet = globalUniformBankDescriptorSets[i],
+          .dstSet = renderGraphContext->globalUniformBankDescriptorSets[i],
           .dstBinding = 0,
           .dstArrayElement = 0,
           .descriptorCount = 1,
@@ -327,7 +327,8 @@ struct RenderNode {
     // Also, I think here's where I add the push constants.
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
         .setLayoutCount = 1,
-        .pSetLayouts = &*globalUniformBankDescriptorSetLayout,
+        .pSetLayouts =
+            &*renderGraphContext->globalUniformBankDescriptorSetLayout,
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = &pushConstantRange};
 
@@ -391,16 +392,18 @@ struct RenderNode {
 
     proj[1][1] *= -1;
 
-    Renderer::Memory::updateMat4ByIndex(0, globalUniformBufferData.data, model);
     Renderer::Memory::updateMat4ByIndex(
-        Renderer::Shaders::UniformBank::viewIndex, globalUniformBufferData.data,
-        view);
+        0, renderGraphContext->globalUniformBufferData.data, model);
     Renderer::Memory::updateMat4ByIndex(
-        Renderer::Shaders::UniformBank::projIndex, globalUniformBufferData.data,
-        proj);
+        Renderer::Shaders::UniformBank::viewIndex,
+        renderGraphContext->globalUniformBufferData.data, view);
+    Renderer::Memory::updateMat4ByIndex(
+        Renderer::Shaders::UniformBank::projIndex,
+        renderGraphContext->globalUniformBufferData.data, proj);
 
-    memcpy(globalUniformBankBuffers[frameIndex].mapped,
-           &globalUniformBufferData, sizeof(globalUniformBufferData));
+    memcpy(renderGraphContext->globalUniformBankBuffers[frameIndex].mapped,
+           &renderGraphContext->globalUniformBufferData,
+           sizeof(renderGraphContext->globalUniformBufferData));
   }
 
   // Will definetly change. This is where each render node should define what to
@@ -466,7 +469,8 @@ struct RenderNode {
                                                vk::IndexType::eUint32);
     commandBuffers[frameIndex].bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics, pipelineLayout, 0,
-        *globalUniformBankDescriptorSets[frameIndex], nullptr);
+        *renderGraphContext->globalUniformBankDescriptorSets[frameIndex],
+        nullptr);
 
     // TODO - The flags should be defined?
     commandBuffers[frameIndex].pushConstants(

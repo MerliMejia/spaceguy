@@ -1,8 +1,10 @@
 #pragma once
 
+#include "renderGraphUtils.h"
 #include "renderNode.h"
 #include "vSwapChain.h"
 #include <cstdint>
+#include <memory>
 #include <vector>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <iostream>
@@ -10,16 +12,29 @@
 
 namespace Renderer {
 
-struct RenderGraph {
+namespace RenderGraph {
+struct Fucntions {
   std::vector<vk::raii::Semaphore> presentCompleteSemaphores;
   std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
   std::vector<vk::raii::Fence> inFlightFences;
   unsigned int imageIndex = UINT32_MAX;
   uint32_t frameIndex = 0;
 
-  std::vector<Renderer::RenderNode> renderNodes;
+  std::vector<std::unique_ptr<Renderer::RenderNode>> renderNodes;
+  Context context{};
+
+  RenderNode &createNode() {
+    auto node = std::make_unique<RenderNode>();
+    node->preInit(context);
+
+    RenderNode &nodeReference = *node;
+    renderNodes.push_back(std::move(node));
+
+    return nodeReference;
+  }
 
   void init(vk::raii::Device &device, std::vector<vk::Image> &swapChainImages) {
+
     assert(presentCompleteSemaphores.empty() &&
            renderFinishedSemaphores.empty() && inFlightFences.empty());
 
@@ -49,10 +64,10 @@ struct RenderGraph {
 
     imageIndex = acquiredImageIndex;
 
-    for (RenderNode &node : renderNodes) {
-      node.commandBuffers[frameIndex].reset();
-      node.perFrame1_updateUniformBuffers(frameIndex);
-      node.perFrame2_recordCommandBuffer(vSwapChain, imageIndex, frameIndex);
+    for (auto &node : renderNodes) {
+      node->commandBuffers[frameIndex].reset();
+      node->perFrame1_updateUniformBuffers(frameIndex);
+      node->perFrame2_recordCommandBuffer(vSwapChain, imageIndex, frameIndex);
     }
 
     device.resetFences(*inFlightFences[frameIndex]);
@@ -66,8 +81,8 @@ struct RenderGraph {
 
     std::vector<vk::CommandBuffer> commandBuffers;
 
-    for (RenderNode &node : renderNodes) {
-      commandBuffers.push_back(node.commandBuffers[frameIndex]);
+    for (auto &node : renderNodes) {
+      commandBuffers.push_back(node->commandBuffers[frameIndex]);
     }
 
     const vk::SubmitInfo submitInfo{
@@ -101,5 +116,6 @@ struct RenderGraph {
     frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
   }
 };
+} // namespace RenderGraph
 
 } // namespace Renderer

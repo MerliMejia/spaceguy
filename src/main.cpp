@@ -23,9 +23,7 @@ private:
   Renderer::Window window;
   Renderer::VDevice vDevice;
   Renderer::VSwapChain vSwapChain;
-
-  Renderer::RenderNode triangleNode{};
-  Renderer::RenderGraph renderGraph{};
+  Renderer::RenderGraph::Fucntions renderGraph{};
 
   void initVulkan() {
     vInstance.create();
@@ -33,6 +31,8 @@ private:
     vDevice.pickAndCreate(vInstance.handler, window.surface);
     vSwapChain.create(vDevice.physicalDevice, window.surface, vDevice.device,
                       window.handler);
+
+    Renderer::RenderNode &triangleNode = renderGraph.createNode();
 
     triangleNode.step1_initShaders(
         vDevice.device,
@@ -74,8 +74,6 @@ private:
         Renderer::step2_pipelineConfigurationProps{});
 
     triangleNode.step3_initCommandBuffer(vDevice.queueIndex, vDevice.device);
-
-    renderGraph.renderNodes.push_back(std::move(triangleNode));
 
     renderGraph.init(vDevice.device, vSwapChain.swapChainImages);
   }
