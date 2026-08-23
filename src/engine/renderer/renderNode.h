@@ -2,7 +2,6 @@
 
 #include "bufferUtils.h"
 #include "glm/fwd.hpp"
-#include "memoryUtils.h"
 #include "renderGraphUtils.h"
 #include "vSwapChain.h"
 #include "vulkan/vulkan.hpp"
@@ -12,7 +11,6 @@
 #include <vector>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include "../../utils/file.h"
-#include <chrono>
 #define GLM_FORCE_RADIANS
 #include "shaders.h"
 #include <glm/glm.hpp>
@@ -82,10 +80,6 @@ struct step2_pipelineConfigurationProps {
   //... More stuff when dealing with more stuff
 };
 
-struct PushConstants {
-  uint32_t modelIndex;
-};
-
 struct RenderNode {
   vk::raii::ShaderModule shaderModule = nullptr;
   std::vector<ShaderCreateInfo> shaderCreateInfos;
@@ -100,8 +94,8 @@ struct RenderNode {
   std::vector<uint32_t> indices;
 
   Renderer::RenderGraph::Context *renderGraphContext = nullptr;
-
-  PushConstants pushConstants{};
+  bool usePushConstants = false;
+  bool updateUniforms = false;
 
   void preInit(Renderer::RenderGraph::Context &ctx) {
     renderGraphContext = &ctx;
@@ -109,26 +103,13 @@ struct RenderNode {
 
   void step1_initShaders(vk::raii::Device &device,
                          step1_initShadersProps props) {
-
-    // TODO - This is for testing.
-    glm::mat4 model = rotate(glm::mat4(1.0f), glm::radians(90.0f),
-                             glm::vec3(0.0f, 0.0f, 1.0f));
-
-    const uint32_t modelIndex = 0;
-
-    Renderer::Memory::updateMat4ByIndex(
-        modelIndex, renderGraphContext->globalUniformBufferData.data, model);
-
-    pushConstants.modelIndex = modelIndex;
-
     shaderModule = createShaderModule(readFile(props.shaderFile), device);
     shaderCreateInfos = std::move(props.shaderCreateInfos);
   }
 
   template <VertexType T>
-  void step_1_1_createAndFillVertexBuffer(
-      // TODO - Default vertex for now, will change as this grows
-      std::vector<T> incomingVertices, VDevice &vDevice) {
+  void step_1_1_createAndFillVertexBuffer(std::vector<T> incomingVertices,
+                                          VDevice &vDevice) {
 
     vk::CommandPoolCreateInfo poolInfo{
         .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
@@ -162,8 +143,8 @@ struct RenderNode {
   }
 
   void step_1_3_createUniformBuffers(VDevice &vDevice) {
-    // For now, only the uniform bank.
-    // We need one per each frame in flight.
+    // For now 1 per frame in flight. At some point I may want something that is
+    // more static.
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 
       vk::DeviceSize bufferSize =
@@ -185,8 +166,8 @@ struct RenderNode {
     }
   }
 
-  // Depends A LOT of the shader, need to create a way to define this as with
-  // the shader.
+  // Depends A LOT of the shader.
+  // For now binding(0,0) is reserved for the uniforms bank.
   void step_1_4_createDescriptorSetLayout(vk::raii::Device &device) {
     vk::DescriptorSetLayoutBinding uboLayoutBinding{
         .binding = 0,
@@ -317,20 +298,22 @@ struct RenderNode {
         .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
         .pDynamicStates = dynamicStates.data()};
 
-    // TODO - Flags should be defined by the person configuring the node.
     vk::PushConstantRange pushConstantRange;
-    pushConstantRange.setStageFlags(vk::ShaderStageFlagBits::eVertex)
-        .setOffset(0)
-        .setSize(sizeof(PushConstants));
 
     // We will definetely add more set layouts.
-    // Also, I think here's where I add the push constants.
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
         .setLayoutCount = 1,
         .pSetLayouts =
-            &*renderGraphContext->globalUniformBankDescriptorSetLayout,
-        .pushConstantRangeCount = 1,
-        .pPushConstantRanges = &pushConstantRange};
+            &*renderGraphContext->globalUniformBankDescriptorSetLayout};
+
+    if (usePushConstants) {
+      pushConstantRange.setStageFlags(vk::ShaderStageFlagBits::eVertex)
+          .setOffset(0)
+          .setSize(sizeof(Shaders::PushConstantsBank::PushConstantData));
+
+      pipelineLayoutInfo.pushConstantRangeCount = 1;
+      pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+    }
 
     pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
 
@@ -373,34 +356,6 @@ struct RenderNode {
   // I think it depends on the node to update these.
   // One node can do this but not all of the nodes.
   void perFrame1_updateUniformBuffers(uint32_t frameIndex) {
-    static auto startTime = std::chrono::high_resolution_clock::now();
-
-    auto thisCurrentTime = std::chrono::high_resolution_clock::now();
-    float time =
-        std::chrono::duration<float>(thisCurrentTime - startTime).count();
-
-    glm::mat4 model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f),
-                             glm::vec3(0.0f, 0.0f, 1.0f));
-
-    glm::mat4 view =
-        lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
-               glm::vec3(0.0f, 0.0f, 1.0f));
-
-    glm::mat4 proj = glm::perspective(
-        glm::radians(45.0f), static_cast<float>(800) / static_cast<float>(600),
-        0.1f, 10.0f);
-
-    proj[1][1] *= -1;
-
-    Renderer::Memory::updateMat4ByIndex(
-        0, renderGraphContext->globalUniformBufferData.data, model);
-    Renderer::Memory::updateMat4ByIndex(
-        Renderer::Shaders::UniformBank::viewIndex,
-        renderGraphContext->globalUniformBufferData.data, view);
-    Renderer::Memory::updateMat4ByIndex(
-        Renderer::Shaders::UniformBank::projIndex,
-        renderGraphContext->globalUniformBufferData.data, proj);
-
     memcpy(renderGraphContext->globalUniformBankBuffers[frameIndex].mapped,
            &renderGraphContext->globalUniformBufferData,
            sizeof(renderGraphContext->globalUniformBufferData));
@@ -472,10 +427,12 @@ struct RenderNode {
         *renderGraphContext->globalUniformBankDescriptorSets[frameIndex],
         nullptr);
 
-    // TODO - The flags should be defined?
-    commandBuffers[frameIndex].pushConstants(
-        *pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0,
-        sizeof(PushConstants), &pushConstants);
+    if (usePushConstants) {
+      commandBuffers[frameIndex].pushConstants(
+          *pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0,
+          sizeof(Shaders::PushConstantsBank::PushConstantData),
+          &renderGraphContext->pushConstantBank);
+    }
 
     commandBuffers[frameIndex].drawIndexed(
         static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);

@@ -5,14 +5,6 @@ struct VSInput {
     float3 inColor;
 };
 
-struct PushConstants
-{
-    uint modelIndex;
-};
-
-[[vk::push_constant]]
-PushConstants pc;
-
 struct VSOutput
 {
     float4 pos : SV_Position;
@@ -22,9 +14,11 @@ struct VSOutput
 [shader("vertex")]
 VSOutput vertMain(VSInput input) {
 
-    float4x4 model = getGlobalMat4(pc.modelIndex);
-    float4x4 view  = getGlobalMat4(viewIndex);
-    float4x4 proj  = getGlobalMat4(projIndex);
+    uint modelIndex = PushConstantsBank::getInt(3);
+
+    float4x4 model = UniformBank::getFloat4x4(modelIndex);
+    float4x4 view  = UniformBank::getFloat4x4(viewIndex);
+    float4x4 proj  = UniformBank::getFloat4x4(projIndex);
 
     VSOutput output;
     output.pos = mul(proj, mul(view, mul(model, float4(input.inPosition, 0.0, 1.0))));

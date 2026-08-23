@@ -66,7 +66,9 @@ struct Fucntions {
 
     for (auto &node : renderNodes) {
       node->commandBuffers[frameIndex].reset();
-      node->perFrame1_updateUniformBuffers(frameIndex);
+      if (node->updateUniforms) {
+        node->perFrame1_updateUniformBuffers(frameIndex);
+      }
       node->perFrame2_recordCommandBuffer(vSwapChain, imageIndex, frameIndex);
     }
 

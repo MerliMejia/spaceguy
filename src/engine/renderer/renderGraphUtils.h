@@ -20,6 +20,8 @@ struct Context {
   std::vector<BufferAllocationWithMapped> globalUniformBankBuffers;
   vk::raii::DescriptorPool globalUniformBankDescriptorPool = nullptr;
   std::vector<vk::raii::DescriptorSet> globalUniformBankDescriptorSets;
+
+  Shaders::PushConstantsBank::PushConstantData pushConstantBank{};
 };
 } // namespace RenderGraph
 } // namespace Renderer
