@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../../../shaders/v2/banks_shared.h"
+
 #include <bit>
 #include <cassert>
 #include <cstddef>
@@ -8,27 +10,29 @@
 
 namespace Renderer {
 namespace Shaders {
+
+inline constexpr uint32_t MAX_TEXTURES = SG_MAX_TEXTURES;
+
 namespace UniformBank {
-constexpr uint32_t FLOAT_COUNT = 100;
-constexpr uint32_t VEC2_COUNT = 100;
-constexpr uint32_t VEC3_COUNT = 100;
-constexpr uint32_t MAT4_COUNT = 100;
+inline constexpr uint32_t FLOAT_COUNT = SG_UNIFORM_FLOAT_COUNT;
+inline constexpr uint32_t VEC2_COUNT = SG_UNIFORM_VEC2_COUNT;
+inline constexpr uint32_t VEC3_COUNT = SG_UNIFORM_VEC3_COUNT;
+inline constexpr uint32_t MAT4_COUNT = SG_UNIFORM_MAT4_COUNT;
 
-constexpr uint32_t FLOAT_SLOTS = (FLOAT_COUNT + 3) / 4;
-constexpr uint32_t VEC2_SLOTS = (VEC2_COUNT + 1) / 2;
-constexpr uint32_t VEC3_SLOTS = VEC3_COUNT;
-constexpr uint32_t MAT4_SLOTS = MAT4_COUNT * 4;
+inline constexpr uint32_t FLOAT_SLOTS = SG_UNIFORM_FLOAT_SLOTS;
+inline constexpr uint32_t VEC2_SLOTS = SG_UNIFORM_VEC2_SLOTS;
+inline constexpr uint32_t VEC3_SLOTS = SG_UNIFORM_VEC3_SLOTS;
+inline constexpr uint32_t MAT4_SLOTS = SG_UNIFORM_MAT4_SLOTS;
 
-constexpr uint32_t FLOAT_FROM = 0;
-constexpr uint32_t VEC2_FROM = FLOAT_FROM + FLOAT_SLOTS;
-constexpr uint32_t VEC3_FROM = VEC2_FROM + VEC2_SLOTS;
-constexpr uint32_t MAT4_FROM = VEC3_FROM + VEC3_SLOTS;
+inline constexpr uint32_t FLOAT_FROM = SG_UNIFORM_FLOAT_FROM;
+inline constexpr uint32_t VEC2_FROM = SG_UNIFORM_VEC2_FROM;
+inline constexpr uint32_t VEC3_FROM = SG_UNIFORM_VEC3_FROM;
+inline constexpr uint32_t MAT4_FROM = SG_UNIFORM_MAT4_FROM;
 
-constexpr uint32_t TOTAL_SLOTS = MAT4_FROM + MAT4_SLOTS;
+inline constexpr uint32_t TOTAL_SLOTS = SG_UNIFORM_TOTAL_SLOTS;
 
-// Shared matrices occupy the final two logical mat4 entries.
-constexpr uint32_t projIndex = MAT4_COUNT - 2;
-constexpr uint32_t viewIndex = MAT4_COUNT - 1;
+inline constexpr uint32_t projIndex = SG_PROJ_INDEX;
+inline constexpr uint32_t viewIndex = SG_VIEW_INDEX;
 
 using Data = std::array<glm::vec4, TOTAL_SLOTS>;
 
@@ -108,27 +112,27 @@ inline glm::mat4 getFloat4x4(const Data &bank, uint32_t index) {
 
 namespace PushConstantsBank {
 
-constexpr uint32_t FLOAT_COUNT = 4;
-constexpr uint32_t VEC2_COUNT = 4;
-constexpr uint32_t VEC3_COUNT = 1;
-constexpr uint32_t INT_COUNT = 16;
+inline constexpr uint32_t FLOAT_COUNT = SG_PUSH_FLOAT_COUNT;
+inline constexpr uint32_t VEC2_COUNT = SG_PUSH_VEC2_COUNT;
+inline constexpr uint32_t VEC3_COUNT = SG_PUSH_VEC3_COUNT;
+inline constexpr uint32_t INT_COUNT = SG_PUSH_INT_COUNT;
 
-constexpr uint32_t FLOAT_SLOTS = (FLOAT_COUNT + 3) / 4;
-constexpr uint32_t VEC2_SLOTS = (VEC2_COUNT + 1) / 2;
-constexpr uint32_t VEC3_SLOTS = VEC3_COUNT;
-constexpr uint32_t INT_SLOTS = (INT_COUNT + 3) / 4;
+inline constexpr uint32_t FLOAT_SLOTS = SG_PUSH_FLOAT_SLOTS;
+inline constexpr uint32_t VEC2_SLOTS = SG_PUSH_VEC2_SLOTS;
+inline constexpr uint32_t VEC3_SLOTS = SG_PUSH_VEC3_SLOTS;
+inline constexpr uint32_t INT_SLOTS = SG_PUSH_INT_SLOTS;
 
-constexpr uint32_t FLOAT_FROM = 0;
-constexpr uint32_t VEC2_FROM = FLOAT_FROM + FLOAT_SLOTS;
-constexpr uint32_t VEC3_FROM = VEC2_FROM + VEC2_SLOTS;
-constexpr uint32_t INT_FROM = VEC3_FROM + VEC3_SLOTS;
+inline constexpr uint32_t FLOAT_FROM = SG_PUSH_FLOAT_FROM;
+inline constexpr uint32_t VEC2_FROM = SG_PUSH_VEC2_FROM;
+inline constexpr uint32_t VEC3_FROM = SG_PUSH_VEC3_FROM;
+inline constexpr uint32_t INT_FROM = SG_PUSH_INT_FROM;
 
-constexpr uint32_t TOTAL_SLOTS = INT_FROM + INT_SLOTS;
-constexpr uint32_t TOTAL_BYTES = TOTAL_SLOTS * 16;
+inline constexpr uint32_t TOTAL_SLOTS = SG_PUSH_TOTAL_SLOTS;
+inline constexpr uint32_t TOTAL_BYTES = SG_PUSH_TOTAL_BYTES;
 
 struct alignas(16) PushConstantData {
-  std::array<glm::vec4, PushConstantsBank::INT_FROM> floatData{};
-  std::array<glm::uvec4, PushConstantsBank::INT_SLOTS> integerData{};
+  std::array<glm::vec4, INT_FROM> floatData{};
+  std::array<glm::uvec4, INT_SLOTS> integerData{};
 };
 
 inline void setFloat(PushConstantData &bank, uint32_t index, float value) {

@@ -2,9 +2,11 @@
 
 #include "bufferUtils.h"
 #include "glm/fwd.hpp"
+#include "images/vImageManager.h"
 #include "renderGraphUtils.h"
 #include "vSwapChain.h"
 #include "vulkan/vulkan.hpp"
+#include <array>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -12,6 +14,7 @@
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include "../../utils/file.h"
 #define GLM_FORCE_RADIANS
+#include "images/vTexture.h"
 #include "shaders.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -40,22 +43,29 @@ concept VertexType = requires {
 struct DefaultVertex {
   glm::vec2 pos;
   glm::vec3 color;
+  glm::vec2 uv;
 
   static vk::VertexInputBindingDescription getBindingDescription() {
     return {.binding = 0,
             .stride = sizeof(DefaultVertex),
             .inputRate = vk::VertexInputRate::eVertex};
   }
-  static std::array<vk::VertexInputAttributeDescription, 2>
+  static std::array<vk::VertexInputAttributeDescription, 3>
   getAttributeDescriptions() {
-    return {{{.location = 0,
-              .binding = 0,
-              .format = vk::Format::eR32G32Sfloat,
-              .offset = offsetof(DefaultVertex, pos)},
-             {.location = 1,
-              .binding = 0,
-              .format = vk::Format::eR32G32B32Sfloat,
-              .offset = offsetof(DefaultVertex, color)}}};
+    return {{
+        {.location = 0,
+         .binding = 0,
+         .format = vk::Format::eR32G32Sfloat,
+         .offset = offsetof(DefaultVertex, pos)},
+        {.location = 1,
+         .binding = 0,
+         .format = vk::Format::eR32G32B32Sfloat,
+         .offset = offsetof(DefaultVertex, color)},
+        {.location = 2,
+         .binding = 0,
+         .format = vk::Format::eR32G32Sfloat,
+         .offset = offsetof(DefaultVertex, uv)},
+    }};
   }
 };
 
@@ -85,7 +95,6 @@ struct RenderNode {
   std::vector<ShaderCreateInfo> shaderCreateInfos;
   vk::raii::PipelineLayout pipelineLayout = nullptr;
   vk::raii::Pipeline graphicsPipeline = nullptr;
-  vk::raii::CommandPool commandPool = nullptr;
   std::vector<vk::raii::CommandBuffer> commandBuffers;
   vk::raii::Buffer vertexBuffer = nullptr;
   vk::raii::DeviceMemory vertexBufferMemory = nullptr;
@@ -109,7 +118,8 @@ struct RenderNode {
 
   template <VertexType T>
   void step_1_1_createAndFillVertexBuffer(std::vector<T> incomingVertices,
-                                          VDevice &vDevice) {
+                                          VDevice &vDevice,
+                                          vk::raii::CommandPool &commandPool) {
 
     vk::CommandPoolCreateInfo poolInfo{
         .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
@@ -131,7 +141,8 @@ struct RenderNode {
 
   void
   step_1_2_createAndFillIndicesBuffer(std::vector<uint32_t> incomingIndices,
-                                      VDevice &vDevice) {
+                                      VDevice &vDevice,
+                                      vk::raii::CommandPool &commandPool) {
 
     indices = std::move(incomingIndices);
     BufferAllocation allocation = createDeviceLocalBuffer(
@@ -166,67 +177,120 @@ struct RenderNode {
     }
   }
 
-  // Depends A LOT of the shader.
-  // For now binding(0,0) is reserved for the uniforms bank.
+  // I'll manually define this in a way that each node can use it however it
+  // wants. Right now 0,0 -> uniform bank, 1,0 -> sampler, 2,0 0 -> texture
+  // bank.
   void step_1_4_createDescriptorSetLayout(vk::raii::Device &device) {
-    vk::DescriptorSetLayoutBinding uboLayoutBinding{
-        .binding = 0,
-        .descriptorType = vk::DescriptorType::eUniformBuffer,
-        .descriptorCount = 1,
-        .stageFlags = vk::ShaderStageFlagBits::eVertex};
+    std::array<vk::DescriptorSetLayoutBinding, 3> bingdings{
+        vk::DescriptorSetLayoutBinding{
+            .binding = 0,
+            .descriptorType = vk::DescriptorType::eUniformBuffer,
+            .descriptorCount = 1,
+            .stageFlags = vk::ShaderStageFlagBits::eVertex},
+        vk::DescriptorSetLayoutBinding{
+            .binding = 1,
+            .descriptorType = vk::DescriptorType::eSampler,
+            .descriptorCount = 1,
+            .stageFlags = vk::ShaderStageFlagBits::eFragment},
+        vk::DescriptorSetLayoutBinding{
+            .binding = 2,
+            .descriptorType = vk::DescriptorType::eSampledImage,
+            .descriptorCount = Shaders::MAX_TEXTURES,
+            .stageFlags = vk::ShaderStageFlagBits::eFragment}};
+
     vk::DescriptorSetLayoutCreateInfo layoutInfo{
-        .bindingCount = 1, .pBindings = &uboLayoutBinding};
-    renderGraphContext->globalUniformBankDescriptorSetLayout =
+        .bindingCount = static_cast<uint32_t>(bingdings.size()),
+        .pBindings = bingdings.data()};
+    renderGraphContext->defaultDescriptorSetLayout =
         vk::raii::DescriptorSetLayout(device, layoutInfo);
   }
 
-  // Right now this is only for the global uniforms bank. This will depend
-  // on the other data we're mapping to the gpu and if that data needs
-  // to be updated every frame.
   void step_1_5_createDescriptorPool(vk::raii::Device &device) {
-    vk::DescriptorPoolSize poolSize{.type = vk::DescriptorType::eUniformBuffer,
-                                    .descriptorCount = MAX_FRAMES_IN_FLIGHT};
+    std::array<vk::DescriptorPoolSize, 3> poolSizes = {
+        vk::DescriptorPoolSize{.type = vk::DescriptorType::eUniformBuffer,
+                               .descriptorCount = MAX_FRAMES_IN_FLIGHT},
+        vk::DescriptorPoolSize{.type = vk::DescriptorType::eSampler,
+                               .descriptorCount = MAX_FRAMES_IN_FLIGHT},
+        // Each frame in flight to have 20 sampled textures.
+        vk::DescriptorPoolSize{.type = vk::DescriptorType::eSampledImage,
+                               .descriptorCount = MAX_FRAMES_IN_FLIGHT *
+                                                  Shaders::MAX_TEXTURES}};
 
     vk::DescriptorPoolCreateInfo poolInfo{
         .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
         .maxSets = MAX_FRAMES_IN_FLIGHT,
-        .poolSizeCount = 1,
-        .pPoolSizes = &poolSize};
+        .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
+        .pPoolSizes = poolSizes.data()};
 
-    renderGraphContext->globalUniformBankDescriptorPool =
+    renderGraphContext->defaultDescriptorPool =
         vk::raii::DescriptorPool(device, poolInfo);
   }
 
-  // Dito above
   void step_1_6_allocateDescriptorSets(vk::raii::Device &device) {
     std::vector<vk::DescriptorSetLayout> layouts(
-        MAX_FRAMES_IN_FLIGHT,
-        *renderGraphContext->globalUniformBankDescriptorSetLayout);
+        MAX_FRAMES_IN_FLIGHT, *renderGraphContext->defaultDescriptorSetLayout);
+
     vk::DescriptorSetAllocateInfo allocInfo{
-        .descriptorPool = renderGraphContext->globalUniformBankDescriptorPool,
+        .descriptorPool = renderGraphContext->defaultDescriptorPool,
         .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
         .pSetLayouts = layouts.data()};
 
-    renderGraphContext->globalUniformBankDescriptorSets =
+    renderGraphContext->defaultDescriptorSets =
         device.allocateDescriptorSets(allocInfo);
   }
 
-  // Dito above
-  void step_1_7_configureDescriptorSets(vk::raii::Device &device) {
+  void step_1_7_configureDescriptorSets(
+      vk::raii::Device &device, Renderer::Images::VManager &vTextureManager) {
+
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
       vk::DescriptorBufferInfo bufferInfo{
           .buffer = renderGraphContext->globalUniformBankBuffers[i].buffer,
           .offset = 0,
           .range = sizeof(RenderGraph::Context::GlobalUniformBankBuffer)};
-      vk::WriteDescriptorSet descriptorWrite{
-          .dstSet = renderGraphContext->globalUniformBankDescriptorSets[i],
-          .dstBinding = 0,
-          .dstArrayElement = 0,
-          .descriptorCount = 1,
-          .descriptorType = vk::DescriptorType::eUniformBuffer,
-          .pBufferInfo = &bufferInfo};
 
-      device.updateDescriptorSets(descriptorWrite, {});
+      vk::DescriptorImageInfo samplerInfo{
+          .sampler = *vTextureManager.sampler,
+          .imageView = {},
+          .imageLayout = vk::ImageLayout::eUndefined,
+      };
+
+      std::array<vk::DescriptorImageInfo, Shaders::MAX_TEXTURES> imageInfos;
+
+      for (int i = 0; i < imageInfos.size(); i++) {
+        imageInfos[i] = vk::DescriptorImageInfo{
+            .sampler = {},
+            .imageView = *vTextureManager.textures[i]->vImage.view,
+            .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+        };
+      }
+
+      std::array<vk::WriteDescriptorSet, 3> writes{
+          vk::WriteDescriptorSet{
+              .dstSet = *renderGraphContext->defaultDescriptorSets[i],
+              .dstBinding = 0,
+              .dstArrayElement = 0,
+              .descriptorCount = 1,
+              .descriptorType = vk::DescriptorType::eUniformBuffer,
+              .pBufferInfo = &bufferInfo,
+          },
+          vk::WriteDescriptorSet{
+              .dstSet = *renderGraphContext->defaultDescriptorSets[i],
+              .dstBinding = 1,
+              .dstArrayElement = 0,
+              .descriptorCount = 1,
+              .descriptorType = vk::DescriptorType::eSampler,
+              .pImageInfo = &samplerInfo,
+          },
+          {
+              .dstSet = *renderGraphContext->defaultDescriptorSets[i],
+              .dstBinding = 2,
+              .dstArrayElement = 0,
+              .descriptorCount = static_cast<uint32_t>(imageInfos.size()),
+              .descriptorType = vk::DescriptorType::eSampledImage,
+              .pImageInfo = imageInfos.data(),
+          }};
+
+      device.updateDescriptorSets(writes, {});
     }
   }
 
@@ -303,11 +367,12 @@ struct RenderNode {
     // We will definetely add more set layouts.
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
         .setLayoutCount = 1,
-        .pSetLayouts =
-            &*renderGraphContext->globalUniformBankDescriptorSetLayout};
+        .pSetLayouts = &*renderGraphContext->defaultDescriptorSetLayout};
 
     if (usePushConstants) {
-      pushConstantRange.setStageFlags(vk::ShaderStageFlagBits::eVertex)
+      pushConstantRange
+          .setStageFlags(vk::ShaderStageFlagBits::eVertex |
+                         vk::ShaderStageFlagBits::eFragment)
           .setOffset(0)
           .setSize(sizeof(Shaders::PushConstantsBank::PushConstantData));
 
@@ -343,7 +408,8 @@ struct RenderNode {
   // eColorAttachmentOptimal assumming that by default we always want to draw a
   // color attachment. This should change later so I can define what's the
   // initial layout transition. Probably eUndefined to depth, stencil, other?
-  void step3_initCommandBuffer(uint32_t queueIndex, vk::raii::Device &device) {
+  void step3_initCommandBuffer(uint32_t queueIndex, vk::raii::Device &device,
+                               vk::raii::CommandPool &commandPool) {
     vk::CommandBufferAllocateInfo allocInfo{
         .commandPool = commandPool,
         .level = vk::CommandBufferLevel::ePrimary,
@@ -424,13 +490,13 @@ struct RenderNode {
                                                vk::IndexType::eUint32);
     commandBuffers[frameIndex].bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics, pipelineLayout, 0,
-        *renderGraphContext->globalUniformBankDescriptorSets[frameIndex],
-        nullptr);
+        *renderGraphContext->defaultDescriptorSets[frameIndex], nullptr);
 
     if (usePushConstants) {
       commandBuffers[frameIndex].pushConstants(
-          *pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0,
-          sizeof(Shaders::PushConstantsBank::PushConstantData),
+          *pipelineLayout,
+          vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+          0, sizeof(Shaders::PushConstantsBank::PushConstantData),
           &renderGraphContext->pushConstantBank);
     }
 

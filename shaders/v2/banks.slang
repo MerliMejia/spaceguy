@@ -1,22 +1,22 @@
+#include "banks_shared.h"
+
 namespace UniformBank {
-    static const uint FLOAT_COUNT = 100;
-    static const uint VEC2_COUNT = 100;
-    static const uint VEC3_COUNT = 100;
-    static const uint MAT4_COUNT = 100;
+    static const uint FLOAT_COUNT = SG_UNIFORM_FLOAT_COUNT;
+    static const uint VEC2_COUNT  = SG_UNIFORM_VEC2_COUNT;
+    static const uint VEC3_COUNT  = SG_UNIFORM_VEC3_COUNT;
+    static const uint MAT4_COUNT  = SG_UNIFORM_MAT4_COUNT;
 
-    // How many float4 slots each region needs
-    static const uint FLOAT_SLOTS = (FLOAT_COUNT + 3) / 4;
-    static const uint VEC2_SLOTS  = (VEC2_COUNT + 1) / 2;
-    static const uint VEC3_SLOTS  = VEC3_COUNT;
-    static const uint MAT4_SLOTS  = MAT4_COUNT * 4;
+    static const uint FLOAT_SLOTS = SG_UNIFORM_FLOAT_SLOTS;
+    static const uint VEC2_SLOTS  = SG_UNIFORM_VEC2_SLOTS;
+    static const uint VEC3_SLOTS  = SG_UNIFORM_VEC3_SLOTS;
+    static const uint MAT4_SLOTS  = SG_UNIFORM_MAT4_SLOTS;
 
-    // Automatically derived offsets
-    static const uint FLOAT_FROM = 0;
-    static const uint VEC2_FROM  = FLOAT_FROM + FLOAT_SLOTS;
-    static const uint VEC3_FROM  = VEC2_FROM  + VEC2_SLOTS;
-    static const uint MAT4_FROM  = VEC3_FROM  + VEC3_SLOTS;
+    static const uint FLOAT_FROM = SG_UNIFORM_FLOAT_FROM;
+    static const uint VEC2_FROM  = SG_UNIFORM_VEC2_FROM;
+    static const uint VEC3_FROM  = SG_UNIFORM_VEC3_FROM;
+    static const uint MAT4_FROM  = SG_UNIFORM_MAT4_FROM;
 
-    static const uint TOTAL_SLOTS = MAT4_FROM + MAT4_SLOTS;
+    static const uint TOTAL_SLOTS = SG_UNIFORM_TOTAL_SLOTS;
 
     float getFloat(uint index)
     {
@@ -56,28 +56,23 @@ namespace UniformBank {
 };
 
 namespace PushConstantsBank{
-    // 4 floats
-    // 4 float2s
-    // 1 float3
-    // 16 int/uint values
+    static const uint FLOAT_COUNT = SG_PUSH_FLOAT_COUNT;
+    static const uint VEC2_COUNT  = SG_PUSH_VEC2_COUNT;
+    static const uint VEC3_COUNT  = SG_PUSH_VEC3_COUNT;
+    static const uint INT_COUNT   = SG_PUSH_INT_COUNT;
 
-    static const uint FLOAT_COUNT = 4;
-    static const uint VEC2_COUNT  = 4;
-    static const uint VEC3_COUNT  = 1;
-    static const uint INT_COUNT   = 16;
+    static const uint FLOAT_SLOTS = SG_PUSH_FLOAT_SLOTS;
+    static const uint VEC2_SLOTS  = SG_PUSH_VEC2_SLOTS;
+    static const uint VEC3_SLOTS  = SG_PUSH_VEC3_SLOTS;
+    static const uint INT_SLOTS   = SG_PUSH_INT_SLOTS;
 
-    static const uint FLOAT_SLOTS = (FLOAT_COUNT + 3) / 4;
-    static const uint VEC2_SLOTS  = (VEC2_COUNT + 1) / 2;
-    static const uint VEC3_SLOTS  = VEC3_COUNT;
-    static const uint INT_SLOTS   = (INT_COUNT + 3) / 4;
+    static const uint FLOAT_FROM = SG_PUSH_FLOAT_FROM;
+    static const uint VEC2_FROM  = SG_PUSH_VEC2_FROM;
+    static const uint VEC3_FROM  = SG_PUSH_VEC3_FROM;
+    static const uint INT_FROM   = SG_PUSH_INT_FROM;
 
-    static const uint FLOAT_FROM = 0;
-    static const uint VEC2_FROM  = FLOAT_FROM + FLOAT_SLOTS;
-    static const uint VEC3_FROM  = VEC2_FROM + VEC2_SLOTS;
-    static const uint INT_FROM   = VEC3_FROM + VEC3_SLOTS;
-
-    static const uint TOTAL_SLOTS = INT_FROM + INT_SLOTS;
-    static const uint TOTAL_BYTES = TOTAL_SLOTS * 16;
+    static const uint TOTAL_SLOTS = SG_PUSH_TOTAL_SLOTS;
+    static const uint TOTAL_BYTES = SG_PUSH_TOTAL_BYTES;
 
     float getFloat(uint index)
     {
@@ -126,6 +121,11 @@ struct GlobalUniforms
 [[vk::binding(0,0)]]
 ConstantBuffer<GlobalUniforms> globalUniforms;
 
+[[vk::binding(1, 0)]]
+SamplerState textureSampler;
+[[vk::binding(2, 0)]]
+Texture2D<float4> textures[SG_MAX_TEXTURES];
+
 struct PushConstantData
 {
     // Slots 0–3: floats, float2s, and float3s
@@ -139,5 +139,5 @@ struct PushConstantData
 PushConstantData pushConstants;
 
 // Shared matrices occupy the final two logical mat4 entries.
-static const uint projIndex = UniformBank::MAT4_COUNT - 2;
-static const uint viewIndex = UniformBank::MAT4_COUNT - 1;
+static const uint projIndex = SG_PROJ_INDEX;
+static const uint viewIndex = SG_VIEW_INDEX;

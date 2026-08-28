@@ -1,3 +1,4 @@
+#include "engine/renderer/images/vImageManager.h"
 #include "engine/renderer/imports.h" // IWYU pragma: keep
 #include "engine/renderer/renderGraph.h"
 #include "engine/renderer/renderNode.h"
@@ -5,7 +6,6 @@
 #include "engine/renderer/vSwapChain.h"
 #include <cstdlib>
 #include <iostream>
-#include <utility>
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -27,6 +27,7 @@ private:
   Renderer::RenderGraph::Fucntions renderGraph{};
 
   Renderer::RenderNode *testNode1 = nullptr;
+  Renderer::Images::VManager vTextureManager{};
 
   void initVulkan() {
     vInstance.create();
@@ -43,13 +44,13 @@ private:
     glm::mat4 model = rotate(glm::mat4(1.0f), glm::radians(90.0f),
                              glm::vec3(0.0f, 0.0f, 1.0f));
 
-    const uint32_t modelIndex = 5;
+    const uint32_t modelIndex = 0;
 
     Renderer::Shaders::UniformBank::setFloat4x4(
         renderGraph.context.globalUniformBufferData.data, modelIndex, model);
 
     Renderer::Shaders::PushConstantsBank::setUInt(
-        renderGraph.context.pushConstantBank, 3, modelIndex);
+        renderGraph.context.pushConstantBank, 0, modelIndex);
 
     testNode1->step1_initShaders(
         vDevice.device,
@@ -64,17 +65,20 @@ private:
 
     // step 1.1: define vertex input the same as in the shader:
     const std::vector<Renderer::DefaultVertex> vertices{
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}},
+        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
+        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}}};
 
     const std::vector<uint32_t> indices = {0, 1, 2, 2, 3, 0};
 
     testNode1->step_1_1_createAndFillVertexBuffer<Renderer::DefaultVertex>(
-        vertices, vDevice);
+        vertices, vDevice, renderGraph.commandPool);
 
-    testNode1->step_1_2_createAndFillIndicesBuffer(indices, vDevice);
+    vTextureManager.init(vDevice, renderGraph.commandPool);
+
+    testNode1->step_1_2_createAndFillIndicesBuffer(indices, vDevice,
+                                                   renderGraph.commandPool);
 
     testNode1->step_1_3_createUniformBuffers(vDevice);
 
@@ -84,13 +88,27 @@ private:
 
     testNode1->step_1_6_allocateDescriptorSets(vDevice.device);
 
-    testNode1->step_1_7_configureDescriptorSets(vDevice.device);
+    Renderer::Images::VTexture *testTexture = vTextureManager.createTexture(
+        "assets/texture.jpg", vDevice, renderGraph.commandPool,
+        vDevice.graphicsQueue);
+    Renderer::Images::VTexture *testTexture2 = vTextureManager.createTexture(
+        "assets/texture2.jpg", vDevice, renderGraph.commandPool,
+        vDevice.graphicsQueue);
+
+    Renderer::Shaders::PushConstantsBank::setUInt(
+        renderGraph.context.pushConstantBank, 1, testTexture->index);
+    Renderer::Shaders::PushConstantsBank::setUInt(
+        renderGraph.context.pushConstantBank, 2, testTexture2->index);
+
+    testNode1->step_1_7_configureDescriptorSets(vDevice.device,
+                                                vTextureManager);
 
     testNode1->step2_initPipelineConfiguration<Renderer::DefaultVertex>(
         vDevice.device, vSwapChain.swapChainSurfaceFormat,
         Renderer::step2_pipelineConfigurationProps{});
 
-    testNode1->step3_initCommandBuffer(vDevice.queueIndex, vDevice.device);
+    testNode1->step3_initCommandBuffer(vDevice.queueIndex, vDevice.device,
+                                       renderGraph.commandPool);
 
     renderGraph.init(vDevice.device, vSwapChain.swapChainImages);
   }
@@ -120,7 +138,7 @@ private:
       proj[1][1] *= -1;
 
       Renderer::Shaders::UniformBank::setFloat4x4(
-          renderGraph.context.globalUniformBufferData.data, 5, model);
+          renderGraph.context.globalUniformBufferData.data, 0, model);
       Renderer::Shaders::UniformBank::setFloat4x4(
           renderGraph.context.globalUniformBufferData.data,
           Renderer::Shaders::UniformBank::viewIndex, view);

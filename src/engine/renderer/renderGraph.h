@@ -19,6 +19,7 @@ struct Fucntions {
   std::vector<vk::raii::Fence> inFlightFences;
   unsigned int imageIndex = UINT32_MAX;
   uint32_t frameIndex = 0;
+  vk::raii::CommandPool commandPool = nullptr;
 
   std::vector<std::unique_ptr<Renderer::RenderNode>> renderNodes;
   Context context{};

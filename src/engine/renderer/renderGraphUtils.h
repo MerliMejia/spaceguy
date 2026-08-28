@@ -14,12 +14,14 @@ struct Context {
     std::array<glm::vec4, Renderer::Shaders::UniformBank::TOTAL_SLOTS> data;
   };
 
-  // Everything we need for a global uniform bank
-  vk::raii::DescriptorSetLayout globalUniformBankDescriptorSetLayout = nullptr;
+  // Data needed
   GlobalUniformBankBuffer globalUniformBufferData{};
   std::vector<BufferAllocationWithMapped> globalUniformBankBuffers;
-  vk::raii::DescriptorPool globalUniformBankDescriptorPool = nullptr;
-  std::vector<vk::raii::DescriptorSet> globalUniformBankDescriptorSets;
+
+  // Descriptors
+  vk::raii::DescriptorSetLayout defaultDescriptorSetLayout = nullptr;
+  vk::raii::DescriptorPool defaultDescriptorPool = nullptr;
+  std::vector<vk::raii::DescriptorSet> defaultDescriptorSets;
 
   Shaders::PushConstantsBank::PushConstantData pushConstantBank{};
 };
