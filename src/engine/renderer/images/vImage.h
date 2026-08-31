@@ -7,6 +7,43 @@
 
 namespace Renderer {
 namespace Images {
+
+static void
+transitionImage(vk::Image &image, vk::PipelineStageFlags2 initialPlace,
+                vk::AccessFlags2 initialAccess,
+                vk::PipelineStageFlags2 newPlace, vk::AccessFlags2 newAccess,
+                vk::ImageLayout oldLayout, vk::ImageLayout newLayout,
+                vk::raii::CommandBuffer &commandBuffer) {
+
+  const vk::ImageSubresourceRange colorSubresource{
+      .aspectMask = vk::ImageAspectFlagBits::eColor,
+      .baseMipLevel = 0,
+      .levelCount = 1,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+  };
+
+  vk::ImageMemoryBarrier2 prepareForCopy{
+      .srcStageMask = initialPlace,
+      .srcAccessMask = initialAccess,
+      .dstStageMask = newPlace,
+      .dstAccessMask = newAccess,
+      .oldLayout = oldLayout,
+      .newLayout = newLayout,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = image,
+      .subresourceRange = colorSubresource,
+  };
+
+  vk::DependencyInfo prepareDependency{
+      .imageMemoryBarrierCount = 1,
+      .pImageMemoryBarriers = &prepareForCopy,
+  };
+
+  commandBuffer.pipelineBarrier2(prepareDependency);
+}
+
 struct VImage {
   vk::raii::DeviceMemory memory{nullptr};
   vk::raii::Image image{nullptr};
@@ -76,33 +113,9 @@ struct VImage {
                          vk::ImageLayout newLayout,
                          vk::raii::CommandBuffer &commandBuffer) {
 
-    const vk::ImageSubresourceRange colorSubresource{
-        .aspectMask = vk::ImageAspectFlagBits::eColor,
-        .baseMipLevel = 0,
-        .levelCount = 1,
-        .baseArrayLayer = 0,
-        .layerCount = 1,
-    };
-
-    vk::ImageMemoryBarrier2 prepareForCopy{
-        .srcStageMask = initialPlace,
-        .srcAccessMask = initialAccess,
-        .dstStageMask = newPlace,
-        .dstAccessMask = newAccess,
-        .oldLayout = oldLayout,
-        .newLayout = newLayout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = *image,
-        .subresourceRange = colorSubresource,
-    };
-
-    vk::DependencyInfo prepareDependency{
-        .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = &prepareForCopy,
-    };
-
-    commandBuffer.pipelineBarrier2(prepareDependency);
+    vk::Image cHandle = static_cast<vk::Image>(*image);
+    transitionImage(cHandle, initialPlace, initialAccess, newPlace, newAccess,
+                    oldLayout, newLayout, commandBuffer);
   }
 };
 

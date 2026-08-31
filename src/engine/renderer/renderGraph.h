@@ -1,7 +1,7 @@
 #pragma once
 
 #include "renderGraphUtils.h"
-#include "renderNode.h"
+#include "renderNode/renderNode.h"
 #include "vSwapChain.h"
 #include <cstdint>
 #include <memory>
@@ -43,7 +43,7 @@ struct Fucntions {
       renderFinishedSemaphores.emplace_back(device, vk::SemaphoreCreateInfo());
     }
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (size_t i = 0; i < RenderNodeUtils::MAX_FRAMES_IN_FLIGHT; i++) {
       presentCompleteSemaphores.emplace_back(device, vk::SemaphoreCreateInfo());
       inFlightFences.emplace_back(
           device,
@@ -70,7 +70,11 @@ struct Fucntions {
       if (node->updateUniforms) {
         node->perFrame1_updateUniformBuffers(frameIndex);
       }
-      node->perFrame2_recordCommandBuffer(vSwapChain, imageIndex, frameIndex);
+      for (auto &renderFunction : node->perFrameFunctions) {
+        if (renderFunction) {
+          renderFunction(vSwapChain, imageIndex, frameIndex);
+        }
+      }
     }
 
     device.resetFences(*inFlightFences[frameIndex]);
@@ -116,7 +120,7 @@ struct Fucntions {
       break; // an unexpected result is returned!
     }
 
-    frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+    frameIndex = (frameIndex + 1) % RenderNodeUtils::MAX_FRAMES_IN_FLIGHT;
   }
 };
 } // namespace RenderGraph

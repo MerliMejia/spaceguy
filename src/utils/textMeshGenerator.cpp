@@ -346,7 +346,7 @@ Mesh TextMeshGenerator::generateMesh(std::string_view text, float height,
       static_cast<float>(ascent - descent + lineGap) * scale;
 
   std::vector<Vertex> vertices;
-  std::vector<uint16_t> indices;
+  std::vector<uint32_t> indices;
 
   glm::vec2 cursor{0.0f, 0.0f};
 

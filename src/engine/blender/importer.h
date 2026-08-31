@@ -59,7 +59,7 @@ struct BlenderModel {
   std::string name;
   float fps = 24.0f;
   std::vector<Vertex> vertices;
-  std::vector<std::uint16_t> indices;
+  std::vector<std::uint32_t> indices;
   std::vector<AnimationClip> animations;
 };
 
@@ -109,7 +109,7 @@ struct BlenderTransformModel {
   std::string name;
   float fps = 24.0f;
   std::vector<Vertex> vertices;
-  std::vector<std::uint16_t> indices;
+  std::vector<std::uint32_t> indices;
   std::vector<TransformAnimationClip> animations;
 };
 

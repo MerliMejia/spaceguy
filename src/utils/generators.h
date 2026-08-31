@@ -7,7 +7,7 @@
 #include <cstring>
 
 inline Mesh generateMesh(const std::vector<Vertex> &vertices,
-                         const std::vector<uint16_t> &indices) {
+                         const std::vector<uint32_t> &indices) {
   Mesh mesh{};
 
   // Vertices
@@ -201,7 +201,7 @@ inline Mesh generateQuadMesh() {
       },
   };
 
-  std::vector<uint16_t> indices{
+  std::vector<uint32_t> indices{
       0, 1, 2, 2, 3, 0,
   };
 

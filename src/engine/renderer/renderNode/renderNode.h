@@ -1,87 +1,29 @@
 #pragma once
 
-#include "bufferUtils.h"
-#include "glm/fwd.hpp"
-#include "images/vImageManager.h"
-#include "renderGraphUtils.h"
-#include "vSwapChain.h"
+#include "../../../utils/file.h"
+#include "../bufferUtils.h"
+#include "../images/vImageManager.h"
+#include "../renderGraphUtils.h"
+#include "../vSwapChain.h"
 #include "vulkan/vulkan.hpp"
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
-#define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
-#include "../../utils/file.h"
 #define GLM_FORCE_RADIANS
-#include "images/vTexture.h"
-#include "shaders.h"
+#include "../images/vTexture.h"
+#include "../shaders.h"
+#include "renderNodeUtils.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
-namespace {
-vk::raii::ShaderModule createShaderModule(const std::vector<char> &code,
-                                          vk::raii::Device &device) {
-  vk::ShaderModuleCreateInfo createInfo{
-      .codeSize = code.size(),
-      .pCode = reinterpret_cast<const uint32_t *>(code.data())};
-
-  return vk::raii::ShaderModule{device, createInfo};
-}
-} // namespace
-
 namespace Renderer {
-constexpr int MAX_FRAMES_IN_FLIGHT = 2;
-
-template <typename T>
-concept VertexType = requires {
-  T::getBindingDescription();
-  T::getAttributeDescriptions();
-};
-
-struct DefaultVertex {
-  glm::vec2 pos;
-  glm::vec3 color;
-  glm::vec2 uv;
-
-  static vk::VertexInputBindingDescription getBindingDescription() {
-    return {.binding = 0,
-            .stride = sizeof(DefaultVertex),
-            .inputRate = vk::VertexInputRate::eVertex};
-  }
-  static std::array<vk::VertexInputAttributeDescription, 3>
-  getAttributeDescriptions() {
-    return {{
-        {.location = 0,
-         .binding = 0,
-         .format = vk::Format::eR32G32Sfloat,
-         .offset = offsetof(DefaultVertex, pos)},
-        {.location = 1,
-         .binding = 0,
-         .format = vk::Format::eR32G32B32Sfloat,
-         .offset = offsetof(DefaultVertex, color)},
-        {.location = 2,
-         .binding = 0,
-         .format = vk::Format::eR32G32Sfloat,
-         .offset = offsetof(DefaultVertex, uv)},
-    }};
-  }
-};
-
-enum class ShaderType {
-  None,
-  Vertex,
-  Fragment,
-};
-
-struct ShaderCreateInfo {
-  ShaderType type = ShaderType::None;
-  std::string name = "";
-};
 
 struct step1_initShadersProps {
-  std::vector<ShaderCreateInfo> shaderCreateInfos;
+  std::vector<RenderNodeUtils::ShaderCreateInfo> shaderCreateInfos;
   std::string shaderFile;
 };
 
@@ -92,7 +34,7 @@ struct step2_pipelineConfigurationProps {
 
 struct RenderNode {
   vk::raii::ShaderModule shaderModule = nullptr;
-  std::vector<ShaderCreateInfo> shaderCreateInfos;
+  std::vector<RenderNodeUtils::ShaderCreateInfo> shaderCreateInfos;
   vk::raii::PipelineLayout pipelineLayout = nullptr;
   vk::raii::Pipeline graphicsPipeline = nullptr;
   std::vector<vk::raii::CommandBuffer> commandBuffers;
@@ -102,9 +44,16 @@ struct RenderNode {
   vk::raii::DeviceMemory indexBufferMemory = nullptr;
   std::vector<uint32_t> indices;
 
+  std::unique_ptr<Images::VImage> input = nullptr;
+  std::unique_ptr<Images::VImage> output = nullptr;
+
   Renderer::RenderGraph::Context *renderGraphContext = nullptr;
   bool usePushConstants = false;
   bool updateUniforms = false;
+  std::array<std::function<void(Renderer::VSwapChain &vSwapChain,
+                                uint32_t imageIndex, uint32_t frameIndex)>,
+             3>
+      perFrameFunctions;
 
   void preInit(Renderer::RenderGraph::Context &ctx) {
     renderGraphContext = &ctx;
@@ -112,11 +61,12 @@ struct RenderNode {
 
   void step1_initShaders(vk::raii::Device &device,
                          step1_initShadersProps props) {
-    shaderModule = createShaderModule(readFile(props.shaderFile), device);
+    shaderModule =
+        RenderNodeUtils::createShaderModule(readFile(props.shaderFile), device);
     shaderCreateInfos = std::move(props.shaderCreateInfos);
   }
 
-  template <VertexType T>
+  template <RenderNodeUtils::VertexType T>
   void step_1_1_createAndFillVertexBuffer(std::vector<T> incomingVertices,
                                           VDevice &vDevice,
                                           vk::raii::CommandPool &commandPool) {
@@ -156,7 +106,7 @@ struct RenderNode {
   void step_1_3_createUniformBuffers(VDevice &vDevice) {
     // For now 1 per frame in flight. At some point I may want something that is
     // more static.
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (size_t i = 0; i < RenderNodeUtils::MAX_FRAMES_IN_FLIGHT; i++) {
 
       vk::DeviceSize bufferSize =
           sizeof(RenderGraph::Context::GlobalUniformBankBuffer);
@@ -208,17 +158,20 @@ struct RenderNode {
   void step_1_5_createDescriptorPool(vk::raii::Device &device) {
     std::array<vk::DescriptorPoolSize, 3> poolSizes = {
         vk::DescriptorPoolSize{.type = vk::DescriptorType::eUniformBuffer,
-                               .descriptorCount = MAX_FRAMES_IN_FLIGHT},
+                               .descriptorCount =
+                                   RenderNodeUtils::MAX_FRAMES_IN_FLIGHT},
         vk::DescriptorPoolSize{.type = vk::DescriptorType::eSampler,
-                               .descriptorCount = MAX_FRAMES_IN_FLIGHT},
+                               .descriptorCount =
+                                   RenderNodeUtils::MAX_FRAMES_IN_FLIGHT},
         // Each frame in flight to have 20 sampled textures.
         vk::DescriptorPoolSize{.type = vk::DescriptorType::eSampledImage,
-                               .descriptorCount = MAX_FRAMES_IN_FLIGHT *
-                                                  Shaders::MAX_TEXTURES}};
+                               .descriptorCount =
+                                   RenderNodeUtils::MAX_FRAMES_IN_FLIGHT *
+                                   Shaders::MAX_TEXTURES}};
 
     vk::DescriptorPoolCreateInfo poolInfo{
         .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-        .maxSets = MAX_FRAMES_IN_FLIGHT,
+        .maxSets = RenderNodeUtils::MAX_FRAMES_IN_FLIGHT,
         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
         .pPoolSizes = poolSizes.data()};
 
@@ -228,7 +181,8 @@ struct RenderNode {
 
   void step_1_6_allocateDescriptorSets(vk::raii::Device &device) {
     std::vector<vk::DescriptorSetLayout> layouts(
-        MAX_FRAMES_IN_FLIGHT, *renderGraphContext->defaultDescriptorSetLayout);
+        RenderNodeUtils::MAX_FRAMES_IN_FLIGHT,
+        *renderGraphContext->defaultDescriptorSetLayout);
 
     vk::DescriptorSetAllocateInfo allocInfo{
         .descriptorPool = renderGraphContext->defaultDescriptorPool,
@@ -242,7 +196,7 @@ struct RenderNode {
   void step_1_7_configureDescriptorSets(
       vk::raii::Device &device, Renderer::Images::VManager &vTextureManager) {
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (size_t i = 0; i < RenderNodeUtils::MAX_FRAMES_IN_FLIGHT; i++) {
       vk::DescriptorBufferInfo bufferInfo{
           .buffer = renderGraphContext->globalUniformBankBuffers[i].buffer,
           .offset = 0,
@@ -294,7 +248,7 @@ struct RenderNode {
     }
   }
 
-  template <VertexType T>
+  template <RenderNodeUtils::VertexType T>
   void
   step2_initPipelineConfiguration(vk::raii::Device &device,
                                   vk::SurfaceFormatKHR &swapChainSurfaceFormat,
@@ -302,13 +256,13 @@ struct RenderNode {
 
     std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
 
-    for (const ShaderCreateInfo &info : shaderCreateInfos) {
-      if (info.type == ShaderType::Vertex) {
+    for (const RenderNodeUtils::ShaderCreateInfo &info : shaderCreateInfos) {
+      if (info.type == RenderNodeUtils::ShaderType::Vertex) {
         shaderStages.push_back(vk::PipelineShaderStageCreateInfo{
             .stage = vk::ShaderStageFlagBits::eVertex,
             .module = *shaderModule,
             .pName = info.name.c_str()});
-      } else if (info.type == ShaderType::Fragment) {
+      } else if (info.type == RenderNodeUtils::ShaderType::Fragment) {
         shaderStages.push_back(vk::PipelineShaderStageCreateInfo{
             .stage = vk::ShaderStageFlagBits::eFragment,
             .module = *shaderModule,
@@ -413,7 +367,7 @@ struct RenderNode {
     vk::CommandBufferAllocateInfo allocInfo{
         .commandPool = commandPool,
         .level = vk::CommandBufferLevel::ePrimary,
-        .commandBufferCount = Renderer::MAX_FRAMES_IN_FLIGHT};
+        .commandBufferCount = RenderNodeUtils::MAX_FRAMES_IN_FLIGHT};
 
     commandBuffers = vk::raii::CommandBuffers(device, allocInfo);
   }
@@ -430,51 +384,9 @@ struct RenderNode {
   // Will definetly change. This is where each render node should define what to
   // do when rendering each frame. Will it get an image as input? What's the
   // output? which resources will bind?
-  void perFrame2_recordCommandBuffer(Renderer::VSwapChain &vSwapChain,
-                                     uint32_t imageIndex, uint32_t frameIndex) {
-    commandBuffers[frameIndex].begin({});
+  void recordCommandBuffer(Renderer::VSwapChain &vSwapChain,
+                           uint32_t imageIndex, uint32_t frameIndex) {
 
-    // This whole block is for "transitioning" images and it's better to write
-    // it down manually to understand what it does. Before starting rendering,
-    // transition the swapchain image to
-    // vk::ImageLayout::eColorAttachmentOptimal
-    vk::ImageMemoryBarrier2 barrier = {
-        .srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        .srcAccessMask = {}, // Because it doesn't have to wait for something to
-                             // finish in this case?
-        .dstStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        .dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
-        .oldLayout = vk::ImageLayout::eUndefined,
-        .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = vSwapChain.swapChainImages[imageIndex],
-        .subresourceRange = {.aspectMask = vk::ImageAspectFlagBits::eColor,
-                             .baseMipLevel = 0,
-                             .levelCount = 1,
-                             .baseArrayLayer = 0,
-                             .layerCount = 1}};
-    vk::DependencyInfo dependency_info = {.dependencyFlags = {},
-                                          .imageMemoryBarrierCount = 1,
-                                          .pImageMemoryBarriers = &barrier};
-    commandBuffers[frameIndex].pipelineBarrier2(dependency_info);
-    // This whole block is for "transitioning" images and it's better to write
-    // it down manually to understand what it does.
-
-    vk::ClearValue clearColor = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f);
-    vk::RenderingAttachmentInfo attachmentInfo = {
-        .imageView = vSwapChain.swapChainImageViews[imageIndex],
-        .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
-        .loadOp = vk::AttachmentLoadOp::eClear,
-        .storeOp = vk::AttachmentStoreOp::eStore,
-        .clearValue = clearColor};
-    vk::RenderingInfo renderingInfo = {
-        .renderArea = {.offset = {0, 0}, .extent = vSwapChain.swapChainExtent},
-        .layerCount = 1,
-        .colorAttachmentCount = 1,
-        .pColorAttachments = &attachmentInfo};
-
-    commandBuffers[frameIndex].beginRendering(renderingInfo);
     commandBuffers[frameIndex].bindPipeline(vk::PipelineBindPoint::eGraphics,
                                             *graphicsPipeline);
     commandBuffers[frameIndex].setViewport(
@@ -504,36 +416,6 @@ struct RenderNode {
         static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
     commandBuffers[frameIndex].endRendering();
-
-    // After rendering, transition the swapchain image to
-    // vk::ImageLayout::ePresentSrcKHR
-    vk::ImageMemoryBarrier2 barrier2 = {
-        .srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        .srcAccessMask = vk::AccessFlagBits2::
-            eColorAttachmentWrite, // Now it needs to wait for
-                                   // eColorAttachmentWrite because before this
-                                   // we were transitioning from undefined to
-                                   // color attachment.
-        .dstStageMask =
-            vk::PipelineStageFlagBits2::eBottomOfPipe, // I guess it makes
-                                                       // sense?
-        .dstAccessMask = {},                           // No idea
-        .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
-        .newLayout = vk::ImageLayout::ePresentSrcKHR,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = vSwapChain.swapChainImages[imageIndex],
-        .subresourceRange = {.aspectMask = vk::ImageAspectFlagBits::eColor,
-                             .baseMipLevel = 0,
-                             .levelCount = 1,
-                             .baseArrayLayer = 0,
-                             .layerCount = 1}};
-    vk::DependencyInfo dependency_info2 = {.dependencyFlags = {},
-                                           .imageMemoryBarrierCount = 1,
-                                           .pImageMemoryBarriers = &barrier2};
-    commandBuffers[frameIndex].pipelineBarrier2(dependency_info2);
-
-    commandBuffers[frameIndex].end();
   }
 };
 } // namespace Renderer

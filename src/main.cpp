@@ -1,9 +1,14 @@
+#include "engine/blender/importer.h"
 #include "engine/renderer/images/vImageManager.h"
-#include "engine/renderer/imports.h" // IWYU pragma: keep
 #include "engine/renderer/renderGraph.h"
-#include "engine/renderer/renderNode.h"
+#include "engine/renderer/renderNode/colorRenderNode.h"
+#include "engine/renderer/renderNode/renderNode.h"
 #include "engine/renderer/shaders.h"
+#include "engine/renderer/vInstance.h"
 #include "engine/renderer/vSwapChain.h"
+#include "engine/renderer/window.h"
+#include "glm/fwd.hpp"
+#include "utils/types.h"
 #include <cstdlib>
 #include <iostream>
 
@@ -26,8 +31,9 @@ private:
   Renderer::VSwapChain vSwapChain;
   Renderer::RenderGraph::Fucntions renderGraph{};
 
-  Renderer::RenderNode *testNode1 = nullptr;
+  Renderer::ColorRenderNode colorRenderNode;
   Renderer::Images::VManager vTextureManager{};
+  glm::vec3 modelCenter;
 
   void initVulkan() {
     vInstance.create();
@@ -36,13 +42,29 @@ private:
     vSwapChain.create(vDevice.physicalDevice, window.surface, vDevice.device,
                       window.handler);
 
-    testNode1 = &renderGraph.createNode();
+    colorRenderNode.renderNode = &renderGraph.createNode();
+    colorRenderNode.present = true;
 
-    testNode1->updateUniforms = true;
-    testNode1->usePushConstants = true;
+    BlenderModel testModel = loadModel("assets/Ogre.3d");
 
-    glm::mat4 model = rotate(glm::mat4(1.0f), glm::radians(90.0f),
-                             glm::vec3(0.0f, 0.0f, 1.0f));
+    if (testModel.vertices.empty()) {
+      throw std::runtime_error("Loaded model has no vertices");
+    }
+
+    glm::vec3 minPos = testModel.vertices.front().pos;
+    glm::vec3 maxPos = minPos;
+
+    for (const Vertex &vertex : testModel.vertices) {
+      minPos = glm::min(minPos, vertex.pos);
+      maxPos = glm::max(maxPos, vertex.pos);
+    }
+
+    modelCenter = (minPos + maxPos) * 0.5f;
+
+    glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f),
+                                     glm::vec3(0.0f, 0.0f, 1.0f));
+
+    glm::mat4 model = glm::translate(rotation, -modelCenter);
 
     const uint32_t modelIndex = 0;
 
@@ -52,63 +74,38 @@ private:
     Renderer::Shaders::PushConstantsBank::setUInt(
         renderGraph.context.pushConstantBank, 0, modelIndex);
 
-    testNode1->step1_initShaders(
-        vDevice.device,
+    colorRenderNode.init(
+        vDevice,
         Renderer::step1_initShadersProps{
-            .shaderCreateInfos = {Renderer::ShaderCreateInfo{
-                                      .type = Renderer::ShaderType::Vertex,
-                                      .name = "vertMain"},
-                                  Renderer::ShaderCreateInfo{
-                                      .type = Renderer::ShaderType::Fragment,
-                                      .name = "fragMain"}},
-            .shaderFile = "shaders/v2/testNode1.spv"});
+            .shaderCreateInfos =
+                {Renderer::RenderNodeUtils::ShaderCreateInfo{
+                     .type = Renderer::RenderNodeUtils::ShaderType::Vertex,
+                     .name = "vertMain"},
+                 Renderer::RenderNodeUtils::ShaderCreateInfo{
+                     .type = Renderer::RenderNodeUtils::ShaderType::Fragment,
+                     .name = "fragMain"}},
+            .shaderFile = "shaders/v2/testNode1.spv"},
+        vSwapChain);
 
-    // step 1.1: define vertex input the same as in the shader:
-    const std::vector<Renderer::DefaultVertex> vertices{
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
-        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}}};
-
-    const std::vector<uint32_t> indices = {0, 1, 2, 2, 3, 0};
-
-    testNode1->step_1_1_createAndFillVertexBuffer<Renderer::DefaultVertex>(
-        vertices, vDevice, renderGraph.commandPool);
+    colorRenderNode.setData<Vertex>(testModel.vertices, testModel.indices,
+                                    vDevice, renderGraph.commandPool);
 
     vTextureManager.init(vDevice, renderGraph.commandPool);
 
-    testNode1->step_1_2_createAndFillIndicesBuffer(indices, vDevice,
-                                                   renderGraph.commandPool);
+    // Renderer::Images::VTexture *testTexture = vTextureManager.createTexture(
+    //     "assets/texture.jpg", vDevice, renderGraph.commandPool,
+    //     vDevice.graphicsQueue);
+    // Renderer::Images::VTexture *testTexture2 = vTextureManager.createTexture(
+    //     "assets/texture2.jpg", vDevice, renderGraph.commandPool,
+    //     vDevice.graphicsQueue);
 
-    testNode1->step_1_3_createUniformBuffers(vDevice);
+    // Renderer::Shaders::PushConstantsBank::setUInt(
+    //     renderGraph.context.pushConstantBank, 1, testTexture->index);
+    // Renderer::Shaders::PushConstantsBank::setUInt(
+    //     renderGraph.context.pushConstantBank, 2, testTexture2->index);
 
-    testNode1->step_1_4_createDescriptorSetLayout(vDevice.device);
-
-    testNode1->step_1_5_createDescriptorPool(vDevice.device);
-
-    testNode1->step_1_6_allocateDescriptorSets(vDevice.device);
-
-    Renderer::Images::VTexture *testTexture = vTextureManager.createTexture(
-        "assets/texture.jpg", vDevice, renderGraph.commandPool,
-        vDevice.graphicsQueue);
-    Renderer::Images::VTexture *testTexture2 = vTextureManager.createTexture(
-        "assets/texture2.jpg", vDevice, renderGraph.commandPool,
-        vDevice.graphicsQueue);
-
-    Renderer::Shaders::PushConstantsBank::setUInt(
-        renderGraph.context.pushConstantBank, 1, testTexture->index);
-    Renderer::Shaders::PushConstantsBank::setUInt(
-        renderGraph.context.pushConstantBank, 2, testTexture2->index);
-
-    testNode1->step_1_7_configureDescriptorSets(vDevice.device,
-                                                vTextureManager);
-
-    testNode1->step2_initPipelineConfiguration<Renderer::DefaultVertex>(
-        vDevice.device, vSwapChain.swapChainSurfaceFormat,
-        Renderer::step2_pipelineConfigurationProps{});
-
-    testNode1->step3_initCommandBuffer(vDevice.queueIndex, vDevice.device,
-                                       renderGraph.commandPool);
+    colorRenderNode.finish<Vertex>(vDevice, vTextureManager, vSwapChain,
+                                   renderGraph.commandPool);
 
     renderGraph.init(vDevice.device, vSwapChain.swapChainImages);
   }
@@ -124,8 +121,11 @@ private:
       float time =
           std::chrono::duration<float>(thisCurrentTime - startTime).count();
 
-      glm::mat4 model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f),
-                               glm::vec3(0.0f, 0.0f, 1.0f));
+      glm::mat4 rotation =
+          glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f),
+                      glm::vec3(0.0f, 0.0f, 1.0f));
+
+      glm::mat4 model = glm::translate(rotation, -modelCenter);
 
       glm::mat4 view =
           lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
