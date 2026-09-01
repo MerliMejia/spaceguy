@@ -8,8 +8,11 @@ namespace Renderer {
 struct ColorRenderNode {
   RenderNode *renderNode = nullptr;
   vk::ClearValue clearColor{};
+  vk::ClearValue clearDepth{};
+  Images::VImage depthImage;
 
   bool present = false;
+  bool useDepthTesting = false;
 
   void render1(Renderer::VSwapChain &vSwapChain, uint32_t imageIndex,
                uint32_t frameIndex) {
@@ -38,6 +41,21 @@ struct ColorRenderNode {
     }
 
     clearColor.color.setFloat32(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f});
+    clearDepth.depthStencil.setDepth(1.0f);
+    clearDepth.depthStencil.setStencil(0);
+
+    if (useDepthTesting) {
+      depthImage.transition(vk::PipelineStageFlagBits2::eEarlyFragmentTests |
+                                vk::PipelineStageFlagBits2::eLateFragmentTests,
+                            vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+                            vk::PipelineStageFlagBits2::eEarlyFragmentTests |
+                                vk::PipelineStageFlagBits2::eLateFragmentTests,
+                            vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+                            vk::ImageLayout::eUndefined,
+                            vk::ImageLayout::eDepthAttachmentOptimal,
+                            renderNode->commandBuffers[frameIndex],
+                            vk::ImageAspectFlagBits::eDepth);
+    }
 
     // In this case the output image is a color attachment because I'll write
     // colors on it.
@@ -49,11 +67,22 @@ struct ColorRenderNode {
         .storeOp = vk::AttachmentStoreOp::eStore,
         .clearValue = clearColor};
 
+    vk::RenderingAttachmentInfo depthAttachmentInfo = {
+        .imageView = depthImage.view,
+        .imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
+        .loadOp = vk::AttachmentLoadOp::eClear,
+        .storeOp = vk::AttachmentStoreOp::eDontCare,
+        .clearValue = clearDepth};
+
     vk::RenderingInfo renderingInfo = {
         .renderArea = {.offset = {0, 0}, .extent = vSwapChain.swapChainExtent},
         .layerCount = 1,
         .colorAttachmentCount = 1,
         .pColorAttachments = &attachmentInfo};
+
+    if (useDepthTesting) {
+      renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+    }
 
     renderNode->commandBuffers[frameIndex].beginRendering(renderingInfo);
 
@@ -90,6 +119,15 @@ struct ColorRenderNode {
 
       renderNode->output->init(vSwapChain.swapChainExtent.width,
                                vSwapChain.swapChainExtent.height, vDevice);
+    }
+
+    if (useDepthTesting) {
+      depthImage.format = vk::Format::eD32Sfloat;
+      depthImage.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+      depthImage.aspectMask = vk::ImageAspectFlagBits::eDepth;
+
+      depthImage.init(vSwapChain.swapChainExtent.width,
+                      vSwapChain.swapChainExtent.height, vDevice);
     }
 
     renderNode->perFrameFunctions[0] = [this](Renderer::VSwapChain &vSwapChain,
@@ -130,7 +168,8 @@ public:
 
     renderNode->step2_initPipelineConfiguration<T>(
         vDevice.device, vSwapChain.swapChainSurfaceFormat,
-        Renderer::step2_pipelineConfigurationProps{});
+        Renderer::step2_pipelineConfigurationProps{
+            .useDepth = useDepthTesting, .depthFormat = depthImage.format});
 
     renderNode->step3_initCommandBuffer(vDevice.queueIndex, vDevice.device,
                                         commandPool);

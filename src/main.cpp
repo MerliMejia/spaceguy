@@ -1,3 +1,4 @@
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "engine/blender/importer.h"
 #include "engine/renderer/images/vImageManager.h"
 #include "engine/renderer/renderGraph.h"
@@ -15,7 +16,7 @@
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
 
-class HelloTriangleApplication {
+class RenderV2 {
 public:
   void run() {
     window.init(WIDTH, HEIGHT, "Renderer");
@@ -44,6 +45,7 @@ private:
 
     colorRenderNode.renderNode = &renderGraph.createNode();
     colorRenderNode.present = true;
+    colorRenderNode.useDepthTesting = true;
 
     BlenderModel testModel = loadModel("assets/Ogre.3d");
 
@@ -158,7 +160,7 @@ private:
 
 int main() {
   try {
-    HelloTriangleApplication app;
+    RenderV2 app;
     app.run();
   } catch (const std::exception &e) {
     std::cerr << e.what() << std::endl;

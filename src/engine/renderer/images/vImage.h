@@ -8,15 +8,15 @@
 namespace Renderer {
 namespace Images {
 
-static void
-transitionImage(vk::Image &image, vk::PipelineStageFlags2 initialPlace,
-                vk::AccessFlags2 initialAccess,
-                vk::PipelineStageFlags2 newPlace, vk::AccessFlags2 newAccess,
-                vk::ImageLayout oldLayout, vk::ImageLayout newLayout,
-                vk::raii::CommandBuffer &commandBuffer) {
+static void transitionImage(
+    vk::Image &image, vk::PipelineStageFlags2 initialPlace,
+    vk::AccessFlags2 initialAccess, vk::PipelineStageFlags2 newPlace,
+    vk::AccessFlags2 newAccess, vk::ImageLayout oldLayout,
+    vk::ImageLayout newLayout, vk::raii::CommandBuffer &commandBuffer,
+    vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor) {
 
   const vk::ImageSubresourceRange colorSubresource{
-      .aspectMask = vk::ImageAspectFlagBits::eColor,
+      .aspectMask = aspectMask,
       .baseMipLevel = 0,
       .levelCount = 1,
       .baseArrayLayer = 0,
@@ -53,6 +53,7 @@ struct VImage {
   vk::Format format = vk::Format::eR8G8B8A8Srgb;
   vk::ImageType type = vk::ImageType::e2D;
   vk::ImageViewType viewType = vk::ImageViewType::e2D;
+  vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor;
 
   inline void init(uint32_t width, uint32_t height, VDevice &vDevice) {
     vk::ImageCreateInfo imageInfo{
@@ -95,7 +96,7 @@ struct VImage {
         .format = format,
         .subresourceRange =
             {
-                .aspectMask = vk::ImageAspectFlagBits::eColor,
+                .aspectMask = aspectMask,
                 .baseMipLevel = 0,
                 .levelCount = 1,
                 .baseArrayLayer = 0,
@@ -106,16 +107,16 @@ struct VImage {
     view = vk::raii::ImageView(vDevice.device, viewInfo);
   }
 
-  inline void transition(vk::PipelineStageFlags2 initialPlace,
-                         vk::AccessFlags2 initialAccess,
-                         vk::PipelineStageFlags2 newPlace,
-                         vk::AccessFlags2 newAccess, vk::ImageLayout oldLayout,
-                         vk::ImageLayout newLayout,
-                         vk::raii::CommandBuffer &commandBuffer) {
+  inline void transition(
+      vk::PipelineStageFlags2 initialPlace, vk::AccessFlags2 initialAccess,
+      vk::PipelineStageFlags2 newPlace, vk::AccessFlags2 newAccess,
+      vk::ImageLayout oldLayout, vk::ImageLayout newLayout,
+      vk::raii::CommandBuffer &commandBuffer,
+      vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor) {
 
     vk::Image cHandle = static_cast<vk::Image>(*image);
     transitionImage(cHandle, initialPlace, initialAccess, newPlace, newAccess,
-                    oldLayout, newLayout, commandBuffer);
+                    oldLayout, newLayout, commandBuffer, aspectMask);
   }
 };
 

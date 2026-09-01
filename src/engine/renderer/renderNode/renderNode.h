@@ -29,6 +29,8 @@ struct step1_initShadersProps {
 
 struct step2_pipelineConfigurationProps {
   vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList;
+  bool useDepth = false;
+  vk::Format depthFormat = vk::Format::eD32Sfloat;
   //... More stuff when dealing with more stuff
 };
 
@@ -352,6 +354,20 @@ struct RenderNode {
              .renderPass = nullptr},
             {.colorAttachmentCount = 1,
              .pColorAttachmentFormats = &swapChainSurfaceFormat.format}};
+
+    if (props.useDepth) {
+      vk::PipelineDepthStencilStateCreateInfo depthStencil{
+          .depthTestEnable = vk::True,
+          .depthWriteEnable = vk::True,
+          .depthCompareOp = vk::CompareOp::eLess,
+          .depthBoundsTestEnable = vk::False,
+          .stencilTestEnable = vk::False};
+
+      pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>()
+          .pDepthStencilState = &depthStencil;
+      pipelineCreateInfoChain.get<vk::PipelineRenderingCreateInfo>()
+          .depthAttachmentFormat = props.depthFormat;
+    }
 
     graphicsPipeline = vk::raii::Pipeline(
         device, nullptr,
