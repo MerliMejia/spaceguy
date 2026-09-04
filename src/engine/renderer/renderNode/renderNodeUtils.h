@@ -1,13 +1,14 @@
 #pragma once
 
+#include <functional>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <glm/glm.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
 namespace Renderer {
 namespace RenderNodeUtils {
-vk::raii::ShaderModule createShaderModule(const std::vector<char> &code,
-                                          vk::raii::Device &device) {
+inline vk::raii::ShaderModule createShaderModule(const std::vector<char> &code,
+                                                 vk::raii::Device &device) {
   vk::ShaderModuleCreateInfo createInfo{
       .codeSize = code.size(),
       .pCode = reinterpret_cast<const uint32_t *>(code.data())};
@@ -61,6 +62,13 @@ enum class ShaderType {
 struct ShaderCreateInfo {
   ShaderType type = ShaderType::None;
   std::string name = "";
+};
+
+struct RenderCall {
+  vk::Buffer vertexBuffer{};
+  vk::Buffer indexBuffer{};
+  uint32_t indexCount = 0;
+  std::function<void()> updatePushConstants;
 };
 } // namespace RenderNodeUtils
 } // namespace Renderer

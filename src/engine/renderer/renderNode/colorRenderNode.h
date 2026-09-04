@@ -40,7 +40,9 @@ struct ColorRenderNode {
           renderNode->commandBuffers[frameIndex]);
     }
 
-    clearColor.color.setFloat32(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f});
+    // Water/sky color. At some point should be a config.
+    clearColor.color.setFloat32(
+        std::array<float, 4>{0.012832f, 0.161624f, 0.800007f, 1.0f});
     clearDepth.depthStencil.setDepth(1.0f);
     clearDepth.depthStencil.setStencil(0);
 
@@ -130,31 +132,24 @@ struct ColorRenderNode {
                       vSwapChain.swapChainExtent.height, vDevice);
     }
 
-    renderNode->perFrameFunctions[0] = [this](Renderer::VSwapChain &vSwapChain,
-                                              uint32_t imageIndex,
-                                              uint32_t frameIndex) {
+    renderNode->perFrameFunction = [this](Renderer::VSwapChain &vSwapChain,
+                                          uint32_t imageIndex,
+                                          uint32_t frameIndex) {
       render1(vSwapChain, imageIndex, frameIndex);
     };
   }
 
 public:
   template <RenderNodeUtils::VertexType T>
-  void setData(std::vector<T> incomingVertices, std::vector<uint32_t> indices,
-               VDevice &vDevice, vk::raii::CommandPool &commandPool) {
+  void setData(VDevice &vDevice, vk::raii::CommandPool &commandPool) {
 
-    renderNode->step_1_1_createAndFillVertexBuffer<T>(incomingVertices, vDevice,
-                                                      commandPool);
+    renderNode->step_1_2_createUniformBuffers(vDevice);
 
-    renderNode->step_1_2_createAndFillIndicesBuffer(indices, vDevice,
-                                                    commandPool);
+    renderNode->step_1_3_createDescriptorSetLayout(vDevice.device);
 
-    renderNode->step_1_3_createUniformBuffers(vDevice);
+    renderNode->step_1_4_createDescriptorPool(vDevice.device);
 
-    renderNode->step_1_4_createDescriptorSetLayout(vDevice.device);
-
-    renderNode->step_1_5_createDescriptorPool(vDevice.device);
-
-    renderNode->step_1_6_allocateDescriptorSets(vDevice.device);
+    renderNode->step_1_5_allocateDescriptorSets(vDevice.device);
   }
 
 public:
@@ -163,7 +158,7 @@ public:
               Renderer::VSwapChain &vSwapChain,
               vk::raii::CommandPool &commandPool) {
 
-    renderNode->step_1_7_configureDescriptorSets(vDevice.device,
+    renderNode->step_1_6_configureDescriptorSets(vDevice.device,
                                                  vTextureManager);
 
     renderNode->step2_initPipelineConfiguration<T>(

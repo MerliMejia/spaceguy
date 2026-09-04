@@ -1,10 +1,39 @@
 #pragma once
 
 #include "../engine/blender/importer.h"
+#include "../engine/renderer/renderNode/renderNodeUtils.h"
 #include "../systems/resourceManagementSystem.h"
 #include "./buffers.h"
 
 #include <cstring>
+
+namespace Renderer {
+namespace Generators {
+
+template <RenderNodeUtils::VertexType T>
+Renderer::Types::Mesh
+generateMesh(const std::vector<T> vertices, const std::vector<uint32_t> indices,
+             vk::raii::CommandPool &commandPool, VDevice &vDevice) {
+
+  Renderer::Types::Mesh mesh{};
+
+  BufferAllocation vertexAllocation = createDeviceLocalBuffer(
+      vDevice, commandPool, std::span<const T>{vertices},
+      vk::BufferUsageFlagBits::eVertexBuffer);
+
+  BufferAllocation indexAllocation = createDeviceLocalBuffer(
+      vDevice, commandPool, std::span<const uint32_t>{indices},
+      vk::BufferUsageFlagBits::eIndexBuffer);
+
+  mesh.vertexAllocations = std::move(vertexAllocation);
+  mesh.indexAllocations = std::move(indexAllocation);
+  mesh.vertexCount = vertices.size();
+  mesh.indexCount = indices.size();
+
+  return mesh;
+}
+} // namespace Generators
+} // namespace Renderer
 
 inline Mesh generateMesh(const std::vector<Vertex> &vertices,
                          const std::vector<uint32_t> &indices) {

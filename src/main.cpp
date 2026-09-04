@@ -1,167 +1,118 @@
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+
+#include "../shaders/v2/banks_shared.h"
 #include "engine/blender/importer.h"
-#include "engine/renderer/images/vImageManager.h"
-#include "engine/renderer/renderGraph.h"
-#include "engine/renderer/renderNode/colorRenderNode.h"
-#include "engine/renderer/renderNode/renderNode.h"
-#include "engine/renderer/shaders.h"
-#include "engine/renderer/vInstance.h"
-#include "engine/renderer/vSwapChain.h"
-#include "engine/renderer/window.h"
+#include "engine/predefined/vulkanGraphicPipelines.h"
+#include "engine/renderer/shaders/shaders.h"
+#include "engine/renderer/vRenderer.h"
 #include "glm/fwd.hpp"
+#include "systems/resourceManagementSystem.h"
+#include "systems/sceneContext.h"
+#include "utils/generators.h"
+#include "utils/math.h"
 #include "utils/types.h"
 #include <cstdlib>
 #include <iostream>
 
-const uint32_t WIDTH = 800;
-const uint32_t HEIGHT = 600;
-
-class RenderV2 {
-public:
-  void run() {
-    window.init(WIDTH, HEIGHT, "Renderer");
-    initVulkan();
-    mainLoop();
-    cleanup();
-  }
-
-private:
-  Renderer::VInstance vInstance;
-  Renderer::Window window;
-  Renderer::VDevice vDevice;
-  Renderer::VSwapChain vSwapChain;
-  Renderer::RenderGraph::Fucntions renderGraph{};
-
-  Renderer::ColorRenderNode colorRenderNode;
-  Renderer::Images::VManager vTextureManager{};
-  glm::vec3 modelCenter;
-
-  void initVulkan() {
-    vInstance.create();
-    window.createSurface(vInstance.handler);
-    vDevice.pickAndCreate(vInstance.handler, window.surface);
-    vSwapChain.create(vDevice.physicalDevice, window.surface, vDevice.device,
-                      window.handler);
-
-    colorRenderNode.renderNode = &renderGraph.createNode();
-    colorRenderNode.present = true;
-    colorRenderNode.useDepthTesting = true;
-
-    BlenderModel testModel = loadModel("assets/Ogre.3d");
-
-    if (testModel.vertices.empty()) {
-      throw std::runtime_error("Loaded model has no vertices");
-    }
-
-    glm::vec3 minPos = testModel.vertices.front().pos;
-    glm::vec3 maxPos = minPos;
-
-    for (const Vertex &vertex : testModel.vertices) {
-      minPos = glm::min(minPos, vertex.pos);
-      maxPos = glm::max(maxPos, vertex.pos);
-    }
-
-    modelCenter = (minPos + maxPos) * 0.5f;
-
-    glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f),
-                                     glm::vec3(0.0f, 0.0f, 1.0f));
-
-    glm::mat4 model = glm::translate(rotation, -modelCenter);
-
-    const uint32_t modelIndex = 0;
-
-    Renderer::Shaders::UniformBank::setFloat4x4(
-        renderGraph.context.globalUniformBufferData.data, modelIndex, model);
-
-    Renderer::Shaders::PushConstantsBank::setUInt(
-        renderGraph.context.pushConstantBank, 0, modelIndex);
-
-    colorRenderNode.init(
-        vDevice,
-        Renderer::step1_initShadersProps{
-            .shaderCreateInfos =
-                {Renderer::RenderNodeUtils::ShaderCreateInfo{
-                     .type = Renderer::RenderNodeUtils::ShaderType::Vertex,
-                     .name = "vertMain"},
-                 Renderer::RenderNodeUtils::ShaderCreateInfo{
-                     .type = Renderer::RenderNodeUtils::ShaderType::Fragment,
-                     .name = "fragMain"}},
-            .shaderFile = "shaders/v2/testNode1.spv"},
-        vSwapChain);
-
-    colorRenderNode.setData<Vertex>(testModel.vertices, testModel.indices,
-                                    vDevice, renderGraph.commandPool);
-
-    vTextureManager.init(vDevice, renderGraph.commandPool);
-
-    // Renderer::Images::VTexture *testTexture = vTextureManager.createTexture(
-    //     "assets/texture.jpg", vDevice, renderGraph.commandPool,
-    //     vDevice.graphicsQueue);
-    // Renderer::Images::VTexture *testTexture2 = vTextureManager.createTexture(
-    //     "assets/texture2.jpg", vDevice, renderGraph.commandPool,
-    //     vDevice.graphicsQueue);
-
-    // Renderer::Shaders::PushConstantsBank::setUInt(
-    //     renderGraph.context.pushConstantBank, 1, testTexture->index);
-    // Renderer::Shaders::PushConstantsBank::setUInt(
-    //     renderGraph.context.pushConstantBank, 2, testTexture2->index);
-
-    colorRenderNode.finish<Vertex>(vDevice, vTextureManager, vSwapChain,
-                                   renderGraph.commandPool);
-
-    renderGraph.init(vDevice.device, vSwapChain.swapChainImages);
-  }
-
-  void mainLoop() {
-
-    int loopCounts = 0;
-
-    window.update([this, &loopCounts]() {
-      static auto startTime = std::chrono::high_resolution_clock::now();
-
-      auto thisCurrentTime = std::chrono::high_resolution_clock::now();
-      float time =
-          std::chrono::duration<float>(thisCurrentTime - startTime).count();
-
-      glm::mat4 rotation =
-          glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f),
-                      glm::vec3(0.0f, 0.0f, 1.0f));
-
-      glm::mat4 model = glm::translate(rotation, -modelCenter);
-
-      glm::mat4 view =
-          lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
-                 glm::vec3(0.0f, 0.0f, 1.0f));
-
-      glm::mat4 proj = glm::perspective(
-          glm::radians(45.0f),
-          static_cast<float>(800) / static_cast<float>(600), 0.1f, 10.0f);
-
-      proj[1][1] *= -1;
-
-      Renderer::Shaders::UniformBank::setFloat4x4(
-          renderGraph.context.globalUniformBufferData.data, 0, model);
-      Renderer::Shaders::UniformBank::setFloat4x4(
-          renderGraph.context.globalUniformBufferData.data,
-          Renderer::Shaders::UniformBank::viewIndex, view);
-      Renderer::Shaders::UniformBank::setFloat4x4(
-          renderGraph.context.globalUniformBufferData.data,
-          Renderer::Shaders::UniformBank::projIndex, proj);
-
-      renderGraph.prepareNodes(vDevice.device, vSwapChain);
-      renderGraph.submit(vDevice.graphicsQueue, vSwapChain);
-    });
-
-    vDevice.device.waitIdle();
-  }
-
-  void cleanup() { window.cleanup(); }
-};
-
 int main() {
   try {
-    RenderV2 app;
-    app.run();
+    Renderer::VRenderer renderer;
+    auto worldData = loadWorldData();
+
+    Renderer::Types::Mesh floorMesh;
+    Renderer::Types::Mesh floorDetailsMesh;
+    Renderer::Types::Mesh wizardMesh;
+    Renderer::Types::Mesh ogreMesh;
+
+    renderer.onInit = [&worldData, &renderer, &floorMesh, &floorDetailsMesh,
+                       &wizardMesh, &ogreMesh]() {
+      sceneContext.cameraPosition = worldData.camera.transform.position;
+      sceneContext.cameraLookAt = worldData.camera.direction;
+      sceneContext.cameraFovY = worldData.camera.fovY;
+      sceneContext.cameraClipStart = worldData.camera.clipStart;
+      sceneContext.cameraClipEnd = worldData.camera.clipEnd;
+
+      SceneBufferObject scene{.sunColorIntensity =
+                                  glm::vec4{0.8f, 0.8f, 0.8f, 0.8f}};
+
+      scene.view = glm::lookAt(worldData.camera.transform.position,
+                               worldData.camera.transform.position +
+                                   worldData.camera.direction,
+                               glm::vec3{0.0f, 0.0f, 1.0f});
+
+      scene.proj = glm::perspective(
+          worldData.camera.fovY,
+          static_cast<float>(renderer.vSwapChain.swapChainExtent.width) /
+              static_cast<float>(renderer.vSwapChain.swapChainExtent.height),
+          worldData.camera.clipStart, worldData.camera.clipEnd);
+
+      scene.proj[1][1] *= -1.0f;
+      scene.viewPosition = glm::vec4(worldData.camera.transform.position, 1.0f);
+
+      auto &uniformsBank =
+          renderer.renderGraph.context.globalUniformBufferData.data;
+      auto &pushConstantsBank = renderer.renderGraph.context.pushConstantBank;
+
+      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, SG_VIEW_INDEX,
+                                                  scene.view);
+      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, SG_PROJ_INDEX,
+                                                  scene.proj);
+      Renderer::Shaders::UniformBank::setFloat4(uniformsBank, SG_VIEW_POS_INDEX,
+                                                scene.viewPosition);
+      Renderer::Shaders::UniformBank::setFloat4(uniformsBank, SG_SUN_DIR_INDEX,
+                                                scene.sunDirection);
+      Renderer::Shaders::UniformBank::setFloat4(
+          uniformsBank, SG_SUN_INTENSITY_INDEX, scene.sunColorIntensity);
+
+      BlenderModel floorModel = loadModel("assets/floor.3d");
+      Transform floorT = Transform{
+          .position = worldData.floor.position,
+          .scale = worldData.floor.scale,
+          .rotation = worldData.floor.rotation,
+      };
+      createBasicGameObject(floorModel, floorMesh, floorT, uniformsBank,
+                            pushConstantsBank, renderer.renderGraph.commandPool,
+                            renderer.vDevice);
+
+      BlenderModel floorDetailModel = loadModel("assets/floor_details.3d");
+      Transform floorDetailsT = Transform{
+          .position = worldData.floor_details.position,
+          .scale = worldData.floor_details.scale,
+          .rotation = worldData.floor_details.rotation,
+      };
+      createBasicGameObject(floorDetailModel, floorDetailsMesh, floorDetailsT,
+                            uniformsBank, pushConstantsBank,
+                            renderer.renderGraph.commandPool, renderer.vDevice);
+
+      BlenderModel wizardModel = loadModel("assets/Wizzard_4.3d");
+
+      for (const glm::vec3 &wizardPosition : worldData.wizards.positions) {
+        glm::mat4 wizardModelMatrix{1.0f};
+        wizardModelMatrix = glm::translate(wizardModelMatrix, wizardPosition);
+
+        Transform tc = modelToTransform(wizardModelMatrix);
+
+        createBasicGameObject(
+            wizardModel, wizardMesh, tc, uniformsBank, pushConstantsBank,
+            renderer.renderGraph.commandPool, renderer.vDevice);
+      }
+
+      BlenderModel ogreModel = loadModel("assets/Ogre.3d");
+
+      for (const auto &ogrePos : worldData.ogres.positions) {
+        glm::mat4 ogreMat4Model = glm::mat4(1.0f);
+
+        Transform ot = modelToTransform(ogreMat4Model);
+        ot.position = ogrePos;
+
+        ogreMat4Model = transformToModel(ot.position, ot.rotation, ot.scale);
+
+        createBasicGameObject(
+            ogreModel, ogreMesh, ot, uniformsBank, pushConstantsBank,
+            renderer.renderGraph.commandPool, renderer.vDevice);
+      }
+    };
+
+    renderer.run();
   } catch (const std::exception &e) {
     std::cerr << e.what() << std::endl;
     return EXIT_FAILURE;

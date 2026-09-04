@@ -2,6 +2,7 @@
 
 #include "renderGraphUtils.h"
 #include "renderNode/renderNode.h"
+#include "vDevice.h"
 #include "vSwapChain.h"
 #include <cstdint>
 #include <memory>
@@ -23,6 +24,18 @@ struct Fucntions {
 
   std::vector<std::unique_ptr<Renderer::RenderNode>> renderNodes;
   Context context{};
+
+  void init(VDevice &vDevice) {
+    vk::CommandPoolCreateInfo poolInfo{
+        .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+        .queueFamilyIndex = vDevice.queueIndex,
+    };
+
+    commandPool = vk::raii::CommandPool{
+        vDevice.device,
+        poolInfo,
+    };
+  }
 
   RenderNode &createNode() {
     auto node = std::make_unique<RenderNode>();
@@ -70,10 +83,8 @@ struct Fucntions {
       if (node->updateUniforms) {
         node->perFrame1_updateUniformBuffers(frameIndex);
       }
-      for (auto &renderFunction : node->perFrameFunctions) {
-        if (renderFunction) {
-          renderFunction(vSwapChain, imageIndex, frameIndex);
-        }
+      if (node->perFrameFunction) {
+        node->perFrameFunction(vSwapChain, imageIndex, frameIndex);
       }
     }
 

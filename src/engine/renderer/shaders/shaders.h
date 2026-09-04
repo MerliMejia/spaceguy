@@ -11,47 +11,26 @@
 namespace Renderer {
 namespace Shaders {
 
-inline constexpr uint32_t MAX_TEXTURES = SG_MAX_TEXTURES;
-
 namespace UniformBank {
-inline constexpr uint32_t FLOAT_COUNT = SG_UNIFORM_FLOAT_COUNT;
-inline constexpr uint32_t VEC2_COUNT = SG_UNIFORM_VEC2_COUNT;
-inline constexpr uint32_t VEC3_COUNT = SG_UNIFORM_VEC3_COUNT;
-inline constexpr uint32_t MAT4_COUNT = SG_UNIFORM_MAT4_COUNT;
 
-inline constexpr uint32_t FLOAT_SLOTS = SG_UNIFORM_FLOAT_SLOTS;
-inline constexpr uint32_t VEC2_SLOTS = SG_UNIFORM_VEC2_SLOTS;
-inline constexpr uint32_t VEC3_SLOTS = SG_UNIFORM_VEC3_SLOTS;
-inline constexpr uint32_t MAT4_SLOTS = SG_UNIFORM_MAT4_SLOTS;
-
-inline constexpr uint32_t FLOAT_FROM = SG_UNIFORM_FLOAT_FROM;
-inline constexpr uint32_t VEC2_FROM = SG_UNIFORM_VEC2_FROM;
-inline constexpr uint32_t VEC3_FROM = SG_UNIFORM_VEC3_FROM;
-inline constexpr uint32_t MAT4_FROM = SG_UNIFORM_MAT4_FROM;
-
-inline constexpr uint32_t TOTAL_SLOTS = SG_UNIFORM_TOTAL_SLOTS;
-
-inline constexpr uint32_t projIndex = SG_PROJ_INDEX;
-inline constexpr uint32_t viewIndex = SG_VIEW_INDEX;
-
-using Data = std::array<glm::vec4, TOTAL_SLOTS>;
+using Data = std::array<glm::vec4, SG_UNIFORM_TOTAL_SLOTS>;
 
 inline void setFloat(Data &bank, uint32_t index, float value) {
-  const uint32_t slot = FLOAT_FROM + index / 4;
+  const uint32_t slot = SG_UNIFORM_FLOAT_FROM + index / 4;
   const uint32_t component = index % 4;
 
   bank[slot][component] = value;
 }
 
 inline float getFloat(const Data &bank, uint32_t index) {
-  const uint32_t slot = FLOAT_FROM + index / 4;
+  const uint32_t slot = SG_UNIFORM_FLOAT_FROM + index / 4;
   const uint32_t component = index % 4;
 
   return bank[slot][component];
 }
 
 inline void setFloat2(Data &bank, uint32_t index, const glm::vec2 &value) {
-  const uint32_t slot = VEC2_FROM + index / 2;
+  const uint32_t slot = SG_UNIFORM_VEC2_FROM + index / 2;
   const uint32_t firstComponent = (index % 2) * 2;
 
   bank[slot][firstComponent] = value.x;
@@ -59,7 +38,7 @@ inline void setFloat2(Data &bank, uint32_t index, const glm::vec2 &value) {
 }
 
 inline glm::vec2 getFloat2(const Data &bank, uint32_t index) {
-  const uint32_t slot = VEC2_FROM + index / 2;
+  const uint32_t slot = SG_UNIFORM_VEC2_FROM + index / 2;
   const uint32_t firstComponent = (index % 2) * 2;
 
   return {
@@ -69,7 +48,7 @@ inline glm::vec2 getFloat2(const Data &bank, uint32_t index) {
 }
 
 inline void setFloat3(Data &bank, uint32_t index, const glm::vec3 &value) {
-  const uint32_t slot = VEC3_FROM + index;
+  const uint32_t slot = SG_UNIFORM_VEC3_FROM + index;
 
   bank[slot].x = value.x;
   bank[slot].y = value.y;
@@ -77,12 +56,26 @@ inline void setFloat3(Data &bank, uint32_t index, const glm::vec3 &value) {
 }
 
 inline glm::vec3 getFloat3(const Data &bank, uint32_t index) {
-  const uint32_t slot = VEC3_FROM + index;
+  const uint32_t slot = SG_UNIFORM_VEC3_FROM + index;
   return glm::vec3{bank[slot]};
 }
 
+inline void setFloat4(Data &bank, uint32_t index, const glm::vec4 &value) {
+  const uint32_t slot = SG_UNIFORM_VEC4_FROM + index;
+
+  bank[slot].x = value.x;
+  bank[slot].y = value.y;
+  bank[slot].z = value.z;
+  bank[slot].w = value.w;
+}
+
+inline glm::vec4 getFloat4(const Data &bank, uint32_t index) {
+  const uint32_t slot = SG_UNIFORM_VEC4_FROM + index;
+  return glm::vec4{bank[slot]};
+}
+
 inline void setFloat4x4(Data &bank, uint32_t index, const glm::mat4 &value) {
-  const uint32_t firstSlot = MAT4_FROM + index * 4;
+  const uint32_t firstSlot = SG_UNIFORM_MAT4_FROM + index * 4;
 
   // Store the matrix as four row vectors, matching banks.slang.
   for (uint32_t row = 0; row < 4; ++row) {
@@ -96,7 +89,7 @@ inline void setFloat4x4(Data &bank, uint32_t index, const glm::mat4 &value) {
 }
 
 inline glm::mat4 getFloat4x4(const Data &bank, uint32_t index) {
-  const uint32_t firstSlot = MAT4_FROM + index * 4;
+  const uint32_t firstSlot = SG_UNIFORM_MAT4_FROM + index * 4;
   glm::mat4 result{};
 
   for (uint32_t row = 0; row < 4; ++row) {
@@ -112,38 +105,20 @@ inline glm::mat4 getFloat4x4(const Data &bank, uint32_t index) {
 
 namespace PushConstantsBank {
 
-inline constexpr uint32_t FLOAT_COUNT = SG_PUSH_FLOAT_COUNT;
-inline constexpr uint32_t VEC2_COUNT = SG_PUSH_VEC2_COUNT;
-inline constexpr uint32_t VEC3_COUNT = SG_PUSH_VEC3_COUNT;
-inline constexpr uint32_t INT_COUNT = SG_PUSH_INT_COUNT;
-
-inline constexpr uint32_t FLOAT_SLOTS = SG_PUSH_FLOAT_SLOTS;
-inline constexpr uint32_t VEC2_SLOTS = SG_PUSH_VEC2_SLOTS;
-inline constexpr uint32_t VEC3_SLOTS = SG_PUSH_VEC3_SLOTS;
-inline constexpr uint32_t INT_SLOTS = SG_PUSH_INT_SLOTS;
-
-inline constexpr uint32_t FLOAT_FROM = SG_PUSH_FLOAT_FROM;
-inline constexpr uint32_t VEC2_FROM = SG_PUSH_VEC2_FROM;
-inline constexpr uint32_t VEC3_FROM = SG_PUSH_VEC3_FROM;
-inline constexpr uint32_t INT_FROM = SG_PUSH_INT_FROM;
-
-inline constexpr uint32_t TOTAL_SLOTS = SG_PUSH_TOTAL_SLOTS;
-inline constexpr uint32_t TOTAL_BYTES = SG_PUSH_TOTAL_BYTES;
-
 struct alignas(16) PushConstantData {
-  std::array<glm::vec4, INT_FROM> floatData{};
-  std::array<glm::uvec4, INT_SLOTS> integerData{};
+  std::array<glm::vec4, SG_PUSH_INT_FROM> floatData{};
+  std::array<glm::uvec4, SG_PUSH_INT_SLOTS> integerData{};
 };
 
 inline void setFloat(PushConstantData &bank, uint32_t index, float value) {
-  const uint32_t slot = FLOAT_FROM + index / 4;
+  const uint32_t slot = SG_PUSH_FLOAT_FROM + index / 4;
   const uint32_t component = index % 4;
 
   bank.floatData[slot][component] = value;
 }
 
 inline float getFloat(const PushConstantData &bank, uint32_t index) {
-  const uint32_t slot = FLOAT_FROM + index / 4;
+  const uint32_t slot = SG_PUSH_FLOAT_FROM + index / 4;
   const uint32_t component = index % 4;
 
   return bank.floatData[slot][component];
@@ -151,7 +126,7 @@ inline float getFloat(const PushConstantData &bank, uint32_t index) {
 
 inline void setFloat2(PushConstantData &bank, uint32_t index,
                       const glm::vec2 &value) {
-  const uint32_t slot = VEC2_FROM + index / 2;
+  const uint32_t slot = SG_PUSH_VEC2_FROM + index / 2;
   const uint32_t firstComponent = (index % 2) * 2;
 
   bank.floatData[slot][firstComponent] = value.x;
@@ -159,7 +134,7 @@ inline void setFloat2(PushConstantData &bank, uint32_t index,
 }
 
 inline glm::vec2 getFloat2(const PushConstantData &bank, uint32_t index) {
-  const uint32_t slot = VEC2_FROM + index / 2;
+  const uint32_t slot = SG_PUSH_VEC2_FROM + index / 2;
   const uint32_t firstComponent = (index % 2) * 2;
 
   return {
@@ -170,7 +145,7 @@ inline glm::vec2 getFloat2(const PushConstantData &bank, uint32_t index) {
 
 inline void setFloat3(PushConstantData &bank, uint32_t index,
                       const glm::vec3 &value) {
-  const uint32_t slot = VEC3_FROM + index;
+  const uint32_t slot = SG_PUSH_VEC3_FROM + index;
 
   bank.floatData[slot].x = value.x;
   bank.floatData[slot].y = value.y;
@@ -178,7 +153,7 @@ inline void setFloat3(PushConstantData &bank, uint32_t index,
 }
 
 inline glm::vec3 getFloat3(const PushConstantData &bank, uint32_t index) {
-  const uint32_t slot = VEC3_FROM + index;
+  const uint32_t slot = SG_PUSH_VEC3_FROM + index;
   return glm::vec3{bank.floatData[slot]};
 }
 

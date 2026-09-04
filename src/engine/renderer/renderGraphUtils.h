@@ -1,7 +1,7 @@
 #pragma once
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include "bufferUtils.h"
-#include "shaders.h"
+#include "shaders/shaders.h"
 #include <glm/glm.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -11,7 +11,7 @@ namespace RenderGraph {
 struct Context {
 
   struct GlobalUniformBankBuffer {
-    std::array<glm::vec4, Renderer::Shaders::UniformBank::TOTAL_SLOTS> data;
+    std::array<glm::vec4, SG_UNIFORM_TOTAL_SLOTS> data;
   };
 
   // Data needed

@@ -42,6 +42,7 @@ add_executable(spaceguy
     src/utils/behaviors/ogre.cpp
     src/systems/gravitySystem.cpp
     external/stb/stb_image.cpp
+    src/engine/renderer/shaders/banksManager.cpp
 )
 
 target_sources(spaceguy PRIVATE

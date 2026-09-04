@@ -1,5 +1,8 @@
 #pragma once
 
+#include "../engine/blender/importer.h"
+#include "../engine/renderer/shaders/shaders.h"
+#include "../utils/math.h"
 #include "../utils/types.h"
 #include "glm/fwd.hpp"
 #include <vector>
@@ -12,6 +15,7 @@ struct Renderable {
   int entity = -1;
   ObjectRenderKind renderKind = ObjectRenderKind::Static;
   const Mesh *mesh = nullptr;
+  const Renderer::Types::Mesh *meshV2 = nullptr;
   const AnimatedMesh *animatedMesh = nullptr;
   const TransformAnimatedMesh *transformAnimatedMesh = nullptr;
   bool visible = true;
@@ -22,6 +26,7 @@ struct TransformComponent {
   int entity = -1;
   glm::mat4 model{1.0f};
   glm::mat4 baseModel{1.0f};
+  int modelIndex = -1;
 };
 
 struct AnimationComponent {
@@ -228,3 +233,13 @@ GravityComponent *tryGetGravityComponent(int entity);
 
 void destroyEntity(int entity);
 void processDestroyQueue();
+
+struct BasicGameObject {
+  int entity = -1;
+};
+
+BasicGameObject createBasicGameObject(
+    BlenderModel blenderModel, Renderer::Types::Mesh &mesh, Transform transform,
+    Renderer::Shaders::UniformBank::Data &uniformsBank,
+    Renderer::Shaders::PushConstantsBank::PushConstantData &pushConstantsBank,
+    vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice);

@@ -8,4 +8,4 @@ glslc shaders/particles.vert -o shaders/particles.vert.spv
 glslc shaders/particles.frag -o shaders/particles.frag.spv
 
 
-slangc shaders/v2/testNode1.slang -o shaders/v2/testNode1.spv
+slangc shaders/v2/objectNode.slang -o shaders/v2/objectNode.spv

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../shaders.h"
+#include "../../shaders/v2/banks_shared.h"
 #include "vTexture.h"
 
 #include <array>
@@ -14,8 +14,8 @@ namespace Renderer {
 namespace Images {
 
 struct VManager {
-  std::array<std::unique_ptr<VTexture>, Shaders::MAX_TEXTURES> ownedTextures{};
-  std::array<VTexture *, Shaders::MAX_TEXTURES> textures{};
+  std::array<std::unique_ptr<VTexture>, SG_MAX_TEXTURES> ownedTextures{};
+  std::array<VTexture *, SG_MAX_TEXTURES> textures{};
 
   vk::raii::Sampler sampler{nullptr};
   VTexture fallbackTexture{};

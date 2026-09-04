@@ -5,6 +5,7 @@
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include "../engine/renderer/bufferUtils.h"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -57,6 +58,17 @@ struct AnimatedVertex {
   glm::vec3 color;
   glm::vec3 normal;
 };
+
+namespace Renderer {
+namespace Types {
+struct Mesh {
+  Renderer::BufferAllocation vertexAllocations;
+  Renderer::BufferAllocation indexAllocations;
+  uint32_t vertexCount = 0;
+  uint32_t indexCount = 0;
+};
+} // namespace Types
+} // namespace Renderer
 
 struct Mesh {
   vk::raii::Buffer vertexBuffer = nullptr;

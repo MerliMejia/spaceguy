@@ -14,7 +14,7 @@
 #include <vector>
 #define GLM_FORCE_RADIANS
 #include "../images/vTexture.h"
-#include "../shaders.h"
+#include "../shaders/shaders.h"
 #include "renderNodeUtils.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -40,11 +40,6 @@ struct RenderNode {
   vk::raii::PipelineLayout pipelineLayout = nullptr;
   vk::raii::Pipeline graphicsPipeline = nullptr;
   std::vector<vk::raii::CommandBuffer> commandBuffers;
-  vk::raii::Buffer vertexBuffer = nullptr;
-  vk::raii::DeviceMemory vertexBufferMemory = nullptr;
-  vk::raii::Buffer indexBuffer = nullptr;
-  vk::raii::DeviceMemory indexBufferMemory = nullptr;
-  std::vector<uint32_t> indices;
 
   std::unique_ptr<Images::VImage> input = nullptr;
   std::unique_ptr<Images::VImage> output = nullptr;
@@ -52,10 +47,10 @@ struct RenderNode {
   Renderer::RenderGraph::Context *renderGraphContext = nullptr;
   bool usePushConstants = false;
   bool updateUniforms = false;
-  std::array<std::function<void(Renderer::VSwapChain &vSwapChain,
-                                uint32_t imageIndex, uint32_t frameIndex)>,
-             3>
-      perFrameFunctions;
+  std::function<void(Renderer::VSwapChain &vSwapChain, uint32_t imageIndex,
+                     uint32_t frameIndex)>
+      perFrameFunction;
+  std::vector<RenderNodeUtils::RenderCall> renderCalls;
 
   void preInit(Renderer::RenderGraph::Context &ctx) {
     renderGraphContext = &ctx;
@@ -68,44 +63,7 @@ struct RenderNode {
     shaderCreateInfos = std::move(props.shaderCreateInfos);
   }
 
-  template <RenderNodeUtils::VertexType T>
-  void step_1_1_createAndFillVertexBuffer(std::vector<T> incomingVertices,
-                                          VDevice &vDevice,
-                                          vk::raii::CommandPool &commandPool) {
-
-    vk::CommandPoolCreateInfo poolInfo{
-        .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-        .queueFamilyIndex = vDevice.queueIndex,
-    };
-
-    commandPool = vk::raii::CommandPool{
-        vDevice.device,
-        poolInfo,
-    };
-
-    BufferAllocation allocation = createDeviceLocalBuffer(
-        vDevice, commandPool, std::span<const T>{incomingVertices},
-        vk::BufferUsageFlagBits::eVertexBuffer);
-
-    vertexBuffer = std::move(allocation.buffer);
-    vertexBufferMemory = std::move(allocation.memory);
-  }
-
-  void
-  step_1_2_createAndFillIndicesBuffer(std::vector<uint32_t> incomingIndices,
-                                      VDevice &vDevice,
-                                      vk::raii::CommandPool &commandPool) {
-
-    indices = std::move(incomingIndices);
-    BufferAllocation allocation = createDeviceLocalBuffer(
-        vDevice, commandPool, std::span<const uint32_t>{indices},
-        vk::BufferUsageFlagBits::eIndexBuffer);
-
-    indexBuffer = std::move(allocation.buffer);
-    indexBufferMemory = std::move(allocation.memory);
-  }
-
-  void step_1_3_createUniformBuffers(VDevice &vDevice) {
+  void step_1_2_createUniformBuffers(VDevice &vDevice) {
     // For now 1 per frame in flight. At some point I may want something that is
     // more static.
     for (size_t i = 0; i < RenderNodeUtils::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -132,13 +90,14 @@ struct RenderNode {
   // I'll manually define this in a way that each node can use it however it
   // wants. Right now 0,0 -> uniform bank, 1,0 -> sampler, 2,0 0 -> texture
   // bank.
-  void step_1_4_createDescriptorSetLayout(vk::raii::Device &device) {
+  void step_1_3_createDescriptorSetLayout(vk::raii::Device &device) {
     std::array<vk::DescriptorSetLayoutBinding, 3> bingdings{
         vk::DescriptorSetLayoutBinding{
             .binding = 0,
             .descriptorType = vk::DescriptorType::eUniformBuffer,
             .descriptorCount = 1,
-            .stageFlags = vk::ShaderStageFlagBits::eVertex},
+            .stageFlags = vk::ShaderStageFlagBits::eVertex |
+                          vk::ShaderStageFlagBits::eFragment},
         vk::DescriptorSetLayoutBinding{
             .binding = 1,
             .descriptorType = vk::DescriptorType::eSampler,
@@ -147,7 +106,7 @@ struct RenderNode {
         vk::DescriptorSetLayoutBinding{
             .binding = 2,
             .descriptorType = vk::DescriptorType::eSampledImage,
-            .descriptorCount = Shaders::MAX_TEXTURES,
+            .descriptorCount = SG_MAX_TEXTURES,
             .stageFlags = vk::ShaderStageFlagBits::eFragment}};
 
     vk::DescriptorSetLayoutCreateInfo layoutInfo{
@@ -157,7 +116,7 @@ struct RenderNode {
         vk::raii::DescriptorSetLayout(device, layoutInfo);
   }
 
-  void step_1_5_createDescriptorPool(vk::raii::Device &device) {
+  void step_1_4_createDescriptorPool(vk::raii::Device &device) {
     std::array<vk::DescriptorPoolSize, 3> poolSizes = {
         vk::DescriptorPoolSize{.type = vk::DescriptorType::eUniformBuffer,
                                .descriptorCount =
@@ -169,7 +128,7 @@ struct RenderNode {
         vk::DescriptorPoolSize{.type = vk::DescriptorType::eSampledImage,
                                .descriptorCount =
                                    RenderNodeUtils::MAX_FRAMES_IN_FLIGHT *
-                                   Shaders::MAX_TEXTURES}};
+                                   SG_MAX_TEXTURES}};
 
     vk::DescriptorPoolCreateInfo poolInfo{
         .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
@@ -181,7 +140,7 @@ struct RenderNode {
         vk::raii::DescriptorPool(device, poolInfo);
   }
 
-  void step_1_6_allocateDescriptorSets(vk::raii::Device &device) {
+  void step_1_5_allocateDescriptorSets(vk::raii::Device &device) {
     std::vector<vk::DescriptorSetLayout> layouts(
         RenderNodeUtils::MAX_FRAMES_IN_FLIGHT,
         *renderGraphContext->defaultDescriptorSetLayout);
@@ -195,7 +154,7 @@ struct RenderNode {
         device.allocateDescriptorSets(allocInfo);
   }
 
-  void step_1_7_configureDescriptorSets(
+  void step_1_6_configureDescriptorSets(
       vk::raii::Device &device, Renderer::Images::VManager &vTextureManager) {
 
     for (size_t i = 0; i < RenderNodeUtils::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -210,7 +169,7 @@ struct RenderNode {
           .imageLayout = vk::ImageLayout::eUndefined,
       };
 
-      std::array<vk::DescriptorImageInfo, Shaders::MAX_TEXTURES> imageInfos;
+      std::array<vk::DescriptorImageInfo, SG_MAX_TEXTURES> imageInfos;
 
       for (int i = 0; i < imageInfos.size(); i++) {
         imageInfos[i] = vk::DescriptorImageInfo{
@@ -413,23 +372,31 @@ struct RenderNode {
     commandBuffers[frameIndex].setScissor(
         0, vk::Rect2D(vk::Offset2D(0, 0), vSwapChain.swapChainExtent));
 
-    commandBuffers[frameIndex].bindVertexBuffers(0, *vertexBuffer, {0});
-    commandBuffers[frameIndex].bindIndexBuffer(*indexBuffer, 0,
-                                               vk::IndexType::eUint32);
     commandBuffers[frameIndex].bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics, pipelineLayout, 0,
         *renderGraphContext->defaultDescriptorSets[frameIndex], nullptr);
 
-    if (usePushConstants) {
-      commandBuffers[frameIndex].pushConstants(
-          *pipelineLayout,
-          vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-          0, sizeof(Shaders::PushConstantsBank::PushConstantData),
-          &renderGraphContext->pushConstantBank);
-    }
+    for (const RenderNodeUtils::RenderCall &renderCall : renderCalls) {
+      if (usePushConstants) {
 
-    commandBuffers[frameIndex].drawIndexed(
-        static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+        renderCall.updatePushConstants();
+
+        commandBuffers[frameIndex].pushConstants(
+            *pipelineLayout,
+            vk::ShaderStageFlagBits::eVertex |
+                vk::ShaderStageFlagBits::eFragment,
+            0, sizeof(Shaders::PushConstantsBank::PushConstantData),
+            &renderGraphContext->pushConstantBank);
+      }
+
+      commandBuffers[frameIndex].bindVertexBuffers(0, renderCall.vertexBuffer,
+                                                   {0});
+      commandBuffers[frameIndex].bindIndexBuffer(renderCall.indexBuffer, 0,
+                                                 vk::IndexType::eUint32);
+
+      commandBuffers[frameIndex].drawIndexed(
+          static_cast<uint32_t>(renderCall.indexCount), 1, 0, 0, 0);
+    }
 
     commandBuffers[frameIndex].endRendering();
   }

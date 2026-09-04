@@ -1,4 +1,8 @@
 #include "resourceManagementSystem.h"
+#include "../engine/renderer/shaders/banksManager.h"
+#include "../engine/renderer/shaders/shaders.h"
+#include "../utils/generators.h"
+#include "../utils/math.h"
 #include <concepts>
 #include <stdexcept>
 #include <string>
@@ -128,8 +132,17 @@ Renderable *tryGetRenderable(int entity) {
 }
 
 TransformComponent &addTransform(int entity) {
-  return addComponent<TransformComponent>(entity, entityToTransforms,
-                                          resources.transforms, "transform");
+  int modelIndex = Renderer::Shaders::bankManager.useModelSlot();
+
+  try {
+    TransformComponent &transform = addComponent<TransformComponent>(
+        entity, entityToTransforms, resources.transforms, "transform");
+    transform.modelIndex = modelIndex;
+    return transform;
+  } catch (...) {
+    Renderer::Shaders::bankManager.releaseModelSlot(modelIndex);
+    throw;
+  }
 }
 
 template <> TransformComponent &addComponent<TransformComponent>(int entity) {
@@ -332,6 +345,16 @@ static void destroyRenderable(int entity) {
 }
 
 static void destroyTransform(int entity) {
+  TransformComponent *transform = tryGetTransform(entity);
+
+  if (transform == nullptr) {
+    return;
+  }
+
+  if (transform->modelIndex != -1) {
+    Renderer::Shaders::bankManager.releaseModelSlot(transform->modelIndex);
+  }
+
   destroyComponent<TransformComponent>(entity, entityToTransforms,
                                        resources.transforms);
 }
@@ -413,4 +436,31 @@ void processDestroyQueue() {
   }
 
   destroyQueue.clear();
+}
+
+BasicGameObject createBasicGameObject(
+    BlenderModel blenderModel, Renderer::Types::Mesh &mesh, Transform transform,
+    Renderer::Shaders::UniformBank::Data &uniformsBank,
+    Renderer::Shaders::PushConstantsBank::PushConstantData &pushConstantsBank,
+    vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice) {
+
+  mesh = Renderer::Generators::generateMesh(
+      blenderModel.vertices, blenderModel.indices, commandPool, vDevice);
+
+  int entity = createEntity();
+  Renderable &floorRenderable = addRenderable(entity);
+  floorRenderable.meshV2 = &mesh;
+
+  TransformComponent &tc = addTransform(entity);
+  Transform floorT = modelToTransform(tc.model);
+  floorT.position = transform.position;
+  floorT.rotation = transform.rotation;
+  floorT.scale = transform.scale;
+
+  tc.model = transformToModel(floorT.position, floorT.rotation, floorT.scale);
+
+  Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, tc.modelIndex,
+                                              tc.model);
+
+  return BasicGameObject{.entity = entity};
 }
