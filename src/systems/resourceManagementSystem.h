@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../engine/blender/importer.h"
+#include "../engine/blender/v2/importer.h"
 #include "../engine/renderer/shaders/shaders.h"
 #include "../utils/math.h"
 #include "../utils/types.h"
@@ -20,6 +20,7 @@ struct Renderable {
   const TransformAnimatedMesh *transformAnimatedMesh = nullptr;
   bool visible = true;
   bool unlit = false;
+  uint32_t textureIndex = -1;
 };
 
 struct TransformComponent {
@@ -239,7 +240,8 @@ struct BasicGameObject {
 };
 
 BasicGameObject createBasicGameObject(
-    BlenderModel blenderModel, Renderer::Types::Mesh &mesh, Transform transform,
+    Blender::V2::BlenderModel, Renderer::Types::Mesh &mesh, Transform transform,
     Renderer::Shaders::UniformBank::Data &uniformsBank,
     Renderer::Shaders::PushConstantsBank::PushConstantData &pushConstantsBank,
-    vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice);
+    vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice,
+    uint32_t textureIndex = -1);

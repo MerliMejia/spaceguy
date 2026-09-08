@@ -4,14 +4,14 @@ import banks;
 struct VSInput
 {
     float3 inPosition;
-    float3 inColor;
+    float2 uv;
     float3 normal;
 };
 
 struct VSOutput
 {
     float4 pos : SV_Position;
-    float3 color;
+    float2 uv;
     float3 worldPosition;
     float3 worldNormal;
 };
@@ -47,70 +47,21 @@ VSOutput vertMain(VSInput input)
 
     VSOutput output;
     output.pos = mul(proj, mul(view, worldPosition));
-    output.color = input.inColor;
+    output.uv = input.uv;
     output.worldPosition = worldPosition.xyz;
     output.worldNormal = mul(normalMatrix, input.normal);
     return output;
 }
 
-float toonDiffuse(float ndotl)
-{
-    float width = max(fwidth(ndotl) * 1.5f, 0.01f);
-
-    return lerp(
-        0.38f,
-        1.0f,
-        smoothstep(
-            0.42f - width,
-            0.42f + width,
-            ndotl
-        )
-    );
-}
-
 [shader("fragment")]
 float4 fragMain(VSOutput input) : SV_Target
 {
-    uint modelIndex = PushConstantsBank::getInt(SG_PUSH_MODEL_INDEX);
-    float4x4 model = UniformBank::getFloat4x4(modelIndex);
+    int diffTexIndex = PushConstantsBank::getInt(SG_PUSH_DIFF_TEX_INDEX);
 
-    float4x4 view = UniformBank::getFloat4x4(SG_VIEW_INDEX);
-    float4x4 proj = UniformBank::getFloat4x4(SG_PROJ_INDEX);
-    float4 viewPos = UniformBank::getFloat4(SG_VIEW_POS_INDEX);
-    float4 sunDir = UniformBank::getFloat4(SG_SUN_DIR_INDEX);
-    float4 sunIntensity = UniformBank::getFloat4(SG_SUN_INTENSITY_INDEX);
+    Texture2D<float4> diffuseTexture = textures[diffTexIndex];
 
-    float3 N = normalize(input.worldNormal);
+    float2 uv = float2(input.uv.x, 1.0f - input.uv.y);
+    float4 sampledColor = diffuseTexture.Sample(textureSampler, uv);
 
-    float skyFactor = clamp(
-        N.z * 0.5 + 0.5,
-        0.0,
-        1.0
-    );
-
-    float3 groundAmbient = float3(0.10, 0.12, 0.16);
-    float3 skyAmbient = float3(0.28, 0.34, 0.42);
-
-    float3 lighting = lerp(
-        groundAmbient,
-        skyAmbient,
-        skyFactor
-    );
-
-    if (sunIntensity.a > 0.0) {
-        float3 L = normalize(
-            -sunDir.xyz
-        );
-
-        float ndotl = dot(N, L);
-        float diffuseBand = toonDiffuse(ndotl);
-
-        lighting += diffuseBand *
-        sunIntensity.rgb *
-        sunIntensity.a;
-    }
-
-    float3 finalColor = input.color * lighting;
-
-    return float4(finalColor, 1.0);
+    return float4(sampledColor.rgb, 1.0);
 }

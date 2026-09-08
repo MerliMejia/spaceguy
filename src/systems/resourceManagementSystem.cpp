@@ -1,4 +1,5 @@
 #include "resourceManagementSystem.h"
+#include "../engine/blender/v2/importer.h"
 #include "../engine/renderer/shaders/banksManager.h"
 #include "../engine/renderer/shaders/shaders.h"
 #include "../utils/generators.h"
@@ -439,17 +440,19 @@ void processDestroyQueue() {
 }
 
 BasicGameObject createBasicGameObject(
-    BlenderModel blenderModel, Renderer::Types::Mesh &mesh, Transform transform,
-    Renderer::Shaders::UniformBank::Data &uniformsBank,
+    Blender::V2::BlenderModel blenderModel, Renderer::Types::Mesh &mesh,
+    Transform transform, Renderer::Shaders::UniformBank::Data &uniformsBank,
     Renderer::Shaders::PushConstantsBank::PushConstantData &pushConstantsBank,
-    vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice) {
+    vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice,
+    uint32_t textureIndex) {
 
-  mesh = Renderer::Generators::generateMesh(
+  mesh = Renderer::Generators::generateMesh<Blender::V2::Vertex>(
       blenderModel.vertices, blenderModel.indices, commandPool, vDevice);
 
   int entity = createEntity();
-  Renderable &floorRenderable = addRenderable(entity);
-  floorRenderable.meshV2 = &mesh;
+  Renderable &renderable = addRenderable(entity);
+  renderable.meshV2 = &mesh;
+  renderable.textureIndex = textureIndex;
 
   TransformComponent &tc = addTransform(entity);
   Transform floorT = modelToTransform(tc.model);

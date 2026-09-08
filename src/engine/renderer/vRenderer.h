@@ -47,6 +47,8 @@ struct VRenderer {
 
     renderGraph.init(vDevice);
 
+    vTextureManager.init(vDevice, renderGraph.commandPool);
+
     if (onInit) {
       onInit();
     }
@@ -68,24 +70,11 @@ struct VRenderer {
             .shaderFile = "shaders/v2/objectNode.spv"},
         vSwapChain);
 
-    colorRenderNode.setData<Vertex>(vDevice, renderGraph.commandPool);
+    colorRenderNode.setData<Blender::V2::Vertex>(vDevice,
+                                                 renderGraph.commandPool);
 
-    vTextureManager.init(vDevice, renderGraph.commandPool);
-
-    // Renderer::Images::VTexture *testTexture = vTextureManager.createTexture(
-    //     "assets/texture.jpg", vDevice, renderGraph.commandPool,
-    //     vDevice.graphicsQueue);
-    // Renderer::Images::VTexture *testTexture2 = vTextureManager.createTexture(
-    //     "assets/texture2.jpg", vDevice, renderGraph.commandPool,
-    //     vDevice.graphicsQueue);
-
-    // Renderer::Shaders::PushConstantsBank::setUInt(
-    //     renderGraph.context.pushConstantBank, 1, testTexture->index);
-    // Renderer::Shaders::PushConstantsBank::setUInt(
-    //     renderGraph.context.pushConstantBank, 2, testTexture2->index);
-
-    colorRenderNode.finish<Vertex>(vDevice, vTextureManager, vSwapChain,
-                                   renderGraph.commandPool);
+    colorRenderNode.finish<Blender::V2::Vertex>(
+        vDevice, vTextureManager, vSwapChain, renderGraph.commandPool);
 
     renderGraph.init(vDevice.device, vSwapChain.swapChainImages);
   }
@@ -123,6 +112,12 @@ struct VRenderer {
 
                   Renderer::Shaders::PushConstantsBank::setInt(
                       pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
+
+                  if (renderable.textureIndex != -1) {
+                    Renderer::Shaders::PushConstantsBank::setUInt(
+                        pushConstantsBank, SG_PUSH_DIFF_TEX_INDEX,
+                        renderable.textureIndex);
+                  }
                 }});
       }
 

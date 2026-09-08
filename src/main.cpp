@@ -1,13 +1,15 @@
 
 #include "../shaders/v2/banks_shared.h"
 #include "engine/blender/importer.h"
+#include "engine/blender/v2/importer.h"
 #include "engine/predefined/vulkanGraphicPipelines.h"
+#include "engine/renderer/images/vTexture.h"
 #include "engine/renderer/shaders/shaders.h"
 #include "engine/renderer/vRenderer.h"
+#include "glm/ext/quaternion_transform.hpp"
 #include "glm/fwd.hpp"
 #include "systems/resourceManagementSystem.h"
 #include "systems/sceneContext.h"
-#include "utils/generators.h"
 #include "utils/math.h"
 #include "utils/types.h"
 #include <cstdlib>
@@ -19,12 +21,16 @@ int main() {
     auto worldData = loadWorldData();
 
     Renderer::Types::Mesh floorMesh;
-    Renderer::Types::Mesh floorDetailsMesh;
+    Renderer::Images::VTexture *floorDiffuse;
+    // Renderer::Types::Mesh floorDetailsMesh;
     Renderer::Types::Mesh wizardMesh;
+    Renderer::Images::VTexture *wizzardDiffuse;
     Renderer::Types::Mesh ogreMesh;
+    Renderer::Images::VTexture *ogreDiffuse;
 
-    renderer.onInit = [&worldData, &renderer, &floorMesh, &floorDetailsMesh,
-                       &wizardMesh, &ogreMesh]() {
+    renderer.onInit = [&worldData, &renderer, &ogreMesh, &ogreDiffuse,
+                       &wizardMesh, &wizzardDiffuse, &floorMesh,
+                       &floorDiffuse]() {
       sceneContext.cameraPosition = worldData.camera.transform.position;
       sceneContext.cameraLookAt = worldData.camera.direction;
       sceneContext.cameraFovY = worldData.camera.fovY;
@@ -63,27 +69,12 @@ int main() {
       Renderer::Shaders::UniformBank::setFloat4(
           uniformsBank, SG_SUN_INTENSITY_INDEX, scene.sunColorIntensity);
 
-      BlenderModel floorModel = loadModel("assets/floor.3d");
-      Transform floorT = Transform{
-          .position = worldData.floor.position,
-          .scale = worldData.floor.scale,
-          .rotation = worldData.floor.rotation,
-      };
-      createBasicGameObject(floorModel, floorMesh, floorT, uniformsBank,
-                            pushConstantsBank, renderer.renderGraph.commandPool,
-                            renderer.vDevice);
+      Blender::V2::BlenderModel wizardModel =
+          Blender::V2::loadModel("assets/Wizzard_4_v2.3d");
 
-      BlenderModel floorDetailModel = loadModel("assets/floor_details.3d");
-      Transform floorDetailsT = Transform{
-          .position = worldData.floor_details.position,
-          .scale = worldData.floor_details.scale,
-          .rotation = worldData.floor_details.rotation,
-      };
-      createBasicGameObject(floorDetailModel, floorDetailsMesh, floorDetailsT,
-                            uniformsBank, pushConstantsBank,
-                            renderer.renderGraph.commandPool, renderer.vDevice);
-
-      BlenderModel wizardModel = loadModel("assets/Wizzard_4.3d");
+      wizzardDiffuse = renderer.vTextureManager.createTexture(
+          wizardModel.texturePath, renderer.vDevice,
+          renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
 
       for (const glm::vec3 &wizardPosition : worldData.wizards.positions) {
         glm::mat4 wizardModelMatrix{1.0f};
@@ -91,12 +82,18 @@ int main() {
 
         Transform tc = modelToTransform(wizardModelMatrix);
 
-        createBasicGameObject(
-            wizardModel, wizardMesh, tc, uniformsBank, pushConstantsBank,
-            renderer.renderGraph.commandPool, renderer.vDevice);
+        createBasicGameObject(wizardModel, wizardMesh, tc, uniformsBank,
+                              pushConstantsBank,
+                              renderer.renderGraph.commandPool,
+                              renderer.vDevice, wizzardDiffuse->index);
       }
 
-      BlenderModel ogreModel = loadModel("assets/Ogre.3d");
+      Blender::V2::BlenderModel ogreModel =
+          Blender::V2::loadModel("assets/Ogre_v2.3d");
+
+      ogreDiffuse = renderer.vTextureManager.createTexture(
+          ogreModel.texturePath, renderer.vDevice,
+          renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
 
       for (const auto &ogrePos : worldData.ogres.positions) {
         glm::mat4 ogreMat4Model = glm::mat4(1.0f);
@@ -106,10 +103,28 @@ int main() {
 
         ogreMat4Model = transformToModel(ot.position, ot.rotation, ot.scale);
 
-        createBasicGameObject(
-            ogreModel, ogreMesh, ot, uniformsBank, pushConstantsBank,
-            renderer.renderGraph.commandPool, renderer.vDevice);
+        createBasicGameObject(ogreModel, ogreMesh, ot, uniformsBank,
+                              pushConstantsBank,
+                              renderer.renderGraph.commandPool,
+                              renderer.vDevice, ogreDiffuse->index);
       }
+
+      Blender::V2::BlenderModel floorModel =
+          Blender::V2::loadModel("assets/floor_v2.3d");
+
+      floorDiffuse = renderer.vTextureManager.createTexture(
+          floorModel.texturePath, renderer.vDevice,
+          renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
+
+      glm::quat floorOrientation{glm::radians(worldData.floor.rotation)};
+      glm::mat4 floorModelMatrix = transformToModel(
+          worldData.floor.position, floorOrientation, worldData.floor.scale);
+
+      Transform tc = modelToTransform(floorModelMatrix);
+
+      createBasicGameObject(floorModel, floorMesh, tc, uniformsBank,
+                            pushConstantsBank, renderer.renderGraph.commandPool,
+                            renderer.vDevice, floorDiffuse->index);
     };
 
     renderer.run();
