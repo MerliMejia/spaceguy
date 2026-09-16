@@ -63,7 +63,7 @@ int main() {
           Blender::V2::loadModel("assets/Wizzard_4_v2.3d");
 
       wizzardDiffuse = renderer.vTextureManager.createTexture(
-          wizardModel.texturePath, renderer.vDevice,
+          wizardModel.texturePath.string(), renderer.vDevice,
           renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
 
       for (const glm::vec3 &wizardPosition : worldData.wizards.positions) {
@@ -82,7 +82,7 @@ int main() {
           Blender::V2::loadModel("assets/Ogre_v2.3d");
 
       ogreDiffuse = renderer.vTextureManager.createTexture(
-          ogreModel.texturePath, renderer.vDevice,
+          ogreModel.texturePath.string(), renderer.vDevice,
           renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
 
       for (const auto &ogrePos : worldData.ogres.positions) {
@@ -103,7 +103,7 @@ int main() {
           Blender::V2::loadModel("assets/floor_v2.3d");
 
       floorDiffuse = renderer.vTextureManager.createTexture(
-          floorModel.texturePath, renderer.vDevice,
+          floorModel.texturePath.string(), renderer.vDevice,
           renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
 
       glm::quat floorOrientation{glm::radians(worldData.floor.rotation)};

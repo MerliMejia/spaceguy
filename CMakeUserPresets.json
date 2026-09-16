@@ -1,23 +1,40 @@
 {
-    "version": 6,
-    "configurePresets": [
-        {
-            "name": "windows-debug",
-            "displayName": "Windows Debug (VS + vcpkg)",
-            "generator": "Visual Studio 18 2026",
-            "architecture": "x64",
-            "binaryDir": "${sourceDir}/build/windows-debug",
-            "toolchainFile": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
-        }
-    ],
-    "buildPresets": [
-        {
-            "name": "windows-debug",
-            "configurePreset": "windows-debug",
-            "configuration": "Debug"
-        }
-    ]
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "windows-debug",
+      "displayName": "Windows Debug (VS + vcpkg)",
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/windows-debug",
+      "toolchainFile": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "debug-clang",
+      "displayName": "Debug (Clang, matches macOS)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/debug-clang",
+      "toolchainFile": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "C:/Program Files/LLVM/bin/clang-cl.exe",
+        "CMAKE_CXX_COMPILER": "C:/Program Files/LLVM/bin/clang-cl.exe",
+        "CMAKE_CXX_FLAGS": "/EHsc"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "debug-clang",
+      "configurePreset": "debug-clang"
+    }
+  ]
 }
