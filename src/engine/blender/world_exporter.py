@@ -45,18 +45,6 @@ def export_spaceguy_world(filepath):
     if floor is None:
         raise RuntimeError("World export requires an object named 'floor'")
 
-    floor_details = bpy.data.objects.get("floor_details")
-    if floor_details is None:
-        raise RuntimeError("World export requires an object named 'floor_details'")
-
-    water = bpy.data.objects.get("water")
-    if water is None:
-        raise RuntimeError("World export requires an object named 'water'")
-
-    water_details = bpy.data.objects.get("water_details")
-    if water_details is None:
-        raise RuntimeError("World export requires an object named 'water_details'")
-
     camera = bpy.data.objects.get("camera")
     if camera is None:
         raise RuntimeError("World export requires an object named 'camera'")
@@ -82,20 +70,11 @@ def export_spaceguy_world(filepath):
     filepath = Path(filepath)
 
     with filepath.open("w", encoding="utf-8") as file:
-        file.write("spaceguy_world 1\n")
+        file.write("spaceguy_world 2\n")
         file.write("\n")
 
         file.write("floor\n")
         write_transform(file, floor)
-        file.write("\n")
-        file.write("floor_details\n")
-        write_transform(file, floor_details)
-        file.write("\n")
-        file.write("water\n")
-        write_transform(file, water)
-        file.write("\n")
-        file.write("water_details\n")
-        write_transform(file, water_details)
         file.write("\n")
 
         file.write("camera\n")

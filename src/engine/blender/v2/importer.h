@@ -133,6 +133,14 @@ struct BlenderTransformModel {
   std::vector<TransformAnimationClip> animations;
 };
 
+struct WorldData {
+  ImporterTransform floor;
+  Camera camera;
+  Wizards wizards;
+  Ogres ogres;
+};
+
 BlenderModel loadModel(const std::string &path);
 BlenderTransformModel loadTransformModel(const std::string &path);
+WorldData loadWorldData();
 }; // namespace Blender::V2

@@ -42,7 +42,8 @@ struct ColorRenderNode {
 
     // Water/sky color. At some point should be a config.
     clearColor.color.setFloat32(
-        std::array<float, 4>{0.012832f, 0.161624f, 0.800007f, 1.0f});
+        std::array<float, 4>{0.309469f, 0.991102f, 0.266356f, 1.0f});
+
     clearDepth.depthStencil.setDepth(1.0f);
     clearDepth.depthStencil.setStencil(0);
 

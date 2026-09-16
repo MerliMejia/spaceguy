@@ -44,6 +44,7 @@ add_executable(spaceguy
     external/stb/stb_image.cpp
     src/engine/renderer/shaders/banksManager.cpp
     src/engine/blender/v2/importer.cpp
+    src/engine/input/orbitCamera.cpp
 )
 
 target_sources(spaceguy PRIVATE

@@ -11,7 +11,7 @@ namespace RenderGraph {
 struct Context {
 
   struct GlobalUniformBankBuffer {
-    std::array<glm::vec4, SG_UNIFORM_TOTAL_SLOTS> data;
+    Shaders::UniformBank::Data data;
   };
 
   // Data needed

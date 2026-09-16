@@ -1,12 +1,11 @@
 
 #include "../shaders/v2/banks_shared.h"
-#include "engine/blender/importer.h"
 #include "engine/blender/v2/importer.h"
+#include "engine/input/orbitCamera.h"
 #include "engine/predefined/vulkanGraphicPipelines.h"
 #include "engine/renderer/images/vTexture.h"
 #include "engine/renderer/shaders/shaders.h"
 #include "engine/renderer/vRenderer.h"
-#include "glm/ext/quaternion_transform.hpp"
 #include "glm/fwd.hpp"
 #include "systems/resourceManagementSystem.h"
 #include "systems/sceneContext.h"
@@ -18,52 +17,43 @@
 int main() {
   try {
     Renderer::VRenderer renderer;
-    auto worldData = loadWorldData();
+    auto worldData = Blender::V2::loadWorldData();
 
     Renderer::Types::Mesh floorMesh;
     Renderer::Images::VTexture *floorDiffuse;
-    // Renderer::Types::Mesh floorDetailsMesh;
     Renderer::Types::Mesh wizardMesh;
     Renderer::Images::VTexture *wizzardDiffuse;
     Renderer::Types::Mesh ogreMesh;
     Renderer::Images::VTexture *ogreDiffuse;
 
-    renderer.onInit = [&worldData, &renderer, &ogreMesh, &ogreDiffuse,
-                       &wizardMesh, &wizzardDiffuse, &floorMesh,
-                       &floorDiffuse]() {
+    Input::Camera::OrbitCamera camera;
+
+    renderer.onInit = [&]() {
       sceneContext.cameraPosition = worldData.camera.transform.position;
       sceneContext.cameraLookAt = worldData.camera.direction;
       sceneContext.cameraFovY = worldData.camera.fovY;
       sceneContext.cameraClipStart = worldData.camera.clipStart;
       sceneContext.cameraClipEnd = worldData.camera.clipEnd;
 
+      camera.position = worldData.camera.transform.position;
+      camera.direction = worldData.camera.direction;
+      camera.fovY = worldData.camera.fovY;
+      camera.clipStart = worldData.camera.clipStart;
+      camera.clipEnd = worldData.camera.clipEnd;
+
+      camera.init(renderer.window.handler);
+
       SceneBufferObject scene{.sunColorIntensity =
                                   glm::vec4{0.8f, 0.8f, 0.8f, 0.8f}};
-
-      scene.view = glm::lookAt(worldData.camera.transform.position,
-                               worldData.camera.transform.position +
-                                   worldData.camera.direction,
-                               glm::vec3{0.0f, 0.0f, 1.0f});
-
-      scene.proj = glm::perspective(
-          worldData.camera.fovY,
-          static_cast<float>(renderer.vSwapChain.swapChainExtent.width) /
-              static_cast<float>(renderer.vSwapChain.swapChainExtent.height),
-          worldData.camera.clipStart, worldData.camera.clipEnd);
-
-      scene.proj[1][1] *= -1.0f;
-      scene.viewPosition = glm::vec4(worldData.camera.transform.position, 1.0f);
 
       auto &uniformsBank =
           renderer.renderGraph.context.globalUniformBufferData.data;
       auto &pushConstantsBank = renderer.renderGraph.context.pushConstantBank;
 
-      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, SG_VIEW_INDEX,
-                                                  scene.view);
-      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, SG_PROJ_INDEX,
-                                                  scene.proj);
-      Renderer::Shaders::UniformBank::setFloat4(uniformsBank, SG_VIEW_POS_INDEX,
-                                                scene.viewPosition);
+      camera.update(renderer.vSwapChain.swapChainExtent.width,
+                    renderer.vSwapChain.swapChainExtent.height, uniformsBank,
+                    renderer.window.handler);
+
       Renderer::Shaders::UniformBank::setFloat4(uniformsBank, SG_SUN_DIR_INDEX,
                                                 scene.sunDirection);
       Renderer::Shaders::UniformBank::setFloat4(
@@ -125,6 +115,16 @@ int main() {
       createBasicGameObject(floorModel, floorMesh, tc, uniformsBank,
                             pushConstantsBank, renderer.renderGraph.commandPool,
                             renderer.vDevice, floorDiffuse->index);
+    };
+
+    renderer.onUpdate = [&]() {
+      auto &uniformsBank =
+          renderer.renderGraph.context.globalUniformBufferData.data;
+      auto &pushConstantsBank = renderer.renderGraph.context.pushConstantBank;
+
+      camera.update(renderer.vSwapChain.swapChainExtent.width,
+                    renderer.vSwapChain.swapChainExtent.height, uniformsBank,
+                    renderer.window.handler);
     };
 
     renderer.run();

@@ -495,4 +495,83 @@ BlenderTransformModel loadTransformModel(const std::string &path) {
   return model;
 }
 
+static ImporterTransform readTransform(const Tokens &tokens,
+                                       std::size_t &cursor) {
+  ImporterTransform transform{};
+
+  expect(tokens, cursor, "position");
+  transform.position = readVec3(tokens, cursor);
+
+  expect(tokens, cursor, "rotation");
+  transform.rotation = readVec3(tokens, cursor);
+
+  expect(tokens, cursor, "scale");
+  transform.scale = readVec3(tokens, cursor);
+
+  return transform;
+}
+
+WorldData loadWorldData() {
+  std::ifstream file("assets/world.world");
+
+  if (!file) {
+    throw std::runtime_error("Could not open file: assets/world.world");
+  }
+
+  const Tokens tokens = readTokensIgnoringComments(file);
+  std::size_t cursor = 0;
+
+  WorldData data{};
+
+  expect(tokens, cursor, "spaceguy_world");
+
+  const int version = readInt(tokens, cursor);
+
+  if (version != 2) {
+    throw std::runtime_error("Unsupported .world version");
+  }
+
+  expect(tokens, cursor, "floor");
+  data.floor = readTransform(tokens, cursor);
+
+  expect(tokens, cursor, "camera");
+  data.camera.transform = readTransform(tokens, cursor);
+
+  expect(tokens, cursor, "look_direction");
+  data.camera.direction = readVec3(tokens, cursor);
+
+  expect(tokens, cursor, "fov_y");
+  data.camera.fovY = readFloat(tokens, cursor);
+
+  expect(tokens, cursor, "clip_start");
+  data.camera.clipStart = readFloat(tokens, cursor);
+
+  expect(tokens, cursor, "clip_end");
+  data.camera.clipEnd = readFloat(tokens, cursor);
+
+  expect(tokens, cursor, "wizards");
+
+  expect(tokens, cursor, "wizard_count");
+  data.wizards.count = readInt(tokens, cursor);
+
+  data.wizards.positions.resize(static_cast<std::size_t>(data.wizards.count));
+
+  for (glm::vec3 &position : data.wizards.positions) {
+    position = readVec3(tokens, cursor);
+  }
+
+  expect(tokens, cursor, "ogres");
+
+  expect(tokens, cursor, "ogre_count");
+  data.ogres.count = readInt(tokens, cursor);
+
+  data.ogres.positions.resize(static_cast<std::size_t>(data.ogres.count));
+
+  for (glm::vec3 &position : data.ogres.positions) {
+    position = readVec3(tokens, cursor);
+  }
+
+  return data;
+}
+
 } // namespace Blender::V2
