@@ -169,12 +169,12 @@ void PARTICLE_GRAPHICS_PIPELINE() {
       .pViewportState = &viewportState,
       .pRasterizationState = &rasterizer,
       .pMultisampleState = &multisampling,
+      .pDepthStencilState = &depthStencil,
       .pColorBlendState = &colorBlending,
       .pDynamicState = &dynamicState,
       .layout = *vulkanRendererContext.particleGraphicsPipelineLayout,
       .renderPass = nullptr,
-      .subpass = 0,
-      .pDepthStencilState = &depthStencil};
+      .subpass = 0};
 
   vulkanRendererContext.particleGraphicsPipeline =
       vk::raii::Pipeline{vulkanContext.device, nullptr, createInfo};
@@ -304,12 +304,12 @@ void DEFAULT_GRAPHICS_PIPELINE() {
       .pViewportState = &viewportState,
       .pRasterizationState = &rasterizer,
       .pMultisampleState = &multisampling,
+      .pDepthStencilState = &depthStencil,
       .pColorBlendState = &colorBlending,
       .pDynamicState = &dynamicState,
       .layout = *vulkanRendererContext.pipelineLayout,
       .renderPass = nullptr,
-      .subpass = 0,
-      .pDepthStencilState = &depthStencil};
+      .subpass = 0,};
 
   vulkanRendererContext.graphicsPipeline =
       vk::raii::Pipeline{vulkanContext.device, nullptr, createInfo};
@@ -436,12 +436,12 @@ void ANIMATED_GRAPHICS_PIPELINE() {
       .pViewportState = &viewportState,
       .pRasterizationState = &rasterizer,
       .pMultisampleState = &multisampling,
+      .pDepthStencilState = &depthStencil,
       .pColorBlendState = &colorBlending,
       .pDynamicState = &dynamicState,
       .layout = *vulkanRendererContext.animatedPipelineLayout,
       .renderPass = nullptr,
-      .subpass = 0,
-      .pDepthStencilState = &depthStencil};
+      .subpass = 0};
 
   vulkanRendererContext.animatedGraphicsPipeline =
       vk::raii::Pipeline{vulkanContext.device, nullptr, createInfo};
