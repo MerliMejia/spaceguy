@@ -1,4 +1,5 @@
 #include "vulkanBackend.h"
+#include <optional>
 
 #include <set>
 #include <stdexcept>
