@@ -23,8 +23,6 @@ int main() {
     Renderer::Images::VTexture *floorDiffuse;
     Renderer::Types::Mesh wizardMesh;
     Renderer::Images::VTexture *wizzardDiffuse;
-    Renderer::Types::Mesh ogreMesh;
-    Renderer::Images::VTexture *ogreDiffuse;
 
     Input::Camera::OrbitCamera camera;
 
@@ -60,7 +58,7 @@ int main() {
           uniformsBank, SG_SUN_INTENSITY_INDEX, scene.sunColorIntensity);
 
       Blender::V2::BlenderModel wizardModel =
-          Blender::V2::loadModel("assets/Wizzard_4_v2.3d");
+          Blender::V2::loadModel("assets/WizardDemo1_v2.3d");
 
       wizzardDiffuse = renderer.vTextureManager.createTexture(
           wizardModel.texturePath.string(), renderer.vDevice,
@@ -76,27 +74,6 @@ int main() {
                               pushConstantsBank,
                               renderer.renderGraph.commandPool,
                               renderer.vDevice, wizzardDiffuse->index);
-      }
-
-      Blender::V2::BlenderModel ogreModel =
-          Blender::V2::loadModel("assets/Ogre_v2.3d");
-
-      ogreDiffuse = renderer.vTextureManager.createTexture(
-          ogreModel.texturePath.string(), renderer.vDevice,
-          renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
-
-      for (const auto &ogrePos : worldData.ogres.positions) {
-        glm::mat4 ogreMat4Model = glm::mat4(1.0f);
-
-        Transform ot = modelToTransform(ogreMat4Model);
-        ot.position = ogrePos;
-
-        ogreMat4Model = transformToModel(ot.position, ot.rotation, ot.scale);
-
-        createBasicGameObject(ogreModel, ogreMesh, ot, uniformsBank,
-                              pushConstantsBank,
-                              renderer.renderGraph.commandPool,
-                              renderer.vDevice, ogreDiffuse->index);
       }
 
       Blender::V2::BlenderModel floorModel =

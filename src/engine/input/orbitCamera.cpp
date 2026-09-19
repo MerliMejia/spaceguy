@@ -4,6 +4,7 @@
 #include "glm/fwd.hpp"
 #include "glm/geometric.hpp"
 
+#include <GLFW/glfw3.h>
 #include <algorithm>
 #include <cmath>
 
@@ -32,7 +33,7 @@ static void cursor_position_callback(GLFWwindow *window, double xpos,
 }
 
 void OrbitCamera::init(GLFWwindow *window) {
-  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_CAPTURED);
+  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetCursorPosCallback(window, cursor_position_callback);
 
   glfwSetWindowUserPointer(window, this);
@@ -59,12 +60,15 @@ void OrbitCamera::update(uint32_t width, uint32_t height,
   offset = glm::vec3(rotation * glm::vec4(offset, 0.0f));
   up = glm::normalize(glm::vec3(rotation * glm::vec4(up, 0.0f)));
 
-  // Mouse Y: move closer to or farther from the target.
-  distance = glm::length(offset);
-  distance *= std::exp(deltaMouse.y * zoomSen);
-  distance = std::clamp(distance, 0.1f, 1000.0f);
+  if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL)) {
+    // Mouse Y: move closer to or farther from the target.
+    distance = glm::length(offset);
+    distance *= std::exp(deltaMouse.y * zoomSen);
+    distance = std::clamp(distance, 20.0f, 50.0f);
+  }
 
   position = target + glm::normalize(offset) * distance;
+
   direction = glm::normalize(target - position);
 
   view = glm::lookAt(position, target, glm::vec3{0.0f, 0.0f, 1.0f});
