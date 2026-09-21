@@ -3,6 +3,7 @@
 #include "../../systems/resourceManagementSystem.h"
 #include "../behaviors.h"
 #include "../math.h"
+#include "../time.h"
 #include "glm/ext/vector_float3.hpp"
 #include "glm/geometric.hpp"
 

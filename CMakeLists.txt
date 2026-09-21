@@ -47,6 +47,29 @@ add_executable(spaceguy
     src/engine/input/orbitCamera.cpp
 )
 
+# Slang -> SPIR-V
+find_program(SLANGC slangc
+    HINTS "$ENV{VULKAN_SDK}/Bin" "$ENV{VULKAN_SDK}/bin"
+    REQUIRED
+)
+
+set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders/v2)
+
+add_custom_command(
+    OUTPUT ${SHADER_DIR}/objectNode.spv
+    COMMAND ${SLANGC} shaders/v2/objectNode.slang -o shaders/v2/objectNode.spv
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    DEPENDS
+        ${SHADER_DIR}/objectNode.slang
+        ${SHADER_DIR}/banks.slang
+        ${SHADER_DIR}/banks_shared.h
+    COMMENT "Compiling objectNode.slang to SPIR-V"
+    VERBATIM
+)
+
+add_custom_target(shaders DEPENDS ${SHADER_DIR}/objectNode.spv)
+add_dependencies(spaceguy shaders)
+
 target_sources(spaceguy PRIVATE
     src/utils/textMeshGenerator.cpp
 

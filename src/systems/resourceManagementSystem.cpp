@@ -439,12 +439,12 @@ void processDestroyQueue() {
   destroyQueue.clear();
 }
 
-BasicGameObject createBasicGameObject(
-    Blender::V2::BlenderModel blenderModel, Renderer::Types::Mesh &mesh,
-    Transform transform, Renderer::Shaders::UniformBank::Data &uniformsBank,
-    Renderer::Shaders::PushConstantsBank::PushConstantData &pushConstantsBank,
-    vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice,
-    uint32_t textureIndex) {
+BasicGameObject
+createBasicGameObject(Blender::V2::BlenderModel blenderModel,
+                      Renderer::Types::Mesh &mesh, Transform transform,
+                      Renderer::Shaders::UniformBank::Data &uniformsBank,
+                      vk::raii::CommandPool &commandPool,
+                      Renderer::VDevice &vDevice, uint32_t textureIndex) {
 
   mesh = Renderer::Generators::generateMesh<Blender::V2::Vertex>(
       blenderModel.vertices, blenderModel.indices, commandPool, vDevice);
@@ -464,6 +464,38 @@ BasicGameObject createBasicGameObject(
 
   Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, tc.modelIndex,
                                               tc.model);
+
+  return BasicGameObject{.entity = entity};
+}
+
+BasicGameObject createAnimatedGameObject(
+    Blender::V2::BlenderModel blenderModel, Renderer::Types::AnimatedMesh &mesh,
+    uint32_t firstGlobalPositionOffset, Transform transform,
+    Renderer::Shaders::UniformBank::Data &uniformsBank,
+    vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice,
+    uint32_t textureIndex) {
+
+  mesh = Renderer::Generators::generateAnimatedMesh(
+      blenderModel, firstGlobalPositionOffset, commandPool, vDevice);
+
+  int entity = createEntity();
+  Renderable &renderable = addRenderable(entity);
+  renderable.animatedMeshV2 = &mesh;
+  renderable.textureIndex = textureIndex;
+  renderable.renderKind = ObjectRenderKind::Animated;
+
+  TransformComponent &tc = addTransform(entity);
+  Transform floorT = modelToTransform(tc.model);
+  floorT.position = transform.position;
+  floorT.rotation = transform.rotation;
+  floorT.scale = transform.scale;
+
+  tc.model = transformToModel(floorT.position, floorT.rotation, floorT.scale);
+
+  Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, tc.modelIndex,
+                                              tc.model);
+
+  addAnimation(entity);
 
   return BasicGameObject{.entity = entity};
 }

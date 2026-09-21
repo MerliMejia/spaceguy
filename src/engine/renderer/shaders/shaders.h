@@ -181,5 +181,36 @@ inline int32_t getInt(const PushConstantData &bank, uint32_t index) {
 }
 
 } // namespace PushConstantsBank
+
+namespace AnimationsStorageBufferBank {
+using Data = std::array<glm::vec4, SG_STORAGE_ANIMATION_SLOTS>;
+
+inline void setFloat(Data &bank, uint32_t index, float value) {
+  const uint32_t slot = index / 4;
+  const uint32_t component = index % 4;
+
+  bank[slot][component] = value;
+}
+
+inline float getFloat(const Data &bank, uint32_t index) {
+  const uint32_t slot = index / 4;
+  const uint32_t component = index % 4;
+
+  return bank[slot][component];
+}
+
+inline void setFloat4(Data &bank, uint32_t index, const glm::vec4 &value) {
+  bank[index].x = value.x;
+  bank[index].y = value.y;
+  bank[index].z = value.z;
+  bank[index].w = value.w;
+}
+
+inline glm::vec4 getFloat4(const Data &bank, uint32_t index) {
+  return glm::vec4{bank[index]};
+}
+
+} // namespace AnimationsStorageBufferBank
+
 } // namespace Shaders
 } // namespace Renderer

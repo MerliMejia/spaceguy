@@ -89,7 +89,7 @@ struct ColorRenderNode {
 
     renderNode->commandBuffers[frameIndex].beginRendering(renderingInfo);
 
-    renderNode->recordCommandBuffer(vSwapChain, imageIndex, frameIndex);
+    renderNode->recordCommandBuffer(vSwapChain, frameIndex);
 
     if (present) {
       Images::transitionImage(
@@ -140,35 +140,34 @@ struct ColorRenderNode {
     };
   }
 
-public:
-  template <RenderNodeUtils::VertexType T>
-  void setData(VDevice &vDevice, vk::raii::CommandPool &commandPool) {
-
+  void setData(VDevice &vDevice) {
     renderNode->step_1_2_createUniformBuffers(vDevice);
-
     renderNode->step_1_3_createDescriptorSetLayout(vDevice.device);
-
     renderNode->step_1_4_createDescriptorPool(vDevice.device);
-
     renderNode->step_1_5_allocateDescriptorSets(vDevice.device);
   }
 
-public:
-  template <RenderNodeUtils::VertexType T>
   void finish(VDevice &vDevice, Renderer::Images::VManager &vTextureManager,
-              Renderer::VSwapChain &vSwapChain,
               vk::raii::CommandPool &commandPool) {
 
     renderNode->step_1_6_configureDescriptorSets(vDevice.device,
                                                  vTextureManager);
-
-    renderNode->step2_initPipelineConfiguration<T>(
-        vDevice.device, vSwapChain.swapChainSurfaceFormat,
-        Renderer::step2_pipelineConfigurationProps{
-            .useDepth = useDepthTesting, .depthFormat = depthImage.format});
-
+    renderNode->step2_createPipelineLayout(vDevice.device);
     renderNode->step3_initCommandBuffer(vDevice.queueIndex, vDevice.device,
                                         commandPool);
+  }
+
+  // Call after finish() because the pipeline layout must exist.
+  template <RenderNodeUtils::VertexType T>
+  size_t
+  addPipeline(VDevice &vDevice, Renderer::VSwapChain &vSwapChain,
+              const std::vector<RenderNodeUtils::ShaderCreateInfo> &shaders) {
+
+    return renderNode->step2_addPipeline<T>(
+        vDevice.device, vSwapChain.swapChainSurfaceFormat,
+        Renderer::step2_pipelineConfigurationProps{
+            .useDepth = useDepthTesting, .depthFormat = depthImage.format},
+        shaders);
   }
 };
 } // namespace Renderer

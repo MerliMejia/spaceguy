@@ -5,6 +5,7 @@
 #include "../systems/sceneContext.h"
 #include "../utils/buffers.h"
 #include "../utils/generators.h"
+#include "../utils/time.h"
 #include "./predefined/vulkanDescriptorSetLayouts.h"
 #include "./predefined/vulkanGraphicPipelines.h"
 #include "./vulkanBackend.h"

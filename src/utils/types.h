@@ -59,17 +59,6 @@ struct AnimatedVertex {
   glm::vec3 normal;
 };
 
-namespace Renderer {
-namespace Types {
-struct Mesh {
-  Renderer::BufferAllocation vertexAllocations;
-  Renderer::BufferAllocation indexAllocations;
-  uint32_t vertexCount = 0;
-  uint32_t indexCount = 0;
-};
-} // namespace Types
-} // namespace Renderer
-
 struct Mesh {
   vk::raii::Buffer vertexBuffer = nullptr;
   vk::raii::DeviceMemory vertexDeviceMemory = nullptr;
@@ -111,6 +100,24 @@ struct AnimatedMesh {
   std::vector<AnimationClipGpu> animations;
   std::vector<AnimationKeyPoseGpu> keyPoses;
 };
+
+namespace Renderer {
+namespace Types {
+struct Mesh {
+  Renderer::BufferAllocation vertexAllocations;
+  Renderer::BufferAllocation indexAllocations;
+  uint32_t vertexCount = 0;
+  uint32_t indexCount = 0;
+};
+
+struct AnimatedMesh {
+  float fps = 60.0f;
+  std::vector<AnimationClipGpu> animations;
+  std::vector<AnimationKeyPoseGpu> keyPoses;
+  Renderer::Types::Mesh mesh;
+};
+} // namespace Types
+} // namespace Renderer
 
 enum WizardAnimationMapping : uint32_t {
   Attacking = 0,

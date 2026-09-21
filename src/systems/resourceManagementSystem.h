@@ -16,6 +16,7 @@ struct Renderable {
   ObjectRenderKind renderKind = ObjectRenderKind::Static;
   const Mesh *mesh = nullptr;
   const Renderer::Types::Mesh *meshV2 = nullptr;
+  const Renderer::Types::AnimatedMesh *animatedMeshV2 = nullptr;
   const AnimatedMesh *animatedMesh = nullptr;
   const TransformAnimatedMesh *transformAnimatedMesh = nullptr;
   bool visible = true;
@@ -239,9 +240,16 @@ struct BasicGameObject {
   int entity = -1;
 };
 
-BasicGameObject createBasicGameObject(
-    Blender::V2::BlenderModel, Renderer::Types::Mesh &mesh, Transform transform,
+BasicGameObject
+createBasicGameObject(Blender::V2::BlenderModel, Renderer::Types::Mesh &mesh,
+                      Transform transform,
+                      Renderer::Shaders::UniformBank::Data &uniformsBank,
+                      vk::raii::CommandPool &commandPool,
+                      Renderer::VDevice &vDevice, uint32_t textureIndex = -1);
+
+BasicGameObject createAnimatedGameObject(
+    Blender::V2::BlenderModel, Renderer::Types::AnimatedMesh &mesh,
+    uint32_t firstGlobalPositionOffset, Transform transform,
     Renderer::Shaders::UniformBank::Data &uniformsBank,
-    Renderer::Shaders::PushConstantsBank::PushConstantData &pushConstantsBank,
     vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice,
     uint32_t textureIndex = -1);

@@ -1,15 +1,20 @@
 #include "animationSystem.h"
 #include "../utils/math.h"
+#include "../utils/time.h"
 #include "resourceManagementSystem.h"
 
+#include <cstdint>
 #include <glm/gtc/quaternion.hpp>
+
+std::vector<Blender::V2::BlenderModel> animatedModels;
+static uint32_t globalPositionOffset = 0;
 
 static float getCurrentBlenderFrame(const AnimationComponent &animation,
                                     const Renderable &renderable,
                                     const AnimationClipGpu &clip) {
 
   return static_cast<float>(clip.startFrame) +
-         animation.animationTimeSeconds * renderable.animatedMesh->fps;
+         animation.animationTimeSeconds * renderable.animatedMeshV2->fps;
 }
 
 static void updateAnimation(int entity) {
@@ -17,18 +22,19 @@ static void updateAnimation(int entity) {
   AnimationComponent &animation = getAnimation(entity);
 
   if (renderable.renderKind != ObjectRenderKind::Animated ||
-      renderable.animatedMesh == nullptr ||
-      renderable.animatedMesh->animations.empty()) {
+      renderable.animatedMeshV2 == nullptr ||
+      renderable.animatedMeshV2->animations.empty()) {
     return;
   }
 
-  if (animation.activeAnimation >= renderable.animatedMesh->animations.size()) {
+  if (animation.activeAnimation >=
+      renderable.animatedMeshV2->animations.size()) {
     animation.activeAnimation = WizardAnimationMapping::Iddle;
     animation.animationTimeSeconds = 0.0f;
   }
 
   const AnimationClipGpu &clip =
-      renderable.animatedMesh->animations[animation.activeAnimation];
+      renderable.animatedMeshV2->animations[animation.activeAnimation];
 
   const float durationFrames =
       static_cast<float>(clip.endFrame - clip.startFrame);
@@ -38,7 +44,7 @@ static void updateAnimation(int entity) {
     return;
   }
 
-  const float durationSeconds = durationFrames / renderable.animatedMesh->fps;
+  const float durationSeconds = durationFrames / renderable.animatedMeshV2->fps;
 
   animation.animationTimeSeconds +=
       timeState.deltaTime * animation.animationPlaySpeed;
@@ -215,11 +221,12 @@ void updateAttachmentAnimations() {
     Renderable &parentRenderable = getRenderable(attachment.parentEntity);
     AnimationComponent &parentAnimation = getAnimation(attachment.parentEntity);
 
-    if (parentRenderable.animatedMesh == nullptr) {
+    if (parentRenderable.animatedMeshV2 == nullptr) {
       continue;
     }
 
-    const AnimatedMesh &mesh = *parentRenderable.animatedMesh;
+    const Renderer::Types::AnimatedMesh &mesh =
+        *parentRenderable.animatedMeshV2;
 
     if (parentAnimation.activeAnimation >= mesh.animations.size()) {
       continue;
@@ -291,6 +298,53 @@ void updateAttachmentAnimations() {
   }
 }
 
+Blender::V2::BlenderModel loadAnimatedModel(std::string path) {
+  auto newModel = Blender::V2::loadModel(path);
+
+  newModel.globalPositionOffset = globalPositionOffset;
+
+  for (auto &a : newModel.animations) {
+    for (auto &k : a.keyPoses) {
+      globalPositionOffset += k.positions.size() * 2;
+    }
+  }
+
+  animatedModels.push_back(newModel);
+
+  return newModel;
+}
+
+void initAnimations(std::vector<glm::vec4> &vertAnimSSBankData,
+                    Renderer::BufferAllocation &vertAnimSBBankAllocations,
+                    Renderer::VDevice &vDevice,
+                    vk::raii::CommandPool &commandPool) {
+  vertAnimSSBankData.reserve(SG_STORAGE_ANIMATION_SLOTS);
+
+  for (size_t i = 0; i < SG_STORAGE_ANIMATION_SLOTS; i++) {
+    vertAnimSSBankData.emplace_back(glm::vec4(0.0f));
+  }
+
+  size_t cursor = 0;
+  for (auto &animatedModel : animatedModels) {
+    for (auto &ani : animatedModel.animations) {
+      for (auto &kp : ani.keyPoses) {
+        for (size_t i = 0; i < kp.positions.size(); ++i) {
+          vertAnimSSBankData[cursor++] = glm::vec4{kp.positions[i], 1.0f};
+          vertAnimSSBankData[cursor++] = glm::vec4{kp.normals[i], 0.0f};
+        }
+      }
+    }
+  }
+
+  vertAnimSBBankAllocations = Renderer::createDeviceLocalBuffer<glm::vec4>(
+      vDevice, commandPool, vertAnimSSBankData,
+      vk::BufferUsageFlagBits::eStorageBuffer |
+          vk::BufferUsageFlagBits::eTransferDst);
+
+  vertAnimSSBankData.clear();
+  animatedModels.clear();
+}
+
 void updateAnimations() {
   for (AnimationComponent &animation : resources.animations) {
     if (!isEntityAlive(animation.entity))
@@ -306,13 +360,13 @@ AnimationDataFromObject getAnimationDataFromEntity(int entity) {
   const AnimationComponent &animation = getAnimation(entity);
 
   if (renderable.renderKind != ObjectRenderKind::Animated ||
-      renderable.animatedMesh == nullptr ||
-      renderable.animatedMesh->animations.empty()) {
+      renderable.animatedMeshV2 == nullptr ||
+      renderable.animatedMeshV2->animations.empty()) {
     return {};
   }
 
   const AnimationClipGpu &clip =
-      renderable.animatedMesh->animations[animation.activeAnimation];
+      renderable.animatedMeshV2->animations[animation.activeAnimation];
 
   const uint32_t first = clip.firstKeyPose;
   const uint32_t count = clip.keyPoseCount;
@@ -329,7 +383,7 @@ AnimationDataFromObject getAnimationDataFromEntity(int entity) {
 
   for (uint32_t i = 0; i < count; ++i) {
     const AnimationKeyPoseGpu &pose =
-        renderable.animatedMesh->keyPoses[first + i];
+        renderable.animatedMeshV2->keyPoses[first + i];
 
     if (static_cast<float>(pose.blenderFrame) <= currentFrame) {
       previousIndex = i;
@@ -342,10 +396,10 @@ AnimationDataFromObject getAnimationDataFromEntity(int entity) {
   }
 
   const AnimationKeyPoseGpu &previousPose =
-      renderable.animatedMesh->keyPoses[first + previousIndex];
+      renderable.animatedMeshV2->keyPoses[first + previousIndex];
 
   const AnimationKeyPoseGpu &nextPose =
-      renderable.animatedMesh->keyPoses[first + nextIndex];
+      renderable.animatedMeshV2->keyPoses[first + nextIndex];
 
   float interpolation = 0.0f;
 
@@ -367,15 +421,15 @@ bool hasActiveAnimationEnded(int entity) {
   const AnimationComponent &animation = getAnimation(entity);
 
   if (renderable.renderKind == ObjectRenderKind::Animated) {
-    if (renderable.animatedMesh == nullptr ||
-        renderable.animatedMesh->animations.empty() ||
+    if (renderable.animatedMeshV2 == nullptr ||
+        renderable.animatedMeshV2->animations.empty() ||
         animation.activeAnimation >=
-            renderable.animatedMesh->animations.size()) {
+            renderable.animatedMeshV2->animations.size()) {
       return false;
     }
 
     const AnimationClipGpu &clip =
-        renderable.animatedMesh->animations[animation.activeAnimation];
+        renderable.animatedMeshV2->animations[animation.activeAnimation];
 
     if (clip.loop) {
       return false;
@@ -383,7 +437,7 @@ bool hasActiveAnimationEnded(int entity) {
 
     const float durationSeconds =
         static_cast<float>(clip.endFrame - clip.startFrame) /
-        renderable.animatedMesh->fps;
+        renderable.animatedMeshV2->fps;
 
     return animation.animationTimeSeconds >= durationSeconds;
   }
@@ -418,15 +472,15 @@ bool hasActiveAnimationReachedFrame(int entity, float frame) {
   const AnimationComponent &animation = getAnimation(entity);
 
   if (renderable.renderKind == ObjectRenderKind::Animated) {
-    if (renderable.animatedMesh == nullptr ||
-        renderable.animatedMesh->animations.empty() ||
+    if (renderable.animatedMeshV2 == nullptr ||
+        renderable.animatedMeshV2->animations.empty() ||
         animation.activeAnimation >=
-            renderable.animatedMesh->animations.size()) {
+            renderable.animatedMeshV2->animations.size()) {
       return false;
     }
 
     const AnimationClipGpu &clip =
-        renderable.animatedMesh->animations[animation.activeAnimation];
+        renderable.animatedMeshV2->animations[animation.activeAnimation];
 
     float currentFrame = getCurrentBlenderFrame(animation, renderable, clip);
     return currentFrame >= frame;

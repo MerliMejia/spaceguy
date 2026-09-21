@@ -1,4 +1,5 @@
 #include "orbitCamera.h"
+#include "../../systems/sceneContext.h"
 #include "glm/ext/matrix_clip_space.hpp"
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/fwd.hpp"
@@ -87,6 +88,9 @@ void OrbitCamera::update(uint32_t width, uint32_t height,
                                             glm::vec4(position, 1.0f));
 
   deltaMouse = glm::vec2{0.0f};
+
+  sceneContext.cameraPosition = position;
+  sceneContext.cameraLookAt = direction;
 }
 } // namespace Camera
 } // namespace Input

@@ -83,8 +83,8 @@ inline BufferAllocation createBuffer(VDevice &vDevice, vk::DeviceSize size,
 inline void copyBuffer(VDevice &vDevice,
                        const vk::raii::CommandPool &commandPool,
                        const vk::raii::Buffer &source,
-                       const vk::raii::Buffer &destination,
-                       vk::DeviceSize size) {
+                       const vk::raii::Buffer &destination, vk::DeviceSize size,
+                       vk::DeviceSize dstOffset = 0) {
 
   vk::CommandBufferAllocateInfo allocationInfo{
       .commandPool = *commandPool,
@@ -105,7 +105,7 @@ inline void copyBuffer(VDevice &vDevice,
 
   vk::BufferCopy copyRegion{
       .srcOffset = 0,
-      .dstOffset = 0,
+      .dstOffset = dstOffset,
       .size = size,
   };
 

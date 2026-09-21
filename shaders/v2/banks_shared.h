@@ -53,7 +53,19 @@
 #define SG_PUSH_TOTAL_SLOTS (SG_PUSH_INT_FROM + SG_PUSH_INT_SLOTS)
 #define SG_PUSH_TOTAL_BYTES (SG_PUSH_TOTAL_SLOTS * 16)
 
+// Pre-defined uses of push constants bank
+// INTS
 #define SG_PUSH_MODEL_INDEX 0
 #define SG_PUSH_DIFF_TEX_INDEX 1
+#define SG_PUSH_PREV_POSE_INDEX 2
+#define SG_PUSH_NEXT_POSE_INDEX 3
+// FLOATS
+#define SG_PUS_INTERPOLATION_FACTOR_INDEX 0
+
+// Storage buffer bank
+// 16 bytes × 1,048,576 = 16 MiB
+//  pose layout is interleaved: position slot then normal slot per vertex, so
+//  vertex v lives at base + 2*v
+#define SG_STORAGE_ANIMATION_SLOTS 1048576
 
 #endif

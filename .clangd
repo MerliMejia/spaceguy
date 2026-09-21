@@ -1,3 +1,14 @@
 CompileFlags:
-  CompilationDatabase: build/debug
-  Add: [-Wall, -Wextra, -Werror=reorder-init-list]
+  CompilationDatabase: build/debug-clang
+  Add: [-Wextra, -Werror=reorder-init-list]
+---
+# Headers aren't in compile_commands.json, so pin the language and standard
+If:
+  PathMatch: .*\.(h|hpp)
+CompileFlags:
+  Add: [-xc++-header, -std=c++20]
+---
+If:
+  PathMatch: .*\.cpp
+CompileFlags:
+  Add: [-std=c++20]

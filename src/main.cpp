@@ -2,15 +2,14 @@
 #include "../shaders/v2/banks_shared.h"
 #include "engine/blender/v2/importer.h"
 #include "engine/input/orbitCamera.h"
-#include "engine/predefined/vulkanGraphicPipelines.h"
 #include "engine/renderer/images/vTexture.h"
-#include "engine/renderer/shaders/shaders.h"
 #include "engine/renderer/vRenderer.h"
-#include "glm/fwd.hpp"
+#include "glm/ext/vector_float3.hpp"
+#include "systems/animationSystem.h"
 #include "systems/resourceManagementSystem.h"
 #include "systems/sceneContext.h"
-#include "utils/math.h"
 #include "utils/types.h"
+#include <GLFW/glfw3.h>
 #include <cstdlib>
 #include <iostream>
 
@@ -21,8 +20,10 @@ int main() {
 
     Renderer::Types::Mesh floorMesh;
     Renderer::Images::VTexture *floorDiffuse;
-    Renderer::Types::Mesh wizardMesh;
-    Renderer::Images::VTexture *wizzardDiffuse;
+
+    Renderer::Types::AnimatedMesh guyMesh;
+    Renderer::Images::VTexture *guyDiffuse;
+    BasicGameObject guyGameObject;
 
     Input::Camera::OrbitCamera camera;
 
@@ -41,8 +42,8 @@ int main() {
 
       camera.init(renderer.window.handler);
 
-      SceneBufferObject scene{.sunColorIntensity =
-                                  glm::vec4{0.8f, 0.8f, 0.8f, 0.8f}};
+      glm::vec4 sunColorIntensity = glm::vec4{0.8f, 0.8f, 0.8f, 0.8f};
+      glm::vec4 sunDirection = glm::vec4(0.0f, 0.0f, -1.0f, 0.0f);
 
       auto &uniformsBank =
           renderer.renderGraph.context.globalUniformBufferData.data;
@@ -53,28 +54,26 @@ int main() {
                     renderer.window.handler);
 
       Renderer::Shaders::UniformBank::setFloat4(uniformsBank, SG_SUN_DIR_INDEX,
-                                                scene.sunDirection);
+                                                sunDirection);
       Renderer::Shaders::UniformBank::setFloat4(
-          uniformsBank, SG_SUN_INTENSITY_INDEX, scene.sunColorIntensity);
+          uniformsBank, SG_SUN_INTENSITY_INDEX, sunColorIntensity);
 
-      Blender::V2::BlenderModel wizardModel =
-          Blender::V2::loadModel("assets/WizardDemo1_v2.3d");
+      Blender::V2::BlenderModel guyModel =
+          loadAnimatedModel("assets/guy_v2.3d");
 
-      wizzardDiffuse = renderer.vTextureManager.createTexture(
-          wizardModel.texturePath.string(), renderer.vDevice,
+      guyDiffuse = renderer.vTextureManager.createTexture(
+          guyModel.texturePath.string(), renderer.vDevice,
           renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
 
-      for (const glm::vec3 &wizardPosition : worldData.wizards.positions) {
-        glm::mat4 wizardModelMatrix{1.0f};
-        wizardModelMatrix = glm::translate(wizardModelMatrix, wizardPosition);
+      Transform guyTransform;
+      guyTransform.position = glm::vec3{0.0f, 0.0f, 5.0f};
+      guyTransform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+      guyTransform.scale = glm::vec3(1.0f);
 
-        Transform tc = modelToTransform(wizardModelMatrix);
-
-        createBasicGameObject(wizardModel, wizardMesh, tc, uniformsBank,
-                              pushConstantsBank,
-                              renderer.renderGraph.commandPool,
-                              renderer.vDevice, wizzardDiffuse->index);
-      }
+      guyGameObject = createAnimatedGameObject(
+          guyModel, guyMesh, guyModel.globalPositionOffset, guyTransform,
+          uniformsBank, renderer.renderGraph.commandPool, renderer.vDevice,
+          guyDiffuse->index);
 
       Blender::V2::BlenderModel floorModel =
           Blender::V2::loadModel("assets/floor_v2.3d");
@@ -90,18 +89,39 @@ int main() {
       Transform tc = modelToTransform(floorModelMatrix);
 
       createBasicGameObject(floorModel, floorMesh, tc, uniformsBank,
-                            pushConstantsBank, renderer.renderGraph.commandPool,
-                            renderer.vDevice, floorDiffuse->index);
+                            renderer.renderGraph.commandPool, renderer.vDevice,
+                            floorDiffuse->index);
+      initAnimations(renderer.renderGraph.context.vertAnimSSBankData,
+                     renderer.renderGraph.context.vertAnimSBBankAllocations,
+                     renderer.vDevice, renderer.renderGraph.commandPool);
     };
+
+    bool isKeyPressed = false;
 
     renderer.onUpdate = [&]() {
       auto &uniformsBank =
           renderer.renderGraph.context.globalUniformBufferData.data;
       auto &pushConstantsBank = renderer.renderGraph.context.pushConstantBank;
 
+      if (glfwGetKey(renderer.window.handler, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+        if (!isKeyPressed) {
+          auto &animation = getAnimation(guyGameObject.entity);
+          if (animation.activeAnimation >= 3) {
+            animation.activeAnimation = 0;
+          } else {
+            animation.activeAnimation++;
+          }
+          isKeyPressed = true;
+        }
+      } else {
+        isKeyPressed = false;
+      }
+
       camera.update(renderer.vSwapChain.swapChainExtent.width,
                     renderer.vSwapChain.swapChainExtent.height, uniformsBank,
                     renderer.window.handler);
+
+      updateAnimations();
     };
 
     renderer.run();

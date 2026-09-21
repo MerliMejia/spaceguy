@@ -1,0 +1,14 @@
+[
+  {
+    "label": "Debug spaceguy",
+    "adapter": "CodeLLDB",
+    "request": "launch",
+    "program": "$ZED_WORKTREE_ROOT/build/debug-clang/spaceguy.exe",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "build": {
+      "command": "cmake",
+      "args": ["--build", "build/debug-clang"],
+    },
+    "env": { "_NO_DEBUG_HEAP": "1" },
+  },
+]
