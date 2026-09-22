@@ -37,6 +37,8 @@ struct step2_pipelineConfigurationProps {
   vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList;
   bool useDepth = false;
   vk::Format depthFormat = vk::Format::eD32Sfloat;
+  vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
+  bool useMultiSampling = false;
   //... More stuff when dealing with more stuff
 };
 
@@ -302,9 +304,13 @@ struct RenderNode {
         .depthBiasEnable = vk::False,
         .lineWidth = 1.0f};
 
-    vk::PipelineMultisampleStateCreateInfo multisampling{
-        .rasterizationSamples = vk::SampleCountFlagBits::e1,
-        .sampleShadingEnable = vk::False};
+    vk::PipelineMultisampleStateCreateInfo multisampling{};
+
+    if (props.useMultiSampling) {
+      multisampling.rasterizationSamples = props.samples;
+    } else {
+      multisampling.rasterizationSamples = vk::SampleCountFlagBits::e1;
+    }
 
     vk::PipelineColorBlendAttachmentState colorBlendAttachment{
         .blendEnable = vk::False,

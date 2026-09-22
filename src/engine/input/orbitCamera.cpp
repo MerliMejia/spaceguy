@@ -84,8 +84,8 @@ void OrbitCamera::update(uint32_t width, uint32_t height,
                                               view);
   Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, SG_PROJ_INDEX,
                                               proj);
-  Renderer::Shaders::UniformBank::setFloat4(uniformsBank, SG_VIEW_POS_INDEX,
-                                            glm::vec4(position, 1.0f));
+  Renderer::Shaders::UniformBank::setFloat3(uniformsBank, SG_VIEW_POS_INDEX,
+                                            glm::vec3(position));
 
   deltaMouse = glm::vec2{0.0f};
 

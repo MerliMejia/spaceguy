@@ -10,6 +10,7 @@ struct ColorRenderNode {
   vk::ClearValue clearColor{};
   vk::ClearValue clearDepth{};
   Images::VImage depthImage;
+  Images::VImage colorMSAAsampleImage;
 
   bool present = false;
   bool useDepthTesting = false;
@@ -60,15 +61,42 @@ struct ColorRenderNode {
                             vk::ImageAspectFlagBits::eDepth);
     }
 
-    // In this case the output image is a color attachment because I'll write
-    // colors on it.
-    vk::RenderingAttachmentInfo attachmentInfo = {
-        .imageView = present ? vSwapChain.swapChainImageViews[imageIndex]
-                             : renderNode->output->view,
+    // transition_image_layout(
+    //     *colorImage,
+    //     vk::ImageLayout::eUndefined,
+    //     vk::ImageLayout::eColorAttachmentOptimal,
+    //     vk::AccessFlagBits2::eColorAttachmentWrite,
+    //     vk::AccessFlagBits2::eColorAttachmentWrite,
+    //     vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+    //     vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+    //     vk::ImageAspectFlagBits::eColor);
+    //
+    colorMSAAsampleImage.transition(
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+        vk::AccessFlagBits2::eColorAttachmentWrite,
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+        vk::AccessFlagBits2::eColorAttachmentWrite, vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eColorAttachmentOptimal,
+        renderNode->commandBuffers[frameIndex]);
+
+    // In this case the output image is a color attachment because I'll
+    // write colors on it.
+    // when presenting
+    vk::RenderingAttachmentInfo colorAttachmentInfo = {
+        .imageView =
+            present ? colorMSAAsampleImage.view : renderNode->output->view,
         .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
         .loadOp = vk::AttachmentLoadOp::eClear,
         .storeOp = vk::AttachmentStoreOp::eStore,
         .clearValue = clearColor};
+
+    if (present) {
+      colorAttachmentInfo.resolveMode = vk::ResolveModeFlagBits::eAverage;
+      colorAttachmentInfo.resolveImageView =
+          vSwapChain.swapChainImageViews[imageIndex];
+      colorAttachmentInfo.resolveImageLayout =
+          vk::ImageLayout::eColorAttachmentOptimal;
+    }
 
     vk::RenderingAttachmentInfo depthAttachmentInfo = {
         .imageView = depthImage.view,
@@ -81,7 +109,7 @@ struct ColorRenderNode {
         .renderArea = {.offset = {0, 0}, .extent = vSwapChain.swapChainExtent},
         .layerCount = 1,
         .colorAttachmentCount = 1,
-        .pColorAttachments = &attachmentInfo};
+        .pColorAttachments = &colorAttachmentInfo};
 
     if (useDepthTesting) {
       renderingInfo.pDepthAttachment = &depthAttachmentInfo;
@@ -130,8 +158,15 @@ struct ColorRenderNode {
       depthImage.aspectMask = vk::ImageAspectFlagBits::eDepth;
 
       depthImage.init(vSwapChain.swapChainExtent.width,
-                      vSwapChain.swapChainExtent.height, vDevice);
+                      vSwapChain.swapChainExtent.height, vDevice,
+                      vk::SampleCountFlagBits::e4);
     }
+
+    colorMSAAsampleImage.usage = vk::ImageUsageFlagBits::eTransientAttachment |
+                                 vk::ImageUsageFlagBits::eColorAttachment;
+    colorMSAAsampleImage.init(vSwapChain.swapChainExtent.width,
+                              vSwapChain.swapChainExtent.height, vDevice,
+                              vk::SampleCountFlagBits::e4);
 
     renderNode->perFrameFunction = [this](Renderer::VSwapChain &vSwapChain,
                                           uint32_t imageIndex,
@@ -166,7 +201,10 @@ struct ColorRenderNode {
     return renderNode->step2_addPipeline<T>(
         vDevice.device, vSwapChain.swapChainSurfaceFormat,
         Renderer::step2_pipelineConfigurationProps{
-            .useDepth = useDepthTesting, .depthFormat = depthImage.format},
+            .useDepth = useDepthTesting,
+            .depthFormat = depthImage.format,
+            .samples = vk::SampleCountFlagBits::e4,
+            .useMultiSampling = true},
         shaders);
   }
 };

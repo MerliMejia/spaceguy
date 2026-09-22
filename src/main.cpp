@@ -24,6 +24,7 @@ int main() {
     Renderer::Types::AnimatedMesh guyMesh;
     Renderer::Images::VTexture *guyDiffuse;
     BasicGameObject guyGameObject;
+    BasicGameObject guyGameObject2;
 
     Input::Camera::OrbitCamera camera;
 
@@ -42,8 +43,8 @@ int main() {
 
       camera.init(renderer.window.handler);
 
-      glm::vec4 sunColorIntensity = glm::vec4{0.8f, 0.8f, 0.8f, 0.8f};
-      glm::vec4 sunDirection = glm::vec4(0.0f, 0.0f, -1.0f, 0.0f);
+      glm::vec3 sunColorIntensity = glm::vec3{0.6f, 0.6f, 0.6f};
+      glm::vec3 sunPosition = glm::vec3(20.0f, -15.0f, 10.0f);
 
       auto &uniformsBank =
           renderer.renderGraph.context.globalUniformBufferData.data;
@@ -53,9 +54,9 @@ int main() {
                     renderer.vSwapChain.swapChainExtent.height, uniformsBank,
                     renderer.window.handler);
 
-      Renderer::Shaders::UniformBank::setFloat4(uniformsBank, SG_SUN_DIR_INDEX,
-                                                sunDirection);
-      Renderer::Shaders::UniformBank::setFloat4(
+      Renderer::Shaders::UniformBank::setFloat3(uniformsBank, SG_SUN_POS_INDEX,
+                                                sunPosition);
+      Renderer::Shaders::UniformBank::setFloat3(
           uniformsBank, SG_SUN_INTENSITY_INDEX, sunColorIntensity);
 
       Blender::V2::BlenderModel guyModel =
@@ -70,8 +71,18 @@ int main() {
       guyTransform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
       guyTransform.scale = glm::vec3(1.0f);
 
+      Transform guy2Transform;
+      guy2Transform.position = glm::vec3{5.0f, 5.0f, 5.0f};
+      guy2Transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+      guy2Transform.scale = glm::vec3(1.0f);
+
       guyGameObject = createAnimatedGameObject(
           guyModel, guyMesh, guyModel.globalPositionOffset, guyTransform,
+          uniformsBank, renderer.renderGraph.commandPool, renderer.vDevice,
+          guyDiffuse->index);
+
+      guyGameObject2 = createAnimatedGameObject(
+          guyModel, guyMesh, guyModel.globalPositionOffset * 2, guy2Transform,
           uniformsBank, renderer.renderGraph.commandPool, renderer.vDevice,
           guyDiffuse->index);
 

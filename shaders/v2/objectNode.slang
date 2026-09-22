@@ -45,7 +45,7 @@ VSOutput vertMain(VSInput input) {
   output.pos = mul(proj, mul(view, worldPosition));
   output.uv = input.uv;
   output.worldPosition = worldPosition.xyz;
-  output.worldNormal = mul(normalMatrix, input.normal);
+  output.worldNormal = normalize(mul(normalMatrix, input.normal));
   return output;
 }
 
@@ -85,11 +85,25 @@ VSOutput vertAnimated(AnimatedVSInput input, uint vertexId: SV_VertexID) {
 [shader("fragment")]
 float4 fragMain(VSOutput input) : SV_Target {
   int diffTexIndex = PushConstantsBank::getInt(SG_PUSH_DIFF_TEX_INDEX);
+  float3 sunPos = UniformBank::getFloat3(SG_SUN_POS_INDEX);
+  float3 cameraPos = UniformBank::getFloat3(SG_VIEW_POS_INDEX);
+  float3 sunIntensity = UniformBank::getFloat3(SG_SUN_INTENSITY_INDEX);
+
+  float3 N = input.worldNormal;
+  float3 L = normalize(sunPos - input.worldPosition);
+
+  float lightFactor = max(dot(N, L) * 0.5 + 0.5, 0);
+  float4 upColor = float4(0.35f, 0.4f, 0.5f, 1.0f);
+  float4 downColor = float4(0.15f, 0.13f, 0.12f, 1.0f);
+  float ambientFactor = N.z * 0.5 + 0.5;
+  float4 ambientColor = lerp(downColor, upColor, ambientFactor);
 
   Texture2D<float4> diffuseTexture = textures[diffTexIndex];
 
   float2 uv = float2(input.uv.x, 1.0f - input.uv.y);
   float4 sampledColor = diffuseTexture.Sample(textureSampler, uv);
 
-  return float4(sampledColor.rgb, 1.0);
+  float4 color = (sampledColor * ambientColor) +
+                 (sampledColor * float4(sunIntensity, 1.0f) * lightFactor);
+  return color;
 }

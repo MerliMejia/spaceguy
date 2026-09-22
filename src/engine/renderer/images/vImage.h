@@ -55,7 +55,9 @@ struct VImage {
   vk::ImageViewType viewType = vk::ImageViewType::e2D;
   vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor;
 
-  inline void init(uint32_t width, uint32_t height, VDevice &vDevice) {
+  inline void
+  init(uint32_t width, uint32_t height, VDevice &vDevice,
+       vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1) {
     vk::ImageCreateInfo imageInfo{
         .imageType = type,
         .format = format,
@@ -67,7 +69,7 @@ struct VImage {
             },
         .mipLevels = 1,
         .arrayLayers = 1,
-        .samples = vk::SampleCountFlagBits::e1,
+        .samples = samples,
         .tiling = vk::ImageTiling::eOptimal,
         .usage = usage,
         .sharingMode = vk::SharingMode::eExclusive,
