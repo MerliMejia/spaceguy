@@ -62,7 +62,7 @@ int main() {
       Blender::V2::BlenderModel guyModel =
           loadAnimatedModel("assets/guy_v2.3d");
 
-      guyDiffuse = renderer.vTextureManager.createTexture(
+      guyDiffuse = renderer.renderGraph.vTextureManager.createTexture(
           guyModel.texturePath.string(), renderer.vDevice,
           renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
 
@@ -89,7 +89,7 @@ int main() {
       Blender::V2::BlenderModel floorModel =
           Blender::V2::loadModel("assets/floor_v2.3d");
 
-      floorDiffuse = renderer.vTextureManager.createTexture(
+      floorDiffuse = renderer.renderGraph.vTextureManager.createTexture(
           floorModel.texturePath.string(), renderer.vDevice,
           renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
 

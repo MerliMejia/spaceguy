@@ -7,7 +7,6 @@
 #include <functional>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "renderGraph.h"
-#include "renderNode/colorRenderNode.h"
 #include "vDevice.h"
 #include "vInstance.h"
 #include "vSwapChain.h"
@@ -36,13 +35,7 @@ struct VRenderer {
   Renderer::Window window;
   Renderer::VDevice vDevice;
   Renderer::VSwapChain vSwapChain;
-  Renderer::RenderGraph::Fucntions renderGraph{};
-
-  Renderer::ColorRenderNode colorRenderNode;
-  Renderer::Images::VManager vTextureManager{};
-
-  size_t staticPipeline = 0;
-  size_t animatedPipeline = 0;
+  Renderer::RenderGraph::RenderGraph renderGraph{};
 
   void initVulkan() {
     vInstance.create();
@@ -51,47 +44,18 @@ struct VRenderer {
     vSwapChain.create(vDevice.physicalDevice, window.surface, vDevice.device,
                       window.handler);
 
-    renderGraph.init(vDevice);
-
-    vTextureManager.init(vDevice, renderGraph.commandPool);
+    renderGraph.preInit(vDevice);
 
     if (onInit) {
       onInit();
     }
 
-    colorRenderNode.renderNode = &renderGraph.createNode();
-    colorRenderNode.present = true;
-    colorRenderNode.useDepthTesting = true;
-
-    colorRenderNode.init(vDevice,
-                         Renderer::step1_initShadersProps{
-                             .shaderFile = "shaders/v2/objectNode.spv"},
-                         vSwapChain);
-
-    colorRenderNode.setData(vDevice);
-    colorRenderNode.finish(vDevice, vTextureManager, renderGraph.commandPool);
-
-    using Renderer::RenderNodeUtils::ShaderCreateInfo;
-    using Renderer::RenderNodeUtils::ShaderType;
-
-    staticPipeline = colorRenderNode.addPipeline<Blender::V2::Vertex>(
-        vDevice, vSwapChain,
-        {ShaderCreateInfo{.type = ShaderType::Vertex, .name = "vertMain"},
-         ShaderCreateInfo{.type = ShaderType::Fragment, .name = "fragMain"}});
-
-    animatedPipeline = colorRenderNode.addPipeline<Blender::V2::AnimatedVertex>(
-        vDevice, vSwapChain,
-        {ShaderCreateInfo{.type = ShaderType::Vertex, .name = "vertAnimated"},
-         ShaderCreateInfo{.type = ShaderType::Fragment, .name = "fragMain"}});
-
-    renderGraph.init(vDevice.device, vSwapChain.swapChainImages);
+    renderGraph.init(vSwapChain, vDevice);
   }
 
   void mainLoop() {
 
-    auto &groups = colorRenderNode.renderNode->pipelineGroups;
-    groups[staticPipeline].renderCalls.reserve(resources.renderables.size());
-    groups[animatedPipeline].renderCalls.reserve(resources.renderables.size());
+    auto &groups = renderGraph.shadowPassNode.pipelineGroups;
 
     window.update([&]() {
       updateTime();
@@ -100,7 +64,7 @@ struct VRenderer {
         onUpdate();
       }
 
-      colorRenderNode.renderNode->clearRenderCalls();
+      renderGraph.shadowPassNode.clearRenderCalls();
 
       for (Renderable &renderable : resources.renderables) {
         if (!renderable.visible) {
@@ -108,7 +72,7 @@ struct VRenderer {
         }
 
         if (renderable.renderKind == ObjectRenderKind::Static) {
-          groups[staticPipeline].renderCalls.emplace_back(
+          groups[renderGraph.staticPipeline].renderCalls.emplace_back(
               RenderNodeUtils::RenderCall{
                   .vertexBuffer = renderable.meshV2->vertexAllocations.buffer,
                   .indexBuffer = renderable.meshV2->indexAllocations.buffer,
@@ -131,7 +95,7 @@ struct VRenderer {
         }
 
         if (renderable.renderKind == ObjectRenderKind::Animated) {
-          groups[animatedPipeline].renderCalls.emplace_back(
+          groups[renderGraph.animatedPipeline].renderCalls.emplace_back(
               RenderNodeUtils::RenderCall{
                   .vertexBuffer =
                       renderable.animatedMeshV2->mesh.vertexAllocations.buffer,

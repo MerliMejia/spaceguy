@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -49,9 +50,11 @@ struct RenderNode {
   std::vector<PipelineGroup> pipelineGroups;
   std::vector<vk::raii::CommandBuffer> commandBuffers;
 
-  std::unique_ptr<Images::VImage> input = nullptr;
-  std::unique_ptr<Images::VImage> output = nullptr;
-
+  // std::unique_ptr<Images::VImage> input = nullptr;
+  // std::unique_ptr<Images::VImage> output = nullptr;
+  std::array<std::unique_ptr<Images::VImage>,
+             RenderNodeUtils::MAX_FRAMES_IN_FLIGHT>
+      outputs;
   Renderer::RenderGraph::Context *renderGraphContext = nullptr;
   bool usePushConstants = false;
   bool updateUniforms = false;

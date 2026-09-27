@@ -1,60 +1,66 @@
-Attached 3d objects inside bones transformation
+An actual Render graph
 
-The new exporter importer now includes:
+Idea: You set up a couple of render nodes, you *define* their inputs, what they're
+going to do (this part is already kind of implemented) and their output (probably a sampled image)
+Then you create another node and *define* it's input (that can be output of the previous node).
+Keep doing that and the last node may or may not do something but at the end it presents to
+the swapchain.
 
-std::vector<AnimationAttachment> attachments;
+Current RenderGraph just store the nodes in a vector and go one by one... Kind of hard to keep
+track of inputs and outputs.
 
-So each animation clip has
+A better idea:
 
-struct AttachmentAnimationKeyPose {
-  int blenderFrame = 0;
-  glm::vec3 location{};
-  glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
-  glm::vec3 scale{1.0f};
-};
+Outside the render graph, create the nodes. Define their inputs and outputs and connect them
+however you want, then just pass the first node to the render graph. The render graph should be
+able to traverse it as if it's a linked list. With a do while it can call the
+perFrameFunction on the current node, update the current node to be the output of the current node
+if that current node is not null, do it again
 
-struct AnimationAttachment {
-  std::string objectName;
-  std::string boneName;
-  std::vector<AttachmentAnimationKeyPose> keyPoses;
-};
+so renderNodes need a pointer to the next renderNode. And abrstactions like colorRenderNode should
+only do one job.
 
 
-So the logic in a high level is:
+BTWWWWW.
 
-- Each object that is an attachment should have maybe like a component that tell us who are attachment of (using entity id I guess is best)
-- Because this object has this component, we should be able to get:
-    - entity id of the parent.
-    - all the animation clips of the parent.
-    - all the attachments of all the animation clips.
-    - So the attached object should have a list of index of animations where it is attached. Also a list of attachment index per animation clip (initial will be just 0).
-    - At that moment the attached component should have everything needed for applying transformation based on the animation.
+I need to decide "which image I will be working on". Should each node have it's own image?
+Or should they all work on the same image?
 
-- All of the above can be set before the game loop once.
+So at the end, we should have a node that presents the swapchain image. What's the easiest way
+to do that at the end?
 
-So the  component would look like:
+An idea:
 
-{
-entity
-parentEntity
-animationIndices[] //which animations of the parent is this part of
-attachmentIndices[] //which of the parent animation and attachments is this part of
-}
+The VTextureManager will have a section of sampled textures that will be used exclusively for
+render nodes. So each render node could own a texture (sampled image)
 
-So the animation system can handle this. Init will be just filling all of that information of every entity with AttachmentAnimationComponent
 
-Update will be:
+NEVER MIND ALL OF THE ABOVE...
 
-Per each entity with AttachmentAnimationComponent
+Basically:
 
-- Get the animation component of the parent entity (that will give us all the animation clips)
-- Loop trhough all the animationIndices. Per each one, loop trhough all the attachmentIndices. Per each one:
+Each Render Node will own an image for each frame in flight. Those images needs to be bound as
+a sampled image in the descriptor sets, that way those images can always be sampled on a shader.
 
-    - You end up getting:
-    struct AttachmentAnimationKeyPose {
-        int blenderFrame = 0;
-        glm::vec3 location{};
-        glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
-        glm::vec3 scale{1.0f};
-    };
-    - Use that to apply transformation to the attached object.
+Then the process becomes:
+
+- Node 1:
+    - On the absolutely very first frame: Transition its own image (for the current frame index)
+    from UNDEFINED to COLOR_ATTACHMENT_OPTIMAL.
+    - For the frames after the absolutely very first frame: Transition its own
+    image (for the current frame index) from SHADER_READ_ONLY_OPTIMAL to COLOR_ATTACHMENT_OPTIMAL.
+    - Shader executes and writes color.
+    - Transition image to SHADER_READ_ONLY_OPTIMAL.
+- Node 2:
+    - Transition its own image from SHADER_READ_ONLY_OPTIMAL to COLOR_ATTACHMENT_OPTIMAL.
+    - Shader samples Node 1's image (which is safely in SHADER_READ_ONLY_OPTIMAL).
+    - Shader writes color to Node 2's image.
+    - Transition Node 2's image to SHADER_READ_ONLY_OPTIMAL.
+- Node 3 (Present Node):
+    - Acquire Swapchain Image.
+    - Transition Swapchain Image from UNDEFINED to COLOR_ATTACHMENT_OPTIMAL.
+    - Shader samples Node 2's image and draws a full-screen quad onto the Swapchain Image.
+    - Transition Swapchain Image from COLOR_ATTACHMENT_OPTIMAL to PRESENT_SRC_KHR.
+    - Submit command buffer and Present.
+
+Repeat for next frame.
