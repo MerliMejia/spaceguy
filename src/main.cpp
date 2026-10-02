@@ -3,7 +3,9 @@
 #include "engine/blender/v2/importer.h"
 #include "engine/input/orbitCamera.h"
 #include "engine/renderer/images/vTexture.h"
+#include "engine/renderer/shaders/shaders.h"
 #include "engine/renderer/vRenderer.h"
+#include "glm/ext/matrix_clip_space.hpp"
 #include "glm/ext/vector_float3.hpp"
 #include "systems/animationSystem.h"
 #include "systems/resourceManagementSystem.h"
@@ -11,7 +13,46 @@
 #include "utils/types.h"
 #include <GLFW/glfw3.h>
 #include <cstdlib>
+#include <glm/ext/matrix_clip_space.hpp> // orthoRH_ZO
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp> // lookAt
 #include <iostream>
+
+struct SunMatrices {
+  glm::mat4 view;
+  glm::mat4 proj;
+};
+
+// Fits an orthographic shadow box around a bounding sphere.
+// Only the direction from sunPosition to center is used, the sun's distance
+// doesn't matter.
+SunMatrices computeSunMatrices(glm::vec3 sunPosition, glm::vec3 center,
+                               float radius, float margin) {
+  glm::vec3 sunDir = glm::normalize(center - sunPosition);
+
+  // Virtual eye just outside the sphere, on the sun's side.
+  glm::vec3 eye = center - sunDir * (radius + margin);
+
+  // Z-up world; fall back to Y-up if the sun is (almost) straight overhead.
+  glm::vec3 up{0.0f, 0.0f, 1.0f};
+  if (glm::abs(glm::dot(sunDir, up)) > 0.99f) {
+    up = glm::vec3{0.0f, 1.0f, 0.0f};
+  }
+
+  SunMatrices m;
+  m.view = glm::lookAt(eye, center, up);
+
+  // Explicit right-handed, 0..1 depth: doesn't depend on
+  // GLM_FORCE_DEPTH_ZERO_TO_ONE.
+  float zNear = 0.0f;
+  float zFar = 2.0f * (radius + margin);
+  m.proj = glm::orthoRH_ZO(-radius, radius, -radius, radius, zNear, zFar);
+
+  // Same Vulkan Y-flip as the camera.
+  m.proj[1][1] *= -1.0f;
+
+  return m;
+}
 
 int main() {
   try {
@@ -44,7 +85,7 @@ int main() {
       camera.init(renderer.window.handler);
 
       glm::vec3 sunColorIntensity = glm::vec3{0.6f, 0.6f, 0.6f};
-      glm::vec3 sunPosition = glm::vec3(20.0f, -15.0f, 10.0f);
+      glm::vec3 sunPosition = glm::vec3(10.7f, -24.6f, 17.0f);
 
       auto &uniformsBank =
           renderer.renderGraph.context.globalUniformBufferData.data;
@@ -54,10 +95,19 @@ int main() {
                     renderer.vSwapChain.swapChainExtent.height, uniformsBank,
                     renderer.window.handler);
 
+      SunMatrices sun = computeSunMatrices(
+          sunPosition, glm::vec3{0.0f, 0.0f, 3.5f}, // sphere center
+          29.0f,                                    // R
+          5.0f);                                    // margin
+
       Renderer::Shaders::UniformBank::setFloat3(uniformsBank, SG_SUN_POS_INDEX,
                                                 sunPosition);
       Renderer::Shaders::UniformBank::setFloat3(
           uniformsBank, SG_SUN_INTENSITY_INDEX, sunColorIntensity);
+      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank,
+                                                  SG_SUN_VIEW_INDEX, sun.view);
+      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank,
+                                                  SG_SUN_PROJ_INDEX, sun.proj);
 
       Blender::V2::BlenderModel guyModel =
           loadAnimatedModel("assets/guy_v2.3d");
@@ -67,12 +117,12 @@ int main() {
           renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
 
       Transform guyTransform;
-      guyTransform.position = glm::vec3{0.0f, 0.0f, 5.0f};
+      guyTransform.position = glm::vec3{0.0f, 0.0f, 3.0f};
       guyTransform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
       guyTransform.scale = glm::vec3(1.0f);
 
       Transform guy2Transform;
-      guy2Transform.position = glm::vec3{5.0f, 5.0f, 5.0f};
+      guy2Transform.position = glm::vec3{5.0f, 5.0f, 3.0f};
       guy2Transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
       guy2Transform.scale = glm::vec3(1.0f);
 

@@ -1,6 +1,6 @@
 spaceguy_3d 7
 object_name floor
-texture_path "FLOOR_BAKED_TEX.jpg"
+texture_path "FLOOR_PBSDF_BAKED_TEX.jpg"
 fps 24.000000
 vertex_count 4096
 index_count 6144

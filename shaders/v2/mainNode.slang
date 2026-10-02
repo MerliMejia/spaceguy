@@ -12,6 +12,7 @@ struct AnimatedVSInput {
 
 struct VSOutput {
   float4 pos : SV_Position;
+  float4 sunClipPos;
   float2 uv;
   float3 worldPosition;
   float3 worldNormal;
@@ -36,13 +37,18 @@ VSOutput vertMain(VSInput input) {
   float4x4 model = UniformBank::getFloat4x4(modelIndex);
   float4x4 view = UniformBank::getFloat4x4(SG_VIEW_INDEX);
   float4x4 proj = UniformBank::getFloat4x4(SG_PROJ_INDEX);
+  float4x4 sunView = UniformBank::getFloat4x4(SG_SUN_VIEW_INDEX);
+  float4x4 sunProj = UniformBank::getFloat4x4(SG_SUN_PROJ_INDEX);
 
   float4 worldPosition = mul(model, float4(input.inPosition, 1.0f));
 
   float3x3 normalMatrix = inverseTranspose3x3((float3x3)model);
 
   VSOutput output;
-  output.pos = mul(proj, mul(view, worldPosition));
+  float4 clip = mul(proj, mul(view, worldPosition));
+  float4 sunClip = mul(sunProj, mul(sunView, worldPosition));
+  output.pos = clip;
+  output.sunClipPos = sunClip;
   output.uv = input.uv;
   output.worldPosition = worldPosition.xyz;
   output.worldNormal = normalize(mul(normalMatrix, input.normal));
@@ -56,6 +62,8 @@ VSOutput vertAnimated(AnimatedVSInput input, uint vertexId: SV_VertexID) {
   float4x4 model = UniformBank::getFloat4x4(modelIndex);
   float4x4 view = UniformBank::getFloat4x4(SG_VIEW_INDEX);
   float4x4 proj = UniformBank::getFloat4x4(SG_PROJ_INDEX);
+  float4x4 sunView = UniformBank::getFloat4x4(SG_SUN_VIEW_INDEX);
+  float4x4 sunProj = UniformBank::getFloat4x4(SG_SUN_PROJ_INDEX);
 
   uint previousPositionOffset =
       PushConstantsBank::getUInt(SG_PUSH_PREV_POSE_INDEX);
@@ -74,7 +82,10 @@ VSOutput vertAnimated(AnimatedVSInput input, uint vertexId: SV_VertexID) {
   float4 worldPosition = mul(model, float4(pos, 1.0f));
 
   VSOutput output;
-  output.pos = mul(proj, mul(view, worldPosition));
+  float4 clip = mul(proj, mul(view, worldPosition));
+  float4 sunClip = mul(sunProj, mul(sunView, worldPosition));
+  output.pos = clip;
+  output.sunClipPos = sunClip;
   output.uv = input.uv;
   output.worldPosition = worldPosition.xyz;
   float3x3 normalMatrix = inverseTranspose3x3((float3x3)model);
@@ -84,26 +95,50 @@ VSOutput vertAnimated(AnimatedVSInput input, uint vertexId: SV_VertexID) {
 
 [shader("fragment")]
 float4 fragMain(VSOutput input) : SV_Target {
+  // Clip space -> NDC ([-1, 1] on x and y). w is 1 for ortho
+  float3 ndc = input.sunClipPos.xyz / input.sunClipPos.w;
+
+  // NDC -> texture UV ([0, 1]). Vulkan's +y down matches texture v, so no flip.
+  float2 uv = ndc.xy * 0.5 + 0.5;
+
+  int depthTexIndex =
+      PushConstantsBank::getInt(SG_PUSH_SAMPLED_DEPTH_PASS_IMAGE_INDEX);
   int diffTexIndex = PushConstantsBank::getInt(SG_PUSH_DIFF_TEX_INDEX);
   float3 sunPos = UniformBank::getFloat3(SG_SUN_POS_INDEX);
-  float3 cameraPos = UniformBank::getFloat3(SG_VIEW_POS_INDEX);
   float3 sunIntensity = UniformBank::getFloat3(SG_SUN_INTENSITY_INDEX);
+
+  Texture2D<float4> depthTestTex = textures[depthTexIndex];
+
+  // Depth lives in .r only.
+  float depth = depthTestTex.Sample(textureSampler, uv).r;
+
+  Texture2D<float4> diffuseTexture = textures[diffTexIndex];
+  float2 sampledUv = float2(input.uv.x, 1.0f - input.uv.y);
+  float4 sampledColor = diffuseTexture.Sample(textureSampler, sampledUv);
 
   float3 N = input.worldNormal;
   float3 L = normalize(sunPos - input.worldPosition);
 
-  float lightFactor = max(dot(N, L) * 0.5 + 0.5, 0);
-  float4 upColor = float4(0.35f, 0.4f, 0.5f, 1.0f);
+  float sunFactor = 0.5f;
+  bool facingSun = dot(N, L) > 0;
+
+  float lightFactor = max(dot(N, L) * sunFactor + sunFactor, 0);
+  float4 upColor = float4(0.35f, 0.4f, sunFactor, 1.0f);
   float4 downColor = float4(0.15f, 0.13f, 0.12f, 1.0f);
-  float ambientFactor = N.z * 0.5 + 0.5;
+  float ambientFactor = N.z * sunFactor + sunFactor;
   float4 ambientColor = lerp(downColor, upColor, ambientFactor);
 
-  Texture2D<float4> diffuseTexture = textures[diffTexIndex];
+  if (facingSun) {
+    bool inShadows = (ndc.z - 0.001f <= depth) ? false : true;
 
-  float2 uv = float2(input.uv.x, 1.0f - input.uv.y);
-  float4 sampledColor = diffuseTexture.Sample(textureSampler, uv);
+    if (inShadows) {
+      lightFactor = lightFactor * 0.5f;
+    }
+  }
 
-  float4 color = (sampledColor * ambientColor) +
-                 (sampledColor * float4(sunIntensity, 1.0f) * lightFactor);
-  return color;
+  float4 shadedColor =
+      (sampledColor * ambientColor) +
+      (sampledColor * float4(sunIntensity, 1.0f) * lightFactor);
+
+  return shadedColor;
 }

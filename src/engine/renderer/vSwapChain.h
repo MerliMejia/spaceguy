@@ -3,7 +3,6 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan_raii.hpp>
 
-
 namespace {
 static uint32_t
 chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities) {
@@ -13,17 +12,6 @@ chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities) {
     minImageCount = surfaceCapabilities.maxImageCount;
   }
   return minImageCount;
-}
-
-static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(
-    std::vector<vk::SurfaceFormatKHR> const &availableFormats) {
-  assert(!availableFormats.empty());
-  const auto formatIt =
-      std::ranges::find_if(availableFormats, [](const auto &format) {
-        return format.format == vk::Format::eB8G8R8A8Srgb &&
-               format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear;
-      });
-  return formatIt != availableFormats.end() ? *formatIt : availableFormats[0];
 }
 
 static vk::PresentModeKHR chooseSwapPresentMode(
@@ -78,6 +66,17 @@ struct VSwapChain {
   vk::SurfaceFormatKHR swapChainSurfaceFormat;
   vk::Extent2D swapChainExtent;
   std::vector<vk::raii::ImageView> swapChainImageViews;
+
+  static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(
+      std::vector<vk::SurfaceFormatKHR> const &availableFormats) {
+    assert(!availableFormats.empty());
+    const auto formatIt =
+        std::ranges::find_if(availableFormats, [](const auto &format) {
+          return format.format == vk::Format::eB8G8R8A8Srgb &&
+                 format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear;
+        });
+    return formatIt != availableFormats.end() ? *formatIt : availableFormats[0];
+  }
 
   void create(vk::raii::PhysicalDevice &physicalDevice,
               vk::raii::SurfaceKHR &surface, vk::raii::Device &device,

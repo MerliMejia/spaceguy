@@ -2,17 +2,22 @@
 
 #include "../bufferUtils.h"
 #include "../vDevice.h"
+#include "vulkan/vulkan.hpp"
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan_raii.hpp>
 
 namespace Renderer {
 namespace Images {
 
+struct TransitionState {
+  vk::PipelineStageFlags2 stage = vk::PipelineStageFlagBits2::eNone;
+  vk::AccessFlags2 access = vk::AccessFlagBits2::eNone;
+  vk::ImageLayout layout = vk::ImageLayout::eUndefined;
+};
+
 static void transitionImage(
-    vk::Image &image, vk::PipelineStageFlags2 initialPlace,
-    vk::AccessFlags2 initialAccess, vk::PipelineStageFlags2 newPlace,
-    vk::AccessFlags2 newAccess, vk::ImageLayout oldLayout,
-    vk::ImageLayout newLayout, vk::raii::CommandBuffer &commandBuffer,
+    vk::Image &image, TransitionState &oldState, TransitionState newState,
+    vk::raii::CommandBuffer &commandBuffer,
     vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor) {
 
   const vk::ImageSubresourceRange colorSubresource{
@@ -24,12 +29,12 @@ static void transitionImage(
   };
 
   vk::ImageMemoryBarrier2 prepareForCopy{
-      .srcStageMask = initialPlace,
-      .srcAccessMask = initialAccess,
-      .dstStageMask = newPlace,
-      .dstAccessMask = newAccess,
-      .oldLayout = oldLayout,
-      .newLayout = newLayout,
+      .srcStageMask = oldState.stage,
+      .srcAccessMask = oldState.access,
+      .dstStageMask = newState.stage,
+      .dstAccessMask = newState.access,
+      .oldLayout = oldState.layout,
+      .newLayout = newState.layout,
       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
       .image = image,
@@ -42,6 +47,8 @@ static void transitionImage(
   };
 
   commandBuffer.pipelineBarrier2(prepareDependency);
+
+  oldState = newState;
 }
 
 struct VImage {
@@ -54,6 +61,8 @@ struct VImage {
   vk::ImageType type = vk::ImageType::e2D;
   vk::ImageViewType viewType = vk::ImageViewType::e2D;
   vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor;
+
+  TransitionState transitionState{};
 
   inline void
   init(uint32_t width, uint32_t height, VDevice &vDevice,
@@ -110,15 +119,13 @@ struct VImage {
   }
 
   inline void transition(
-      vk::PipelineStageFlags2 initialPlace, vk::AccessFlags2 initialAccess,
-      vk::PipelineStageFlags2 newPlace, vk::AccessFlags2 newAccess,
-      vk::ImageLayout oldLayout, vk::ImageLayout newLayout,
-      vk::raii::CommandBuffer &commandBuffer,
+      TransitionState newState, vk::raii::CommandBuffer &commandBuffer,
       vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor) {
 
     vk::Image cHandle = static_cast<vk::Image>(*image);
-    transitionImage(cHandle, initialPlace, initialAccess, newPlace, newAccess,
-                    oldLayout, newLayout, commandBuffer, aspectMask);
+
+    transitionImage(cHandle, transitionState, newState, commandBuffer,
+                    aspectMask);
   }
 };
 

@@ -56,18 +56,19 @@ find_program(SLANGC slangc
 set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders/v2)
 
 add_custom_command(
-    OUTPUT ${SHADER_DIR}/objectNode.spv
-    COMMAND ${SLANGC} shaders/v2/objectNode.slang -o shaders/v2/objectNode.spv
+    OUTPUT ${SHADER_DIR}/mainNode.spv
+    COMMAND ${SLANGC} shaders/v2/mainNode.slang -o shaders/v2/mainNode.spv
+    COMMAND ${SLANGC} shaders/v2/depthTest.slang -o shaders/v2/depthTest.spv
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     DEPENDS
-        ${SHADER_DIR}/objectNode.slang
+        ${SHADER_DIR}/mainNode.slang
         ${SHADER_DIR}/banks.slang
         ${SHADER_DIR}/banks_shared.h
-    COMMENT "Compiling objectNode.slang to SPIR-V"
+    COMMENT "Compiling shaders to SPIR-V"
     VERBATIM
 )
 
-add_custom_target(shaders DEPENDS ${SHADER_DIR}/objectNode.spv)
+add_custom_target(shaders DEPENDS ${SHADER_DIR}/mainNode.spv)
 add_dependencies(spaceguy shaders)
 
 target_sources(spaceguy PRIVATE

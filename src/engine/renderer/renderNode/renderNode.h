@@ -37,7 +37,9 @@ struct PipelineGroup {
 struct step2_pipelineConfigurationProps {
   vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList;
   bool useDepth = false;
-  vk::Format depthFormat = vk::Format::eD32Sfloat;
+  bool isDepthPass = false;
+  vk::Format colorFormat;
+  vk::Format depthFormat;
   vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
   bool useMultiSampling = false;
   //... More stuff when dealing with more stuff
@@ -264,8 +266,7 @@ struct RenderNode {
 
   template <RenderNodeUtils::VertexType T>
   size_t step2_addPipeline(
-      vk::raii::Device &device, vk::SurfaceFormatKHR &swapChainSurfaceFormat,
-      step2_pipelineConfigurationProps props,
+      vk::raii::Device &device, step2_pipelineConfigurationProps props,
       const std::vector<RenderNodeUtils::ShaderCreateInfo> &shaderCreateInfos) {
 
     std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
@@ -304,7 +305,7 @@ struct RenderNode {
         .polygonMode = vk::PolygonMode::eFill,
         .cullMode = vk::CullModeFlagBits::eBack,
         .frontFace = vk::FrontFace::eCounterClockwise,
-        .depthBiasEnable = vk::False,
+        .depthBiasEnable = props.isDepthPass ? vk::True : vk::False,
         .lineWidth = 1.0f};
 
     vk::PipelineMultisampleStateCreateInfo multisampling{};
@@ -354,14 +355,23 @@ struct RenderNode {
              .pDynamicState = &dynamicState,
              .layout = *pipelineLayout,
              .renderPass = nullptr},
-            {.colorAttachmentCount = 1,
-             .pColorAttachmentFormats = &swapChainSurfaceFormat.format}};
+            {}};
 
     if (props.useDepth) {
       pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>()
           .pDepthStencilState = &depthStencil;
       pipelineCreateInfoChain.get<vk::PipelineRenderingCreateInfo>()
           .depthAttachmentFormat = props.depthFormat;
+    }
+
+    if (props.isDepthPass) {
+      pipelineCreateInfoChain.get<vk::PipelineRenderingCreateInfo>()
+          .colorAttachmentCount = 0;
+    } else {
+      pipelineCreateInfoChain.get<vk::PipelineRenderingCreateInfo>()
+          .colorAttachmentCount = 1;
+      pipelineCreateInfoChain.get<vk::PipelineRenderingCreateInfo>()
+          .pColorAttachmentFormats = &props.colorFormat;
     }
 
     PipelineGroup group;
@@ -382,7 +392,7 @@ struct RenderNode {
   // eColorAttachmentOptimal assumming that by default we always want to draw a
   // color attachment. This should change later so I can define what's the
   // initial layout transition. Probably eUndefined to depth, stencil, other?
-  void step3_initCommandBuffer(uint32_t queueIndex, vk::raii::Device &device,
+  void step3_initCommandBuffer(vk::raii::Device &device,
                                vk::raii::CommandPool &commandPool) {
     vk::CommandBufferAllocateInfo allocInfo{
         .commandPool = commandPool,
@@ -401,18 +411,15 @@ struct RenderNode {
            sizeof(renderGraphContext->globalUniformBufferData));
   }
 
-  void recordCommandBuffer(Renderer::VSwapChain &vSwapChain,
-                           uint32_t frameIndex) {
+  void recordCommandBuffer(float width, float height, uint32_t frameIndex) {
 
     auto &cmd = commandBuffers[frameIndex];
 
-    cmd.setViewport(
-        0, vk::Viewport(0.0f, 0.0f,
-                        static_cast<float>(vSwapChain.swapChainExtent.width),
-                        static_cast<float>(vSwapChain.swapChainExtent.height),
-                        0.0f, 1.0f));
-    cmd.setScissor(0,
-                   vk::Rect2D(vk::Offset2D(0, 0), vSwapChain.swapChainExtent));
+    cmd.setViewport(0, vk::Viewport(0.0f, 0.0f, width, height, 0.0f, 1.0f));
+    cmd.setScissor(
+        0, vk::Rect2D(vk::Offset2D(0, 0),
+                      vk::Extent2D{.width = static_cast<uint32_t>(width),
+                                   .height = static_cast<uint32_t>(height)}));
 
     // Bound once: every pipeline in the node shares this layout, so it stays
     // valid across bindPipeline calls.

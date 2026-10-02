@@ -72,6 +72,26 @@ struct VManager {
 
     return result;
   }
+
+  VTexture *getTextureFromImage() {
+    if (nextFreeIndex >= textures.size()) {
+      throw std::runtime_error("texture bank is full");
+    }
+
+    const std::size_t index = nextFreeIndex;
+
+    auto newTexture = std::make_unique<VTexture>();
+    newTexture->index = static_cast<uint32_t>(index);
+
+    VTexture *result = newTexture.get();
+
+    ownedTextures[index] = std::move(newTexture);
+    textures[index] = result;
+
+    ++nextFreeIndex;
+
+    return result;
+  }
 };
 
 } // namespace Images

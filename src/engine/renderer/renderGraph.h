@@ -1,6 +1,7 @@
 #pragma once
 
 #include "images/vImage.h"
+#include "images/vTexture.h"
 #include "renderGraphUtils.h"
 #include "renderNode/renderNode.h"
 #include "renderNode/renderNodeUtils.h"
@@ -18,6 +19,11 @@
 
 namespace Renderer {
 
+struct NodePipelines {
+  size_t staticPipeline = 0;
+  size_t animatedPipeline = 0;
+};
+
 namespace RenderGraph {
 struct RenderGraph {
   std::vector<vk::raii::Semaphore> presentCompleteSemaphores;
@@ -31,14 +37,27 @@ struct RenderGraph {
 
   Context context{};
 
-  Renderer::RenderNode shadowPassNode;
-  Images::VImage depthImage;
+  Renderer::RenderNode mainNode;
+  Renderer::RenderNode depthTestNode;
+
+  Images::VTexture *sampledDepthTexture = nullptr;
+  Images::VImage mainNodeDepthTestImage;
   Images::VImage colorMSAAsampleImage;
 
-  size_t staticPipeline = 0;
-  size_t animatedPipeline = 0;
+  NodePipelines shadowVisualizationPipelines{};
+  NodePipelines depthTestPipelines{};
 
   Renderer::Images::VManager vTextureManager{};
+
+  Images::TransitionState deptTestWriteAttachmentState{
+      .stage = vk::PipelineStageFlagBits2::eEarlyFragmentTests |
+               vk::PipelineStageFlagBits2::eLateFragmentTests,
+      .access = vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+      .layout = vk::ImageLayout::eDepthAttachmentOptimal};
+
+#ifndef RENDER_GRAPH_MACROS
+#define SHADOWS_RES 800
+#endif
 
   void preInit(VDevice &vDevice) {
     vk::CommandPoolCreateInfo poolInfo{
@@ -52,6 +71,7 @@ struct RenderGraph {
     };
 
     vTextureManager.init(vDevice, commandPool);
+    sampledDepthTexture = vTextureManager.getTextureFromImage();
   }
 
   void init(Renderer::VSwapChain &vSwapChain, Renderer::VDevice &vDevice) {
@@ -73,77 +93,92 @@ struct RenderGraph {
     }
 
     for (size_t i = 0; i < RenderNodeUtils::MAX_FRAMES_IN_FLIGHT; i++) {
-      shadowPassNode.outputs[i] = std::make_unique<Images::VImage>();
-      shadowPassNode.outputs[i] = std::make_unique<Images::VImage>();
+      mainNode.outputs[i] = std::make_unique<Images::VImage>();
+      depthTestNode.outputs[i] = std::make_unique<Images::VImage>();
     }
 
-    shadowPassNode.preInit(context);
-    shadowPassNode.updateUniforms = true;
-    shadowPassNode.usePushConstants = true;
+    mainNode.preInit(context);
+    mainNode.updateUniforms = true;
+    mainNode.usePushConstants = true;
 
-    shadowPassNode.step1_initShaders(
+    depthTestNode.preInit(context);
+    depthTestNode.updateUniforms = true;
+    depthTestNode.usePushConstants = true;
+
+    mainNode.step1_initShaders(vDevice.device,
+                               Renderer::step1_initShadersProps{
+                                   .shaderFile = "shaders/v2/mainNode.spv"});
+
+    depthTestNode.step1_initShaders(
         vDevice.device, Renderer::step1_initShadersProps{
-                            .shaderFile = "shaders/v2/objectNode.spv"});
+                            .shaderFile = "shaders/v2/depthTest.spv"});
 
-    depthImage.format = vk::Format::eD32Sfloat;
-    depthImage.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
-    depthImage.aspectMask = vk::ImageAspectFlagBits::eDepth;
+    sampledDepthTexture->vImage.format = vk::Format::eD32Sfloat;
+    sampledDepthTexture->vImage.usage =
+        vk::ImageUsageFlagBits::eDepthStencilAttachment |
+        vk::ImageUsageFlagBits::eSampled;
+    sampledDepthTexture->vImage.aspectMask = vk::ImageAspectFlagBits::eDepth;
 
-    depthImage.init(vSwapChain.swapChainExtent.width,
-                    vSwapChain.swapChainExtent.height, vDevice,
-                    vk::SampleCountFlagBits::e4);
+    sampledDepthTexture->vImage.init(SHADOWS_RES, SHADOWS_RES, vDevice);
+
+    mainNodeDepthTestImage.format = vk::Format::eD32Sfloat;
+    mainNodeDepthTestImage.usage =
+        vk::ImageUsageFlagBits::eDepthStencilAttachment;
+    mainNodeDepthTestImage.aspectMask = vk::ImageAspectFlagBits::eDepth;
+
+    mainNodeDepthTestImage.init(
+        vSwapChain.swapChainExtent.width, vSwapChain.swapChainExtent.height,
+        vDevice,
+        vk::SampleCountFlagBits::e4); // Since this depth test will be used with
+                                      // a e4 sampled color attachment, it also
+                                      // needs to be e4
 
     colorMSAAsampleImage.usage = vk::ImageUsageFlagBits::eTransientAttachment |
                                  vk::ImageUsageFlagBits::eColorAttachment;
+    colorMSAAsampleImage.format = vSwapChain.swapChainSurfaceFormat.format;
 
     colorMSAAsampleImage.init(vSwapChain.swapChainExtent.width,
                               vSwapChain.swapChainExtent.height, vDevice,
                               vk::SampleCountFlagBits::e4);
 
-    shadowPassNode.perFrameFunction = [&](Renderer::VSwapChain &vSwapChain,
-                                          uint32_t imageIndex,
-                                          uint32_t frameIndex) {
-      Renderer::Images::VImage *shadowImage =
-          shadowPassNode.outputs[frameIndex].get();
+    depthTestNode.perFrameFunction = [&](Renderer::VSwapChain &vSwapChain,
+                                         uint32_t imageIndex,
+                                         uint32_t frameIndex) {
+      vk::ClearValue clearDepth{};
 
-      if (!initializedFrames[frameIndex]) {
+      clearDepth.depthStencil.setDepth(1.0f);
+      clearDepth.depthStencil.setStencil(0);
 
-        shadowImage->usage = vk::ImageUsageFlagBits::eColorAttachment |
-                             vk::ImageUsageFlagBits::eTransferSrc;
-        shadowImage->format = vSwapChain.swapChainSurfaceFormat.format;
-        initializedFrames[frameIndex] = true;
+      sampledDepthTexture->vImage.transition(
+          deptTestWriteAttachmentState,
+          depthTestNode.commandBuffers[frameIndex],
+          vk::ImageAspectFlagBits::eDepth);
 
-        shadowImage->init(vSwapChain.swapChainExtent.width,
-                          vSwapChain.swapChainExtent.height, vDevice,
-                          vk::SampleCountFlagBits::e4);
+      vk::RenderingAttachmentInfo depthAttachmentInfo = {
+          .imageView = sampledDepthTexture->vImage.view,
+          .imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
+          .loadOp = vk::AttachmentLoadOp::eClear,
+          .storeOp = vk::AttachmentStoreOp::eStore,
+          .clearValue = clearDepth};
 
-        // If this is the first frame (per frame in flight), from undefined to
-        // color attachment optimal layout, from being on eNoNe stage to color
-        // attachment output (we're writing colors on this). From no access flag
-        // to color attachment write (again, writing color on this image).
-        shadowImage->transition(
-            vk::PipelineStageFlagBits2::eNone, {},
-            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-            vk::AccessFlagBits2::eColorAttachmentWrite,
-            vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            shadowPassNode.commandBuffers[frameIndex]);
-      } else {
-        // Else, from being on transfer with transfer read access and transfer
-        // src optimal layout (This is only because that was the last state of
-        // this image, we were transfering it's pixels to the swapchain at the
-        // end) to color attachment write stage with color attachment write
-        // access on color attachment optimal layout.
-        shadowImage->transition(
-            vk::PipelineStageFlagBits2::eTransfer,
-            vk::AccessFlagBits2::eTransferRead,
-            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-            vk::AccessFlagBits2::eColorAttachmentWrite,
-            vk::ImageLayout::eTransferSrcOptimal,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            shadowPassNode.commandBuffers[frameIndex]);
-      }
+      vk::RenderingInfo renderingInfo = {
+          .renderArea = {.offset = {0, 0},
+                         .extent = vk::Extent2D{.width = SHADOWS_RES,
+                                                .height = SHADOWS_RES}},
+          .layerCount = 1,
+          .colorAttachmentCount = 0,
+          .pDepthAttachment = &depthAttachmentInfo};
 
+      depthTestNode.commandBuffers[frameIndex].beginRendering(renderingInfo);
+
+      // Do the depth test pass
+      depthTestNode.recordCommandBuffer(SHADOWS_RES * 1.0f, SHADOWS_RES * 1.0f,
+                                        frameIndex);
+      depthTestNode.commandBuffers[frameIndex].end();
+    };
+
+    mainNode.perFrameFunction = [&](Renderer::VSwapChain &vSwapChain,
+                                    uint32_t imageIndex, uint32_t frameIndex) {
       vk::ClearValue clearColor{};
       vk::ClearValue clearDepth{};
 
@@ -154,34 +189,59 @@ struct RenderGraph {
       clearDepth.depthStencil.setDepth(1.0f);
       clearDepth.depthStencil.setStencil(0);
 
-      depthImage.transition(vk::PipelineStageFlagBits2::eEarlyFragmentTests |
-                                vk::PipelineStageFlagBits2::eLateFragmentTests,
-                            vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
-                            vk::PipelineStageFlagBits2::eEarlyFragmentTests |
-                                vk::PipelineStageFlagBits2::eLateFragmentTests,
-                            vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
-                            vk::ImageLayout::eUndefined,
-                            vk::ImageLayout::eDepthAttachmentOptimal,
-                            shadowPassNode.commandBuffers[frameIndex],
-                            vk::ImageAspectFlagBits::eDepth);
+      mainNodeDepthTestImage.transition(deptTestWriteAttachmentState,
+                                        mainNode.commandBuffers[frameIndex],
+                                        vk::ImageAspectFlagBits::eDepth);
 
-      colorMSAAsampleImage.transition(
-          vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-          vk::AccessFlagBits2::eColorAttachmentWrite,
-          vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-          vk::AccessFlagBits2::eColorAttachmentWrite,
-          vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
-          shadowPassNode.commandBuffers[frameIndex]);
+      Renderer::Images::VImage *mainNodeImage =
+          mainNode.outputs[frameIndex].get();
+
+      if (!initializedFrames[frameIndex]) {
+
+        mainNodeImage->usage = vk::ImageUsageFlagBits::eColorAttachment |
+                               vk::ImageUsageFlagBits::eTransferSrc;
+
+        mainNodeImage->format = vSwapChain.swapChainSurfaceFormat.format;
+        initializedFrames[frameIndex] = true;
+
+        mainNodeImage->init(vSwapChain.swapChainExtent.width,
+                            vSwapChain.swapChainExtent.height, vDevice,
+                            vk::SampleCountFlagBits::e1);
+      }
+
+      Images::TransitionState toColorWriteState{
+          .stage = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+          .access = vk::AccessFlagBits2::eColorAttachmentWrite,
+          .layout = vk::ImageLayout::eColorAttachmentOptimal};
+
+      mainNodeImage->transition(toColorWriteState,
+                                mainNode.commandBuffers[frameIndex]);
+
+      colorMSAAsampleImage.transition(toColorWriteState,
+                                      mainNode.commandBuffers[frameIndex]);
+
+      Images::TransitionState toSampledOnShaderRead{
+          .stage = vk::PipelineStageFlagBits2::eFragmentShader,
+          .access = vk::AccessFlagBits2::eShaderSampledRead,
+          .layout = vk::ImageLayout::eShaderReadOnlyOptimal};
+
+      sampledDepthTexture->vImage.transition(
+          toSampledOnShaderRead, mainNode.commandBuffers[frameIndex],
+          vk::ImageAspectFlagBits::eDepth);
 
       vk::RenderingAttachmentInfo colorAttachmentInfo = {
-          .imageView = shadowImage->view,
+          .imageView = colorMSAAsampleImage.view,
           .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+          .resolveMode = vk::ResolveModeFlagBits::eAverage,
+          .resolveImageView = mainNodeImage->view,
+          .resolveImageLayout = vk::ImageLayout::eColorAttachmentOptimal,
           .loadOp = vk::AttachmentLoadOp::eClear,
-          .storeOp = vk::AttachmentStoreOp::eStore,
-          .clearValue = clearColor};
+          .storeOp = vk::AttachmentStoreOp::eDontCare,
+          .clearValue = clearColor,
+      };
 
       vk::RenderingAttachmentInfo depthAttachmentInfo = {
-          .imageView = depthImage.view,
+          .imageView = mainNodeDepthTestImage.view,
           .imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
           .loadOp = vk::AttachmentLoadOp::eClear,
           .storeOp = vk::AttachmentStoreOp::eDontCare,
@@ -195,31 +255,39 @@ struct RenderGraph {
           .pColorAttachments = &colorAttachmentInfo,
           .pDepthAttachment = &depthAttachmentInfo};
 
-      shadowPassNode.commandBuffers[frameIndex].beginRendering(renderingInfo);
+      mainNode.commandBuffers[frameIndex].beginRendering(renderingInfo);
 
-      // Do the drawings on the shadowImage.
-      shadowPassNode.recordCommandBuffer(vSwapChain, frameIndex);
+      // Do the drawings on the mainNodeImage.
+      mainNode.recordCommandBuffer(
+          static_cast<float>(vSwapChain.swapChainExtent.width),
+          static_cast<float>(vSwapChain.swapChainExtent.height), frameIndex);
 
-      // From shadow pass to swapchain:
-      shadowImage->transition(
-          vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-          vk::AccessFlagBits2::eColorAttachmentWrite,
-          vk::PipelineStageFlagBits2::eTransfer,
-          vk::AccessFlagBits2::eTransferRead,
-          vk::ImageLayout::eColorAttachmentOptimal,
-          vk::ImageLayout::eTransferSrcOptimal,
-          shadowPassNode.commandBuffers[frameIndex]);
+      // From main pass to swapchain:
+
+      Images::TransitionState toTransferRead{
+          .stage = vk::PipelineStageFlagBits2::eTransfer,
+          .access = vk::AccessFlagBits2::eTransferRead,
+          .layout = vk::ImageLayout::eTransferSrcOptimal};
+
+      mainNodeImage->transition(toTransferRead,
+                                mainNode.commandBuffers[frameIndex]);
+
+      Images::TransitionState fromNoneUndefined{
+          .stage = vk::PipelineStageFlagBits2::eNone,
+          .access = {},
+          .layout = vk::ImageLayout::eUndefined};
+
+      Images::TransitionState toTransferWrite{
+          .stage = vk::PipelineStageFlagBits2::eTransfer,
+          .access = vk::AccessFlagBits2::eTransferWrite,
+          .layout = vk::ImageLayout::eTransferDstOptimal};
 
       Images::transitionImage(vSwapChain.swapChainImages[imageIndex],
-                              vk::PipelineStageFlagBits2::eNone, {},
-                              vk::PipelineStageFlagBits2::eTransfer,
-                              vk::AccessFlagBits2::eTransferWrite,
-                              vk::ImageLayout::eUndefined,
-                              vk::ImageLayout::eTransferDstOptimal,
-                              shadowPassNode.commandBuffers[frameIndex]);
+                              fromNoneUndefined, toTransferWrite,
+                              mainNode.commandBuffers[frameIndex]);
 
       // Resolve instead of copy because we're doing multisampling.
-      vk::ImageResolve resolveRegion{
+      vk::ImageCopy copyRegion{
           .srcSubresource =
               {
                   .aspectMask = vk::ImageAspectFlagBits::eColor,
@@ -244,56 +312,99 @@ struct RenderGraph {
               },
       };
 
-      shadowPassNode.commandBuffers[frameIndex].resolveImage(
-          shadowImage->image, vk::ImageLayout::eTransferSrcOptimal,
+      mainNode.commandBuffers[frameIndex].copyImage(
+          mainNodeImage->image, vk::ImageLayout::eTransferSrcOptimal,
           vSwapChain.swapChainImages[imageIndex],
-          vk::ImageLayout::eTransferDstOptimal, resolveRegion);
+          vk::ImageLayout::eTransferDstOptimal, copyRegion);
+
+      Images::TransitionState toPresent{
+          .stage = vk::PipelineStageFlagBits2::eNone,
+          .access = {},
+          .layout = vk::ImageLayout::ePresentSrcKHR,
+      };
 
       Images::transitionImage(vSwapChain.swapChainImages[imageIndex],
-                              vk::PipelineStageFlagBits2::eTransfer,
-                              vk::AccessFlagBits2::eTransferWrite,
-                              vk::PipelineStageFlagBits2::eNone, {},
-                              vk::ImageLayout::eTransferDstOptimal,
-                              vk::ImageLayout::ePresentSrcKHR,
-                              shadowPassNode.commandBuffers[frameIndex]);
+                              toTransferWrite, toPresent,
+                              mainNode.commandBuffers[frameIndex]);
 
-      shadowPassNode.commandBuffers[frameIndex].end();
+      mainNode.commandBuffers[frameIndex].end();
     };
 
-    shadowPassNode.step_1_2_createUniformBuffers(vDevice);
-    shadowPassNode.step_1_3_createDescriptorSetLayout(vDevice.device);
-    shadowPassNode.step_1_4_createDescriptorPool(vDevice.device);
-    shadowPassNode.step_1_5_allocateDescriptorSets(vDevice.device);
+    mainNode.step_1_2_createUniformBuffers(vDevice);
+    mainNode.step_1_3_createDescriptorSetLayout(vDevice.device);
+    mainNode.step_1_4_createDescriptorPool(vDevice.device);
+    mainNode.step_1_5_allocateDescriptorSets(vDevice.device);
 
-    shadowPassNode.step_1_6_configureDescriptorSets(vDevice.device,
-                                                    vTextureManager);
-    shadowPassNode.step2_createPipelineLayout(vDevice.device);
-    shadowPassNode.step3_initCommandBuffer(vDevice.queueIndex, vDevice.device,
-                                           commandPool);
+    mainNode.step_1_6_configureDescriptorSets(vDevice.device, vTextureManager);
+    mainNode.step2_createPipelineLayout(vDevice.device);
+    mainNode.step3_initCommandBuffer(vDevice.device, commandPool);
+
+    // Commented out means the previous node already set them up
+    //
+    // depthTestNode.step_1_2_createUniformBuffers(vDevice);
+    // depthTestNode.step_1_3_createDescriptorSetLayout(vDevice.device);
+    // depthTestNode.step_1_4_createDescriptorPool(vDevice.device);
+    // depthTestNode.step_1_5_allocateDescriptorSets(vDevice.device);
+
+    // depthTestNode.step_1_6_configureDescriptorSets(vDevice.device,
+    //                                                vTextureManager);
+    depthTestNode.step2_createPipelineLayout(vDevice.device);
+    depthTestNode.step3_initCommandBuffer(vDevice.device, commandPool);
 
     // static pipeline
-    staticPipeline = shadowPassNode.step2_addPipeline<Blender::V2::Vertex>(
-        vDevice.device, vSwapChain.swapChainSurfaceFormat,
-        Renderer::step2_pipelineConfigurationProps{
-            .useDepth = true,
-            .depthFormat = depthImage.format,
-            .samples = vk::SampleCountFlagBits::e4,
-            .useMultiSampling = true},
-        {RenderNodeUtils::ShaderCreateInfo{
-             .type = RenderNodeUtils::ShaderType::Vertex, .name = "vertMain"},
-         RenderNodeUtils::ShaderCreateInfo{
-             .type = RenderNodeUtils::ShaderType::Fragment,
-             .name = "fragMain"}});
-
-    // animated pipeline
-    animatedPipeline =
-        shadowPassNode.step2_addPipeline<Blender::V2::AnimatedVertex>(
-            vDevice.device, vSwapChain.swapChainSurfaceFormat,
+    depthTestPipelines.staticPipeline =
+        depthTestNode.step2_addPipeline<Blender::V2::Vertex>(
+            vDevice.device,
             Renderer::step2_pipelineConfigurationProps{
                 .useDepth = true,
-                .depthFormat = depthImage.format,
+                .isDepthPass = true,
+                .depthFormat = vk::Format::eD32Sfloat,
+                .useMultiSampling = false},
+            {RenderNodeUtils::ShaderCreateInfo{
+                .type = RenderNodeUtils::ShaderType::Vertex,
+                .name = "vertMain"}});
+
+    // animated pipeline
+    depthTestPipelines.animatedPipeline =
+        depthTestNode.step2_addPipeline<Blender::V2::AnimatedVertex>(
+            vDevice.device,
+            Renderer::step2_pipelineConfigurationProps{
+                .useDepth = true,
+                .isDepthPass = true,
+                .depthFormat = vk::Format::eD32Sfloat,
+                .useMultiSampling = false},
+            {RenderNodeUtils::ShaderCreateInfo{
+                .type = RenderNodeUtils::ShaderType::Vertex,
+                .name = "vertAnimated"}});
+
+    // static pipeline
+    shadowVisualizationPipelines.staticPipeline =
+        mainNode.step2_addPipeline<Blender::V2::Vertex>(
+            vDevice.device,
+            Renderer::step2_pipelineConfigurationProps{
+                .useDepth = true,
+                .colorFormat = vSwapChain.swapChainSurfaceFormat.format,
+                .depthFormat = vk::Format::eD32Sfloat,
                 .samples = vk::SampleCountFlagBits::e4,
                 .useMultiSampling = true},
+            {RenderNodeUtils::ShaderCreateInfo{
+                 .type = RenderNodeUtils::ShaderType::Vertex,
+                 .name = "vertMain"},
+             RenderNodeUtils::ShaderCreateInfo{
+                 .type = RenderNodeUtils::ShaderType::Fragment,
+                 .name = "fragMain"}});
+
+    // animated pipeline
+    shadowVisualizationPipelines.animatedPipeline =
+        mainNode.step2_addPipeline<Blender::V2::AnimatedVertex>(
+            vDevice.device,
+            Renderer::step2_pipelineConfigurationProps{
+                .useDepth = true,
+                .colorFormat = vSwapChain.swapChainSurfaceFormat.format,
+                .depthFormat = vk::Format::eD32Sfloat,
+                .samples = vk::SampleCountFlagBits::e4,
+                .useMultiSampling = true,
+            },
             {RenderNodeUtils::ShaderCreateInfo{
                  .type = RenderNodeUtils::ShaderType::Vertex,
                  .name = "vertAnimated"},
@@ -316,12 +427,19 @@ struct RenderGraph {
 
     imageIndex = acquiredImageIndex;
 
-    // Shadow pass
-    shadowPassNode.commandBuffers[frameIndex].reset();
-    shadowPassNode.commandBuffers[frameIndex].begin(
+    // Depth testing pass
+    depthTestNode.commandBuffers[frameIndex].reset();
+    depthTestNode.commandBuffers[frameIndex].begin(
         vk::CommandBufferBeginInfo{});
-    shadowPassNode.perFrame1_updateUniformBuffers(frameIndex);
-    shadowPassNode.perFrameFunction(vSwapChain, imageIndex, frameIndex);
+    depthTestNode.perFrame1_updateUniformBuffers(frameIndex);
+    depthTestNode.perFrameFunction(vSwapChain, imageIndex, frameIndex);
+
+    // Main node pass
+    mainNode.commandBuffers[frameIndex].reset();
+    mainNode.commandBuffers[frameIndex].begin(vk::CommandBufferBeginInfo{});
+    // Not needed since the depth pass already updates this.
+    // mainNode.perFrame1_updateUniformBuffers(frameIndex);
+    mainNode.perFrameFunction(vSwapChain, imageIndex, frameIndex);
 
     device.resetFences(*inFlightFences[frameIndex]);
   }
@@ -334,8 +452,10 @@ struct RenderGraph {
 
     std::vector<vk::CommandBuffer> commandBuffers;
 
-    // Shadow pass
-    commandBuffers.push_back(shadowPassNode.commandBuffers[frameIndex]);
+    // Depth test pass
+    commandBuffers.push_back(depthTestNode.commandBuffers[frameIndex]);
+    // Main node
+    commandBuffers.push_back(mainNode.commandBuffers[frameIndex]);
 
     const vk::SubmitInfo submitInfo{
         .waitSemaphoreCount = 1,

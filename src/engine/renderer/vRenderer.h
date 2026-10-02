@@ -55,7 +55,9 @@ struct VRenderer {
 
   void mainLoop() {
 
-    auto &groups = renderGraph.shadowPassNode.pipelineGroups;
+    auto &depthTestingGroups = renderGraph.depthTestNode.pipelineGroups;
+    auto &visualizationGroups =
+        renderGraph.mainNode.pipelineGroups;
 
     window.update([&]() {
       updateTime();
@@ -64,7 +66,8 @@ struct VRenderer {
         onUpdate();
       }
 
-      renderGraph.shadowPassNode.clearRenderCalls();
+      renderGraph.depthTestNode.clearRenderCalls();
+      renderGraph.mainNode.clearRenderCalls();
 
       for (Renderable &renderable : resources.renderables) {
         if (!renderable.visible) {
@@ -72,64 +75,81 @@ struct VRenderer {
         }
 
         if (renderable.renderKind == ObjectRenderKind::Static) {
-          groups[renderGraph.staticPipeline].renderCalls.emplace_back(
-              RenderNodeUtils::RenderCall{
-                  .vertexBuffer = renderable.meshV2->vertexAllocations.buffer,
-                  .indexBuffer = renderable.meshV2->indexAllocations.buffer,
-                  .indexCount = renderable.meshV2->indexCount,
-                  .updatePushConstants = [this, &renderable]() {
-                    auto &pushConstantsBank =
-                        renderGraph.context.pushConstantBank;
+          auto staticRenderCall = RenderNodeUtils::RenderCall{
+              .vertexBuffer = renderable.meshV2->vertexAllocations.buffer,
+              .indexBuffer = renderable.meshV2->indexAllocations.buffer,
+              .indexCount = renderable.meshV2->indexCount,
+              .updatePushConstants = [this, &renderable]() {
+                auto &pushConstantsBank = renderGraph.context.pushConstantBank;
 
-                    TransformComponent &tc = getTransform(renderable.entity);
+                TransformComponent &tc = getTransform(renderable.entity);
 
-                    Renderer::Shaders::PushConstantsBank::setInt(
-                        pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
+                Renderer::Shaders::PushConstantsBank::setInt(
+                    pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
 
-                    if (renderable.textureIndex != -1) {
-                      Renderer::Shaders::PushConstantsBank::setUInt(
-                          pushConstantsBank, SG_PUSH_DIFF_TEX_INDEX,
-                          renderable.textureIndex);
-                    }
-                  }});
+                if (renderable.textureIndex != -1) {
+                  Renderer::Shaders::PushConstantsBank::setUInt(
+                      pushConstantsBank, SG_PUSH_DIFF_TEX_INDEX,
+                      renderable.textureIndex);
+                }
+
+                Renderer::Shaders::PushConstantsBank::setInt(
+                    pushConstantsBank, SG_PUSH_SAMPLED_DEPTH_PASS_IMAGE_INDEX,
+                    renderGraph.sampledDepthTexture->index);
+              }};
+
+          // depthTestingGroups[renderGraph.depthTestPipelines.staticPipeline]
+          //     .renderCalls.emplace_back(staticRenderCall);
+          visualizationGroups[renderGraph.shadowVisualizationPipelines
+                                  .staticPipeline]
+              .renderCalls.emplace_back(staticRenderCall);
         }
 
         if (renderable.renderKind == ObjectRenderKind::Animated) {
-          groups[renderGraph.animatedPipeline].renderCalls.emplace_back(
-              RenderNodeUtils::RenderCall{
-                  .vertexBuffer =
-                      renderable.animatedMeshV2->mesh.vertexAllocations.buffer,
-                  .indexBuffer =
-                      renderable.animatedMeshV2->mesh.indexAllocations.buffer,
-                  .indexCount = renderable.animatedMeshV2->mesh.indexCount,
-                  .updatePushConstants = [&]() {
-                    auto &pushConstantsBank =
-                        renderGraph.context.pushConstantBank;
 
-                    auto animationData =
-                        getAnimationDataFromEntity(renderable.entity);
+          auto animatedRenderCall = RenderNodeUtils::RenderCall{
+              .vertexBuffer =
+                  renderable.animatedMeshV2->mesh.vertexAllocations.buffer,
+              .indexBuffer =
+                  renderable.animatedMeshV2->mesh.indexAllocations.buffer,
+              .indexCount = renderable.animatedMeshV2->mesh.indexCount,
+              .updatePushConstants = [&]() {
+                auto &pushConstantsBank = renderGraph.context.pushConstantBank;
 
-                    Renderer::Shaders::PushConstantsBank::setInt(
-                        pushConstantsBank, SG_PUSH_PREV_POSE_INDEX,
-                        animationData.previousPositionOffset);
-                    Renderer::Shaders::PushConstantsBank::setInt(
-                        pushConstantsBank, SG_PUSH_NEXT_POSE_INDEX,
-                        animationData.nextPositionOffset);
-                    Renderer::Shaders::PushConstantsBank::setFloat(
-                        pushConstantsBank, SG_PUS_INTERPOLATION_FACTOR_INDEX,
-                        animationData.interpolation);
+                auto animationData =
+                    getAnimationDataFromEntity(renderable.entity);
 
-                    TransformComponent &tc = getTransform(renderable.entity);
+                Renderer::Shaders::PushConstantsBank::setInt(
+                    pushConstantsBank, SG_PUSH_PREV_POSE_INDEX,
+                    animationData.previousPositionOffset);
+                Renderer::Shaders::PushConstantsBank::setInt(
+                    pushConstantsBank, SG_PUSH_NEXT_POSE_INDEX,
+                    animationData.nextPositionOffset);
+                Renderer::Shaders::PushConstantsBank::setFloat(
+                    pushConstantsBank, SG_PUS_INTERPOLATION_FACTOR_INDEX,
+                    animationData.interpolation);
 
-                    Renderer::Shaders::PushConstantsBank::setInt(
-                        pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
+                TransformComponent &tc = getTransform(renderable.entity);
 
-                    if (renderable.textureIndex != -1) {
-                      Renderer::Shaders::PushConstantsBank::setUInt(
-                          pushConstantsBank, SG_PUSH_DIFF_TEX_INDEX,
-                          renderable.textureIndex);
-                    }
-                  }});
+                Renderer::Shaders::PushConstantsBank::setInt(
+                    pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
+
+                if (renderable.textureIndex != -1) {
+                  Renderer::Shaders::PushConstantsBank::setUInt(
+                      pushConstantsBank, SG_PUSH_DIFF_TEX_INDEX,
+                      renderable.textureIndex);
+                }
+
+                Renderer::Shaders::PushConstantsBank::setInt(
+                    pushConstantsBank, SG_PUSH_SAMPLED_DEPTH_PASS_IMAGE_INDEX,
+                    renderGraph.sampledDepthTexture->index);
+              }};
+
+          depthTestingGroups[renderGraph.depthTestPipelines.animatedPipeline]
+              .renderCalls.emplace_back(animatedRenderCall);
+          visualizationGroups[renderGraph.shadowVisualizationPipelines
+                                  .animatedPipeline]
+              .renderCalls.emplace_back(animatedRenderCall);
         }
       }
 

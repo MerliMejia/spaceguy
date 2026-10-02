@@ -74,11 +74,13 @@ struct VTexture {
 
     uploadCommandBuffer.begin(beginInfo);
 
-    vImage.transition(
-        vk::PipelineStageFlagBits2::eNone, vk::AccessFlagBits2::eNone,
-        vk::PipelineStageFlagBits2::eTransfer,
-        vk::AccessFlagBits2::eTransferWrite, vk::ImageLayout::eUndefined,
-        vk::ImageLayout::eTransferDstOptimal, uploadCommandBuffer);
+    TransitionState toTransferWrite{
+        .stage = vk::PipelineStageFlagBits2::eTransfer,
+        .access = vk::AccessFlagBits2::eTransferWrite,
+        .layout = vk::ImageLayout::eTransferDstOptimal,
+    };
+
+    vImage.transition(toTransferWrite, uploadCommandBuffer);
 
     vk::BufferImageCopy copyRegion{
         .bufferOffset = 0,
@@ -107,12 +109,13 @@ struct VTexture {
     // In this case, we transition the image again to eShaderReadOnlyOptimal
     // with eFragmentShader and eShaderRead because a texture will always be
     // sampled by the shader.
-    vImage.transition(
-        vk::PipelineStageFlagBits2::eTransfer,
-        vk::AccessFlagBits2::eTransferWrite,
-        vk::PipelineStageFlagBits2::eFragmentShader,
-        vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eTransferDstOptimal,
-        vk::ImageLayout::eShaderReadOnlyOptimal, uploadCommandBuffer);
+
+    TransitionState toShaderReadFrag{
+        .stage = vk::PipelineStageFlagBits2::eFragmentShader,
+        .access = vk::AccessFlagBits2::eShaderRead,
+        .layout = vk::ImageLayout::eShaderReadOnlyOptimal};
+
+    vImage.transition(toShaderReadFrag, uploadCommandBuffer);
 
     uploadCommandBuffer.end();
 
