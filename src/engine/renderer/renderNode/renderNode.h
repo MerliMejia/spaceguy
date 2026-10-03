@@ -1,21 +1,17 @@
 #pragma once
 
 #include "../../../utils/file.h"
-#include "../bufferUtils.h"
-#include "../images/vImageManager.h"
-#include "../renderGraphUtils.h"
+#include "../renderGraph/renderGraphUtils.h"
 #include "../vSwapChain.h"
 #include "vulkan/vulkan.hpp"
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 #define GLM_FORCE_RADIANS
-#include "../images/vTexture.h"
+#include "../images/vImage.h"
 #include "../shaders/shaders.h"
 #include "renderNodeUtils.h"
 #include <glm/glm.hpp>
@@ -52,8 +48,6 @@ struct RenderNode {
   std::vector<PipelineGroup> pipelineGroups;
   std::vector<vk::raii::CommandBuffer> commandBuffers;
 
-  // std::unique_ptr<Images::VImage> input = nullptr;
-  // std::unique_ptr<Images::VImage> output = nullptr;
   std::array<std::unique_ptr<Images::VImage>,
              RenderNodeUtils::MAX_FRAMES_IN_FLIGHT>
       outputs;
@@ -72,177 +66,6 @@ struct RenderNode {
                          step1_initShadersProps props) {
     shaderModule =
         RenderNodeUtils::createShaderModule(readFile(props.shaderFile), device);
-  }
-
-  void step_1_2_createUniformBuffers(VDevice &vDevice) {
-    // For now 1 per frame in flight. At some point I may want something that is
-    // more static.
-    for (size_t i = 0; i < RenderNodeUtils::MAX_FRAMES_IN_FLIGHT; i++) {
-
-      vk::DeviceSize bufferSize =
-          sizeof(RenderGraph::Context::GlobalUniformBankBuffer);
-      BufferAllocationWithMapped newUniformBuffer{};
-
-      BufferAllocation alloc = createBuffer(
-          vDevice, bufferSize, vk::BufferUsageFlagBits::eUniformBuffer,
-          vk::MemoryPropertyFlagBits::eHostVisible |
-              vk::MemoryPropertyFlagBits::eHostCoherent);
-
-      newUniformBuffer.buffer = std::move(alloc.buffer);
-      newUniformBuffer.memory = std::move(alloc.memory);
-      newUniformBuffer.mapped =
-          newUniformBuffer.memory.mapMemory(0, bufferSize);
-
-      renderGraphContext->globalUniformBankBuffers.emplace_back(
-          std::move(newUniformBuffer));
-    }
-  }
-
-  // I'll manually define this in a way that each node can use it however it
-  // wants. Right now 0,0 -> uniform bank, 1,0 -> sampler, 2,0 0 -> texture
-  // bank.
-  void step_1_3_createDescriptorSetLayout(vk::raii::Device &device) {
-    std::array<vk::DescriptorSetLayoutBinding, 4> bingdings{
-        vk::DescriptorSetLayoutBinding{
-            .binding = 0,
-            .descriptorType = vk::DescriptorType::eUniformBuffer,
-            .descriptorCount = 1,
-            .stageFlags = vk::ShaderStageFlagBits::eVertex |
-                          vk::ShaderStageFlagBits::eFragment},
-        vk::DescriptorSetLayoutBinding{
-            .binding = 1,
-            .descriptorType = vk::DescriptorType::eSampler,
-            .descriptorCount = 1,
-            .stageFlags = vk::ShaderStageFlagBits::eFragment},
-        vk::DescriptorSetLayoutBinding{
-            .binding = 2,
-            .descriptorType = vk::DescriptorType::eSampledImage,
-            .descriptorCount = SG_MAX_TEXTURES,
-            .stageFlags = vk::ShaderStageFlagBits::eFragment},
-        vk::DescriptorSetLayoutBinding{
-            .binding = 3,
-            .descriptorType = vk::DescriptorType::eStorageBuffer,
-            .descriptorCount = 1,
-            .stageFlags = vk::ShaderStageFlagBits::eVertex |
-                          vk::ShaderStageFlagBits::eFragment}};
-
-    vk::DescriptorSetLayoutCreateInfo layoutInfo{
-        .bindingCount = static_cast<uint32_t>(bingdings.size()),
-        .pBindings = bingdings.data()};
-    renderGraphContext->defaultDescriptorSetLayout =
-        vk::raii::DescriptorSetLayout(device, layoutInfo);
-  }
-
-  void step_1_4_createDescriptorPool(vk::raii::Device &device) {
-    std::array<vk::DescriptorPoolSize, 4> poolSizes = {
-        vk::DescriptorPoolSize{.type = vk::DescriptorType::eUniformBuffer,
-                               .descriptorCount =
-                                   RenderNodeUtils::MAX_FRAMES_IN_FLIGHT},
-        vk::DescriptorPoolSize{.type = vk::DescriptorType::eSampler,
-                               .descriptorCount =
-                                   RenderNodeUtils::MAX_FRAMES_IN_FLIGHT},
-        // Each frame in flight to have 20 sampled textures.
-        vk::DescriptorPoolSize{.type = vk::DescriptorType::eSampledImage,
-                               .descriptorCount =
-                                   RenderNodeUtils::MAX_FRAMES_IN_FLIGHT *
-                                   SG_MAX_TEXTURES},
-        // Just one. This initial storage buffer is for vertex animation data
-        // that will be uploaded just once.
-        vk::DescriptorPoolSize{.type = vk::DescriptorType::eStorageBuffer,
-                               .descriptorCount =
-                                   RenderNodeUtils::MAX_FRAMES_IN_FLIGHT}};
-
-    vk::DescriptorPoolCreateInfo poolInfo{
-        .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-        .maxSets = RenderNodeUtils::MAX_FRAMES_IN_FLIGHT,
-        .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
-        .pPoolSizes = poolSizes.data()};
-
-    renderGraphContext->defaultDescriptorPool =
-        vk::raii::DescriptorPool(device, poolInfo);
-  }
-
-  void step_1_5_allocateDescriptorSets(vk::raii::Device &device) {
-    std::vector<vk::DescriptorSetLayout> layouts(
-        RenderNodeUtils::MAX_FRAMES_IN_FLIGHT,
-        *renderGraphContext->defaultDescriptorSetLayout);
-
-    vk::DescriptorSetAllocateInfo allocInfo{
-        .descriptorPool = renderGraphContext->defaultDescriptorPool,
-        .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
-        .pSetLayouts = layouts.data()};
-
-    renderGraphContext->defaultDescriptorSets =
-        device.allocateDescriptorSets(allocInfo);
-  }
-
-  void step_1_6_configureDescriptorSets(
-      vk::raii::Device &device, Renderer::Images::VManager &vTextureManager) {
-
-    for (size_t i = 0; i < RenderNodeUtils::MAX_FRAMES_IN_FLIGHT; i++) {
-      vk::DescriptorBufferInfo bufferInfo{
-          .buffer = renderGraphContext->globalUniformBankBuffers[i].buffer,
-          .offset = 0,
-          .range = sizeof(RenderGraph::Context::GlobalUniformBankBuffer)};
-
-      vk::DescriptorImageInfo samplerInfo{
-          .sampler = *vTextureManager.sampler,
-          .imageView = {},
-          .imageLayout = vk::ImageLayout::eUndefined,
-      };
-
-      std::array<vk::DescriptorImageInfo, SG_MAX_TEXTURES> imageInfos;
-
-      for (size_t i = 0; i < imageInfos.size(); i++) {
-        imageInfos[i] = vk::DescriptorImageInfo{
-            .sampler = {},
-            .imageView = *vTextureManager.textures[i]->vImage.view,
-            .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-        };
-      }
-
-      vk::DescriptorBufferInfo vertexAnimationStorageBufferBankInfo{
-          .buffer = renderGraphContext->vertAnimSBBankAllocations.buffer,
-          .offset = 0,
-          .range = sizeof(RenderGraph::Context::VerAnimSSBank)};
-
-      std::array<vk::WriteDescriptorSet, 4> writes{
-          vk::WriteDescriptorSet{
-              .dstSet = *renderGraphContext->defaultDescriptorSets[i],
-              .dstBinding = 0,
-              .dstArrayElement = 0,
-              .descriptorCount = 1,
-              .descriptorType = vk::DescriptorType::eUniformBuffer,
-              .pBufferInfo = &bufferInfo,
-          },
-          vk::WriteDescriptorSet{
-              .dstSet = *renderGraphContext->defaultDescriptorSets[i],
-              .dstBinding = 1,
-              .dstArrayElement = 0,
-              .descriptorCount = 1,
-              .descriptorType = vk::DescriptorType::eSampler,
-              .pImageInfo = &samplerInfo,
-          },
-          {
-              .dstSet = *renderGraphContext->defaultDescriptorSets[i],
-              .dstBinding = 2,
-              .dstArrayElement = 0,
-              .descriptorCount = static_cast<uint32_t>(imageInfos.size()),
-              .descriptorType = vk::DescriptorType::eSampledImage,
-              .pImageInfo = imageInfos.data(),
-          }};
-
-      writes[3] = vk::WriteDescriptorSet{
-          .dstSet = *renderGraphContext->defaultDescriptorSets[i],
-          .dstBinding = 3,
-          .dstArrayElement = 0,
-          .descriptorCount = 1,
-          .descriptorType = vk::DescriptorType::eStorageBuffer,
-          .pBufferInfo = &vertexAnimationStorageBufferBankInfo,
-      };
-
-      device.updateDescriptorSets(writes, {});
-    }
   }
 
   void step2_createPipelineLayout(vk::raii::Device &device) {
@@ -388,10 +211,7 @@ struct RenderNode {
       group.renderCalls.clear();
     }
   }
-  // The initial image layout transition is from eUndefined to
-  // eColorAttachmentOptimal assumming that by default we always want to draw a
-  // color attachment. This should change later so I can define what's the
-  // initial layout transition. Probably eUndefined to depth, stencil, other?
+
   void step3_initCommandBuffer(vk::raii::Device &device,
                                vk::raii::CommandPool &commandPool) {
     vk::CommandBufferAllocateInfo allocInfo{
@@ -400,15 +220,6 @@ struct RenderNode {
         .commandBufferCount = RenderNodeUtils::MAX_FRAMES_IN_FLIGHT};
 
     commandBuffers = vk::raii::CommandBuffers(device, allocInfo);
-  }
-
-  // For now, just the global uniform bank.
-  // I think it depends on the node to update these.
-  // One node can do this but not all of the nodes.
-  void perFrame1_updateUniformBuffers(uint32_t frameIndex) {
-    memcpy(renderGraphContext->globalUniformBankBuffers[frameIndex].mapped,
-           &renderGraphContext->globalUniformBufferData,
-           sizeof(renderGraphContext->globalUniformBufferData));
   }
 
   void recordCommandBuffer(float width, float height, uint32_t frameIndex) {

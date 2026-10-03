@@ -6,7 +6,7 @@
 #include <GLFW/glfw3.h>
 #include <functional>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include "renderGraph.h"
+#include "renderGraph/renderGraph.h"
 #include "vDevice.h"
 #include "vInstance.h"
 #include "vSwapChain.h"
@@ -56,8 +56,7 @@ struct VRenderer {
   void mainLoop() {
 
     auto &depthTestingGroups = renderGraph.depthTestNode.pipelineGroups;
-    auto &visualizationGroups =
-        renderGraph.mainNode.pipelineGroups;
+    auto &visualizationGroups = renderGraph.mainNode.pipelineGroups;
 
     window.update([&]() {
       updateTime();

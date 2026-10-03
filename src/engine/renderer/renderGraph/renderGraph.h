@@ -1,21 +1,22 @@
 #pragma once
 
-#include "images/vImage.h"
-#include "images/vTexture.h"
+#include "../images/vImage.h"
+#include "../images/vImageManager.h"
+#include "../images/vTexture.h"
+#include "../renderNode/renderNode.h"
+#include "../renderNode/renderNodeUtils.h"
+#include "../vConfig.h"
+#include "../vDevice.h"
+#include "../vSwapChain.h"
 #include "renderGraphUtils.h"
-#include "renderNode/renderNode.h"
-#include "renderNode/renderNodeUtils.h"
-#include "vDevice.h"
-#include "vSwapChain.h"
 #include "vulkan/vulkan.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
-#define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
-#include "../blender/v2/importer.h"
+
+#include "../../blender/v2/importer.h"
 #include <iostream>
-#include <vulkan/vulkan_raii.hpp>
 
 namespace Renderer {
 
@@ -36,6 +37,7 @@ struct RenderGraph {
   vk::raii::CommandPool commandPool = nullptr;
 
   Context context{};
+  VConfig vConfig{};
 
   Renderer::RenderNode mainNode;
   Renderer::RenderNode depthTestNode;
@@ -330,24 +332,15 @@ struct RenderGraph {
       mainNode.commandBuffers[frameIndex].end();
     };
 
-    mainNode.step_1_2_createUniformBuffers(vDevice);
-    mainNode.step_1_3_createDescriptorSetLayout(vDevice.device);
-    mainNode.step_1_4_createDescriptorPool(vDevice.device);
-    mainNode.step_1_5_allocateDescriptorSets(vDevice.device);
+    vConfig.createUniformBuffers(vDevice, context);
+    vConfig.createDescriptorSetLayout(vDevice, context);
+    vConfig.createDescriptorPool(vDevice.device, context);
+    vConfig.allocateDescriptorSets(vDevice.device, context);
+    vConfig.configureDescriptorSets(vDevice.device, context, vTextureManager);
 
-    mainNode.step_1_6_configureDescriptorSets(vDevice.device, vTextureManager);
     mainNode.step2_createPipelineLayout(vDevice.device);
     mainNode.step3_initCommandBuffer(vDevice.device, commandPool);
 
-    // Commented out means the previous node already set them up
-    //
-    // depthTestNode.step_1_2_createUniformBuffers(vDevice);
-    // depthTestNode.step_1_3_createDescriptorSetLayout(vDevice.device);
-    // depthTestNode.step_1_4_createDescriptorPool(vDevice.device);
-    // depthTestNode.step_1_5_allocateDescriptorSets(vDevice.device);
-
-    // depthTestNode.step_1_6_configureDescriptorSets(vDevice.device,
-    //                                                vTextureManager);
     depthTestNode.step2_createPipelineLayout(vDevice.device);
     depthTestNode.step3_initCommandBuffer(vDevice.device, commandPool);
 
@@ -427,18 +420,17 @@ struct RenderGraph {
 
     imageIndex = acquiredImageIndex;
 
+    vConfig.updateUniformBuffers(frameIndex, context);
+
     // Depth testing pass
     depthTestNode.commandBuffers[frameIndex].reset();
     depthTestNode.commandBuffers[frameIndex].begin(
         vk::CommandBufferBeginInfo{});
-    depthTestNode.perFrame1_updateUniformBuffers(frameIndex);
     depthTestNode.perFrameFunction(vSwapChain, imageIndex, frameIndex);
 
     // Main node pass
     mainNode.commandBuffers[frameIndex].reset();
     mainNode.commandBuffers[frameIndex].begin(vk::CommandBufferBeginInfo{});
-    // Not needed since the depth pass already updates this.
-    // mainNode.perFrame1_updateUniformBuffers(frameIndex);
     mainNode.perFrameFunction(vSwapChain, imageIndex, frameIndex);
 
     device.resetFences(*inFlightFences[frameIndex]);

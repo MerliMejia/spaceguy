@@ -2,8 +2,8 @@
 #include <array>
 #include <vector>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
-#include "bufferUtils.h"
-#include "shaders/shaders.h"
+#include "../bufferUtils.h"
+#include "../shaders/shaders.h"
 #include <glm/glm.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
