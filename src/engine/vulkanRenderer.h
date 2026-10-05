@@ -3,11 +3,10 @@
 #define VULKAN_HPP_NO_CONSTRUCTORS
 #include "vulkan/vulkan.hpp"
 #include <cstdint>
-#include <vulkan/vulkan_raii.hpp>
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <vulkan/vulkan_raii.hpp>
+
 
 #include <cstring>
 #include <vector>

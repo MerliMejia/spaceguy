@@ -1,5 +1,4 @@
 #pragma once
-#define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan_raii.hpp>
 
 #include <map> // IWYU pragma: keep
@@ -44,15 +43,12 @@ bool isDeviceSuitable(vk::raii::PhysicalDevice const &physicalDevice) {
   // parameters, dynamic rendering and extended dynamic state)
   auto features = physicalDevice.template getFeatures2<
       vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features,
-      vk::PhysicalDeviceVulkan13Features,
-      vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
+      vk::PhysicalDeviceVulkan13Features>();
   bool supportsRequiredFeatures =
       features.template get<vk::PhysicalDeviceVulkan11Features>()
           .shaderDrawParameters &&
       features.template get<vk::PhysicalDeviceVulkan13Features>()
           .dynamicRendering &&
-      features.template get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>()
-          .extendedDynamicState &&
       features.template get<vk::PhysicalDeviceVulkan13Features>()
           .synchronization2;
 
@@ -101,16 +97,13 @@ void createLogicalDevice(vk::raii::PhysicalDevice &physicalDevice,
   // query for Vulkan 1.3 features
   vk::StructureChain<vk::PhysicalDeviceFeatures2,
                      vk::PhysicalDeviceVulkan11Features,
-                     vk::PhysicalDeviceVulkan13Features,
-                     vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>
+                     vk::PhysicalDeviceVulkan13Features>
       featureChain = {
           {},                             // vk::PhysicalDeviceFeatures2
           {.shaderDrawParameters = true}, // vk::PhysicalDeviceVulkan11Features
           {.synchronization2 = true,
            .dynamicRendering = true}, // vk::PhysicalDeviceVulkan13Features
-          {.extendedDynamicState =
-               true} // vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT
-      };
+  };
 
   // create a Device
 

@@ -3,11 +3,13 @@
 #include "../images/vImage.h"
 #include "../images/vImageManager.h"
 #include "../images/vTexture.h"
+#include "../renderNode/computeNode.h"
 #include "../renderNode/renderNode.h"
 #include "../renderNode/renderNodeUtils.h"
 #include "../vConfig.h"
 #include "../vDevice.h"
 #include "../vSwapChain.h"
+#include "glm/fwd.hpp"
 #include "renderGraphUtils.h"
 #include "vulkan/vulkan.hpp"
 #include <cstddef>
@@ -32,21 +34,22 @@ struct RenderGraph {
   std::vector<vk::raii::Fence> inFlightFences;
   unsigned int imageIndex = UINT32_MAX;
   uint32_t frameIndex = 0;
-  std::array<bool, RenderNodeUtils::MAX_FRAMES_IN_FLIGHT> initializedFrames{
-      false, false};
   vk::raii::CommandPool commandPool = nullptr;
+  std::vector<vk::raii::CommandBuffer> commandBuffers;
 
   Context context{};
   VConfig vConfig{};
 
   Renderer::RenderNode mainNode;
   Renderer::RenderNode depthTestNode;
+  Renderer::ComputeNode particlesComputeNode;
+  Renderer::VBarriers::VBarrier particlesComputeBarrier;
 
   Images::VTexture *sampledDepthTexture = nullptr;
   Images::VImage mainNodeDepthTestImage;
   Images::VImage colorMSAAsampleImage;
 
-  NodePipelines shadowVisualizationPipelines{};
+  NodePipelines mainPipelines{};
   NodePipelines depthTestPipelines{};
 
   Renderer::Images::VManager vTextureManager{};
@@ -96,16 +99,27 @@ struct RenderGraph {
 
     for (size_t i = 0; i < RenderNodeUtils::MAX_FRAMES_IN_FLIGHT; i++) {
       mainNode.outputs[i] = std::make_unique<Images::VImage>();
-      depthTestNode.outputs[i] = std::make_unique<Images::VImage>();
+
+      Renderer::Images::VImage *mainNodeImage = mainNode.outputs[i].get();
+
+      mainNodeImage->usage = vk::ImageUsageFlagBits::eColorAttachment |
+                             vk::ImageUsageFlagBits::eTransferSrc;
+
+      mainNodeImage->format = vSwapChain.swapChainSurfaceFormat.format;
+
+      mainNodeImage->init(vSwapChain.swapChainExtent.width,
+                          vSwapChain.swapChainExtent.height, vDevice,
+                          vk::SampleCountFlagBits::e1);
     }
 
     mainNode.preInit(context);
-    mainNode.updateUniforms = true;
     mainNode.usePushConstants = true;
 
     depthTestNode.preInit(context);
-    depthTestNode.updateUniforms = true;
     depthTestNode.usePushConstants = true;
+
+    particlesComputeNode.preInit(context);
+    particlesComputeNode.usePushConstants = true;
 
     mainNode.step1_initShaders(vDevice.device,
                                Renderer::step1_initShadersProps{
@@ -114,6 +128,9 @@ struct RenderGraph {
     depthTestNode.step1_initShaders(
         vDevice.device, Renderer::step1_initShadersProps{
                             .shaderFile = "shaders/v2/depthTest.spv"});
+
+    particlesComputeNode.step1_initShaders(vDevice.device,
+                                           "shaders/v2/particlesCompute.spv");
 
     sampledDepthTexture->vImage.format = vk::Format::eD32Sfloat;
     sampledDepthTexture->vImage.usage =
@@ -143,6 +160,20 @@ struct RenderGraph {
                               vSwapChain.swapChainExtent.height, vDevice,
                               vk::SampleCountFlagBits::e4);
 
+    for (size_t i = 0; i < context.particlesData.size(); i++) {
+      context.particlesData[i] = glm::vec4(0.0f);
+    }
+
+    particlesComputeNode.perFrameFunction =
+        [&](Renderer::VSwapChain &vSwapChain, uint32_t imageIndex,
+            uint32_t frameIndex) {
+          vConfig.recordComputeCommandBuffer(particlesComputeNode,
+                                             commandBuffers[frameIndex],
+                                             context, frameIndex);
+
+          commandBuffers[frameIndex].dispatch((100 + 63) / 64, 1, 1);
+        };
+
     depthTestNode.perFrameFunction = [&](Renderer::VSwapChain &vSwapChain,
                                          uint32_t imageIndex,
                                          uint32_t frameIndex) {
@@ -151,10 +182,9 @@ struct RenderGraph {
       clearDepth.depthStencil.setDepth(1.0f);
       clearDepth.depthStencil.setStencil(0);
 
-      sampledDepthTexture->vImage.transition(
-          deptTestWriteAttachmentState,
-          depthTestNode.commandBuffers[frameIndex],
-          vk::ImageAspectFlagBits::eDepth);
+      sampledDepthTexture->vImage.transition(deptTestWriteAttachmentState,
+                                             commandBuffers[frameIndex],
+                                             vk::ImageAspectFlagBits::eDepth);
 
       vk::RenderingAttachmentInfo depthAttachmentInfo = {
           .imageView = sampledDepthTexture->vImage.view,
@@ -171,12 +201,14 @@ struct RenderGraph {
           .colorAttachmentCount = 0,
           .pDepthAttachment = &depthAttachmentInfo};
 
-      depthTestNode.commandBuffers[frameIndex].beginRendering(renderingInfo);
+      commandBuffers[frameIndex].beginRendering(renderingInfo);
 
       // Do the depth test pass
-      depthTestNode.recordCommandBuffer(SHADOWS_RES * 1.0f, SHADOWS_RES * 1.0f,
-                                        frameIndex);
-      depthTestNode.commandBuffers[frameIndex].end();
+      vConfig.recordCommandBuffer(SHADOWS_RES * 1.0f, SHADOWS_RES * 1.0f,
+                                  depthTestNode, commandBuffers[frameIndex],
+                                  this->context, frameIndex);
+
+      commandBuffers[frameIndex].endRendering();
     };
 
     mainNode.perFrameFunction = [&](Renderer::VSwapChain &vSwapChain,
@@ -192,44 +224,21 @@ struct RenderGraph {
       clearDepth.depthStencil.setStencil(0);
 
       mainNodeDepthTestImage.transition(deptTestWriteAttachmentState,
-                                        mainNode.commandBuffers[frameIndex],
+                                        commandBuffers[frameIndex],
                                         vk::ImageAspectFlagBits::eDepth);
 
       Renderer::Images::VImage *mainNodeImage =
           mainNode.outputs[frameIndex].get();
-
-      if (!initializedFrames[frameIndex]) {
-
-        mainNodeImage->usage = vk::ImageUsageFlagBits::eColorAttachment |
-                               vk::ImageUsageFlagBits::eTransferSrc;
-
-        mainNodeImage->format = vSwapChain.swapChainSurfaceFormat.format;
-        initializedFrames[frameIndex] = true;
-
-        mainNodeImage->init(vSwapChain.swapChainExtent.width,
-                            vSwapChain.swapChainExtent.height, vDevice,
-                            vk::SampleCountFlagBits::e1);
-      }
 
       Images::TransitionState toColorWriteState{
           .stage = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
           .access = vk::AccessFlagBits2::eColorAttachmentWrite,
           .layout = vk::ImageLayout::eColorAttachmentOptimal};
 
-      mainNodeImage->transition(toColorWriteState,
-                                mainNode.commandBuffers[frameIndex]);
+      mainNodeImage->transition(toColorWriteState, commandBuffers[frameIndex]);
 
       colorMSAAsampleImage.transition(toColorWriteState,
-                                      mainNode.commandBuffers[frameIndex]);
-
-      Images::TransitionState toSampledOnShaderRead{
-          .stage = vk::PipelineStageFlagBits2::eFragmentShader,
-          .access = vk::AccessFlagBits2::eShaderSampledRead,
-          .layout = vk::ImageLayout::eShaderReadOnlyOptimal};
-
-      sampledDepthTexture->vImage.transition(
-          toSampledOnShaderRead, mainNode.commandBuffers[frameIndex],
-          vk::ImageAspectFlagBits::eDepth);
+                                      commandBuffers[frameIndex]);
 
       vk::RenderingAttachmentInfo colorAttachmentInfo = {
           .imageView = colorMSAAsampleImage.view,
@@ -257,22 +266,26 @@ struct RenderGraph {
           .pColorAttachments = &colorAttachmentInfo,
           .pDepthAttachment = &depthAttachmentInfo};
 
-      mainNode.commandBuffers[frameIndex].beginRendering(renderingInfo);
+      commandBuffers[frameIndex].beginRendering(renderingInfo);
 
       // Do the drawings on the mainNodeImage.
-      mainNode.recordCommandBuffer(
+      vConfig.recordCommandBuffer(
           static_cast<float>(vSwapChain.swapChainExtent.width),
-          static_cast<float>(vSwapChain.swapChainExtent.height), frameIndex);
+          static_cast<float>(vSwapChain.swapChainExtent.height), mainNode,
+          commandBuffers[frameIndex], this->context, frameIndex);
+
+      commandBuffers[frameIndex].endRendering();
 
       // From main pass to swapchain:
+      // For now we not resolve directly to the swapchain because I want
+      // eventually to do some post-processing.
 
       Images::TransitionState toTransferRead{
           .stage = vk::PipelineStageFlagBits2::eTransfer,
           .access = vk::AccessFlagBits2::eTransferRead,
           .layout = vk::ImageLayout::eTransferSrcOptimal};
 
-      mainNodeImage->transition(toTransferRead,
-                                mainNode.commandBuffers[frameIndex]);
+      mainNodeImage->transition(toTransferRead, commandBuffers[frameIndex]);
 
       Images::TransitionState fromNoneUndefined{
           .stage = vk::PipelineStageFlagBits2::eNone,
@@ -286,7 +299,7 @@ struct RenderGraph {
 
       Images::transitionImage(vSwapChain.swapChainImages[imageIndex],
                               fromNoneUndefined, toTransferWrite,
-                              mainNode.commandBuffers[frameIndex]);
+                              commandBuffers[frameIndex]);
 
       // Resolve instead of copy because we're doing multisampling.
       vk::ImageCopy copyRegion{
@@ -314,7 +327,7 @@ struct RenderGraph {
               },
       };
 
-      mainNode.commandBuffers[frameIndex].copyImage(
+      commandBuffers[frameIndex].copyImage(
           mainNodeImage->image, vk::ImageLayout::eTransferSrcOptimal,
           vSwapChain.swapChainImages[imageIndex],
           vk::ImageLayout::eTransferDstOptimal, copyRegion);
@@ -327,22 +340,33 @@ struct RenderGraph {
 
       Images::transitionImage(vSwapChain.swapChainImages[imageIndex],
                               toTransferWrite, toPresent,
-                              mainNode.commandBuffers[frameIndex]);
-
-      mainNode.commandBuffers[frameIndex].end();
+                              commandBuffers[frameIndex]);
     };
 
     vConfig.createUniformBuffers(vDevice, context);
+
+    // Create the GPU only buffer for the particles
+    context.particlesAllocations = createDeviceLocalBuffer<glm::vec4>(
+        vDevice, commandPool, context.particlesData,
+        vk::BufferUsageFlagBits::eStorageBuffer |
+            vk::BufferUsageFlagBits::eVertexBuffer);
+
     vConfig.createDescriptorSetLayout(vDevice, context);
+    vConfig.createComputeDescriptorSetLayout(vDevice, context);
     vConfig.createDescriptorPool(vDevice.device, context);
     vConfig.allocateDescriptorSets(vDevice.device, context);
+    vConfig.allocateComputeDescriptorSets(vDevice.device, context);
     vConfig.configureDescriptorSets(vDevice.device, context, vTextureManager);
+    vConfig.configureComputeDescriptorSets(vDevice.device, context);
+    vConfig.initCommandBuffers(vDevice.device, commandPool, commandBuffers);
 
     mainNode.step2_createPipelineLayout(vDevice.device);
-    mainNode.step3_initCommandBuffer(vDevice.device, commandPool);
 
     depthTestNode.step2_createPipelineLayout(vDevice.device);
-    depthTestNode.step3_initCommandBuffer(vDevice.device, commandPool);
+
+    particlesComputeNode.step2_createPipelineLayout(vDevice.device);
+
+    particlesComputeNode.setPipeline(vDevice.device, "main");
 
     // static pipeline
     depthTestPipelines.staticPipeline =
@@ -371,7 +395,7 @@ struct RenderGraph {
                 .name = "vertAnimated"}});
 
     // static pipeline
-    shadowVisualizationPipelines.staticPipeline =
+    mainPipelines.staticPipeline =
         mainNode.step2_addPipeline<Blender::V2::Vertex>(
             vDevice.device,
             Renderer::step2_pipelineConfigurationProps{
@@ -388,7 +412,7 @@ struct RenderGraph {
                  .name = "fragMain"}});
 
     // animated pipeline
-    shadowVisualizationPipelines.animatedPipeline =
+    mainPipelines.animatedPipeline =
         mainNode.step2_addPipeline<Blender::V2::AnimatedVertex>(
             vDevice.device,
             Renderer::step2_pipelineConfigurationProps{
@@ -422,16 +446,46 @@ struct RenderGraph {
 
     vConfig.updateUniformBuffers(frameIndex, context);
 
+    commandBuffers[frameIndex].reset();
+
+    commandBuffers[frameIndex].begin(vk::CommandBufferBeginInfo{});
+
+    // Prepare for reading and writing to particles on the compute shader
+    particlesComputeBarrier.bTransition(
+        commandBuffers[frameIndex],
+        VBarriers::BufferTransitionState{
+            .stage = vk::PipelineStageFlagBits2::eComputeShader,
+            .access = vk::AccessFlagBits2::eShaderStorageRead |
+                      vk::AccessFlagBits2::eShaderStorageWrite});
+
+    // Update particles
+    particlesComputeNode.perFrameFunction(vSwapChain, imageIndex, frameIndex);
+
+    // Make particles ready to be used by other shaders
+    particlesComputeBarrier.bTransition(
+        commandBuffers[frameIndex],
+        VBarriers::BufferTransitionState{
+            .stage = vk::PipelineStageFlagBits2::eVertexShader |
+                     vk::PipelineStageFlagBits2::eFragmentShader,
+            .access = vk::AccessFlagBits2::eShaderStorageRead});
+
     // Depth testing pass
-    depthTestNode.commandBuffers[frameIndex].reset();
-    depthTestNode.commandBuffers[frameIndex].begin(
-        vk::CommandBufferBeginInfo{});
     depthTestNode.perFrameFunction(vSwapChain, imageIndex, frameIndex);
 
+    // Prepare depth testing image to be sampled
+    Images::TransitionState toSampledOnShaderRead{
+        .stage = vk::PipelineStageFlagBits2::eFragmentShader,
+        .access = vk::AccessFlagBits2::eShaderSampledRead,
+        .layout = vk::ImageLayout::eShaderReadOnlyOptimal};
+
+    sampledDepthTexture->vImage.transition(toSampledOnShaderRead,
+                                           commandBuffers[frameIndex],
+                                           vk::ImageAspectFlagBits::eDepth);
+
     // Main node pass
-    mainNode.commandBuffers[frameIndex].reset();
-    mainNode.commandBuffers[frameIndex].begin(vk::CommandBufferBeginInfo{});
     mainNode.perFrameFunction(vSwapChain, imageIndex, frameIndex);
+
+    commandBuffers[frameIndex].end();
 
     device.resetFences(*inFlightFences[frameIndex]);
   }
@@ -440,21 +494,14 @@ struct RenderGraph {
               Renderer::VSwapChain &vSwapChain) {
 
     vk::PipelineStageFlags waitDestinationStageMask(
-        vk::PipelineStageFlagBits::eColorAttachmentOutput);
-
-    std::vector<vk::CommandBuffer> commandBuffers;
-
-    // Depth test pass
-    commandBuffers.push_back(depthTestNode.commandBuffers[frameIndex]);
-    // Main node
-    commandBuffers.push_back(mainNode.commandBuffers[frameIndex]);
+        vk::PipelineStageFlagBits::eTransfer);
 
     const vk::SubmitInfo submitInfo{
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = &*presentCompleteSemaphores[frameIndex],
         .pWaitDstStageMask = &waitDestinationStageMask,
-        .commandBufferCount = static_cast<uint32_t>(commandBuffers.size()),
-        .pCommandBuffers = commandBuffers.data(),
+        .commandBufferCount = 1,
+        .pCommandBuffers = &*commandBuffers[frameIndex],
         .signalSemaphoreCount = 1,
         .pSignalSemaphores = &*renderFinishedSemaphores[imageIndex]};
     graphicsQueue.submit(submitInfo, *inFlightFences[frameIndex]);

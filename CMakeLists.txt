@@ -58,11 +58,16 @@ set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders/v2)
 add_custom_command(
     OUTPUT ${SHADER_DIR}/mainNode.spv
     COMMAND ${SLANGC} shaders/v2/mainNode.slang -o shaders/v2/mainNode.spv
+    OUTPUT ${SHADER_DIR}/depthTest.spv
     COMMAND ${SLANGC} shaders/v2/depthTest.slang -o shaders/v2/depthTest.spv
+    OUTPUT ${SHADER_DIR}/particlesCompute.spv
+    COMMAND ${SLANGC} shaders/v2/particlesCompute.slang -o shaders/v2/particlesCompute.spv
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     DEPENDS
         ${SHADER_DIR}/mainNode.slang
         ${SHADER_DIR}/banks.slang
+        ${SHADER_DIR}/depthTest.slang
+        ${SHADER_DIR}/particlesCompute.slang
         ${SHADER_DIR}/banks_shared.h
     COMMENT "Compiling shaders to SPIR-V"
     VERBATIM
@@ -84,6 +89,13 @@ target_sources(spaceguy PRIVATE
 )
 
 target_compile_features(spaceguy PRIVATE cxx_std_20)
+
+target_compile_definitions(spaceguy
+    PRIVATE
+    GLM_FORCE_DEPTH_ZERO_TO_ONE
+    GLM_FORCE_RADIANS
+    VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
+)
 
 target_include_directories(spaceguy
     PRIVATE

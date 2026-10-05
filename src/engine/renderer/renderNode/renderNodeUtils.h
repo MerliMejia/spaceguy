@@ -1,7 +1,6 @@
 #pragma once
 
 #include <functional>
-#define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <glm/glm.hpp>
 #include <vulkan/vulkan_raii.hpp>
 

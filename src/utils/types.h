@@ -3,8 +3,6 @@
 #define VULKAN_HPP_NO_CONSTRUCTORS
 #include <vulkan/vulkan_raii.hpp>
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "../engine/renderer/bufferUtils.h"
 #include <cstdint>
 #include <glm/glm.hpp>

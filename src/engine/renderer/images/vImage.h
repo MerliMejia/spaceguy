@@ -44,6 +44,7 @@ static void transitionImage(
   vk::DependencyInfo prepareDependency{
       .imageMemoryBarrierCount = 1,
       .pImageMemoryBarriers = &prepareForCopy,
+
   };
 
   commandBuffer.pipelineBarrier2(prepareDependency);

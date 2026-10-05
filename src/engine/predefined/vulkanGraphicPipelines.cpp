@@ -1,8 +1,6 @@
 #include "vulkanGraphicPipelines.h"
 #include "../../utils/file.h"
 #include "../vulkanBackend.h"
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
 #include "../vulkanRenderer.h"
@@ -309,7 +307,8 @@ void DEFAULT_GRAPHICS_PIPELINE() {
       .pDynamicState = &dynamicState,
       .layout = *vulkanRendererContext.pipelineLayout,
       .renderPass = nullptr,
-      .subpass = 0,};
+      .subpass = 0,
+  };
 
   vulkanRendererContext.graphicsPipeline =
       vk::raii::Pipeline{vulkanContext.device, nullptr, createInfo};

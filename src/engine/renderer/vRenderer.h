@@ -1,16 +1,15 @@
 #pragma once
 
+#include "renderGraph/renderGraph.h"
 #include "renderNode/renderNodeUtils.h"
 #include "shaders/banksManager.h"
 #include "shaders/shaders.h"
-#include <GLFW/glfw3.h>
-#include <functional>
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include "renderGraph/renderGraph.h"
 #include "vDevice.h"
 #include "vInstance.h"
 #include "vSwapChain.h"
 #include "window.h"
+#include <GLFW/glfw3.h>
+#include <functional>
 
 #include "../../systems/animationSystem.h"
 #include "../../systems/resourceManagementSystem.h"
@@ -58,8 +57,18 @@ struct VRenderer {
     auto &depthTestingGroups = renderGraph.depthTestNode.pipelineGroups;
     auto &visualizationGroups = renderGraph.mainNode.pipelineGroups;
 
+    renderGraph.particlesComputeNode.updatePushConstants = [&]() {
+      auto &pushConstantsBank = renderGraph.context.pushConstantBank;
+      Renderer::Shaders::PushConstantsBank::setUInt(
+          pushConstantsBank, SG_PUSH_PARTICLES_COUNT_INDEX, 100);
+    };
+
     window.update([&]() {
       updateTime();
+
+      auto &uniformsBank = renderGraph.context.globalUniformBufferData.data;
+      Renderer::Shaders::UniformBank::setFloat(
+          uniformsBank, SG_DELTA_TIME_INDEX, timeState.deltaTime);
 
       if (onUpdate) {
         onUpdate();
@@ -86,11 +95,10 @@ struct VRenderer {
                 Renderer::Shaders::PushConstantsBank::setInt(
                     pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
 
-                if (renderable.textureIndex != -1) {
-                  Renderer::Shaders::PushConstantsBank::setUInt(
-                      pushConstantsBank, SG_PUSH_DIFF_TEX_INDEX,
-                      renderable.textureIndex);
-                }
+                Renderer::Shaders::PushConstantsBank::setUInt(
+                    pushConstantsBank, SG_PUSH_DIFF_TEX_INDEX,
+                    renderable.textureIndex != -1 ? renderable.textureIndex
+                                                  : SG_MAX_TEXTURES - 1);
 
                 Renderer::Shaders::PushConstantsBank::setInt(
                     pushConstantsBank, SG_PUSH_SAMPLED_DEPTH_PASS_IMAGE_INDEX,
@@ -99,8 +107,7 @@ struct VRenderer {
 
           // depthTestingGroups[renderGraph.depthTestPipelines.staticPipeline]
           //     .renderCalls.emplace_back(staticRenderCall);
-          visualizationGroups[renderGraph.shadowVisualizationPipelines
-                                  .staticPipeline]
+          visualizationGroups[renderGraph.mainPipelines.staticPipeline]
               .renderCalls.emplace_back(staticRenderCall);
         }
 
@@ -133,11 +140,10 @@ struct VRenderer {
                 Renderer::Shaders::PushConstantsBank::setInt(
                     pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
 
-                if (renderable.textureIndex != -1) {
-                  Renderer::Shaders::PushConstantsBank::setUInt(
-                      pushConstantsBank, SG_PUSH_DIFF_TEX_INDEX,
-                      renderable.textureIndex);
-                }
+                Renderer::Shaders::PushConstantsBank::setUInt(
+                    pushConstantsBank, SG_PUSH_DIFF_TEX_INDEX,
+                    renderable.textureIndex != -1 ? renderable.textureIndex
+                                                  : SG_MAX_TEXTURES - 1);
 
                 Renderer::Shaders::PushConstantsBank::setInt(
                     pushConstantsBank, SG_PUSH_SAMPLED_DEPTH_PASS_IMAGE_INDEX,
@@ -146,8 +152,7 @@ struct VRenderer {
 
           depthTestingGroups[renderGraph.depthTestPipelines.animatedPipeline]
               .renderCalls.emplace_back(animatedRenderCall);
-          visualizationGroups[renderGraph.shadowVisualizationPipelines
-                                  .animatedPipeline]
+          visualizationGroups[renderGraph.mainPipelines.animatedPipeline]
               .renderCalls.emplace_back(animatedRenderCall);
         }
       }

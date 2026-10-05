@@ -1,22 +1,23 @@
 #pragma once
 
 #include "../../../utils/file.h"
+#include "../images/vImage.h"
 #include "../renderGraph/renderGraphUtils.h"
+#include "../shaders/shaders.h"
 #include "../vSwapChain.h"
+#include "renderNodeUtils.h"
 #include "vulkan/vulkan.hpp"
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <string>
 #include <utility>
 #include <vector>
-#define GLM_FORCE_RADIANS
-#include "../images/vImage.h"
-#include "../shaders/shaders.h"
-#include "renderNodeUtils.h"
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <vulkan/vulkan_raii.hpp>
+
 
 namespace Renderer {
 
@@ -41,19 +42,19 @@ struct step2_pipelineConfigurationProps {
   //... More stuff when dealing with more stuff
 };
 
+enum class PipelineKind { Graphics, Compute };
+
 struct RenderNode {
   vk::raii::ShaderModule shaderModule = nullptr;
   std::vector<RenderNodeUtils::ShaderCreateInfo> shaderCreateInfos;
   vk::raii::PipelineLayout pipelineLayout = nullptr;
   std::vector<PipelineGroup> pipelineGroups;
-  std::vector<vk::raii::CommandBuffer> commandBuffers;
 
   std::array<std::unique_ptr<Images::VImage>,
              RenderNodeUtils::MAX_FRAMES_IN_FLIGHT>
       outputs;
   Renderer::RenderGraph::Context *renderGraphContext = nullptr;
   bool usePushConstants = false;
-  bool updateUniforms = false;
   std::function<void(Renderer::VSwapChain &vSwapChain, uint32_t imageIndex,
                      uint32_t frameIndex)>
       perFrameFunction;
@@ -210,61 +211,6 @@ struct RenderNode {
     for (PipelineGroup &group : pipelineGroups) {
       group.renderCalls.clear();
     }
-  }
-
-  void step3_initCommandBuffer(vk::raii::Device &device,
-                               vk::raii::CommandPool &commandPool) {
-    vk::CommandBufferAllocateInfo allocInfo{
-        .commandPool = commandPool,
-        .level = vk::CommandBufferLevel::ePrimary,
-        .commandBufferCount = RenderNodeUtils::MAX_FRAMES_IN_FLIGHT};
-
-    commandBuffers = vk::raii::CommandBuffers(device, allocInfo);
-  }
-
-  void recordCommandBuffer(float width, float height, uint32_t frameIndex) {
-
-    auto &cmd = commandBuffers[frameIndex];
-
-    cmd.setViewport(0, vk::Viewport(0.0f, 0.0f, width, height, 0.0f, 1.0f));
-    cmd.setScissor(
-        0, vk::Rect2D(vk::Offset2D(0, 0),
-                      vk::Extent2D{.width = static_cast<uint32_t>(width),
-                                   .height = static_cast<uint32_t>(height)}));
-
-    // Bound once: every pipeline in the node shares this layout, so it stays
-    // valid across bindPipeline calls.
-    cmd.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics, pipelineLayout, 0,
-        *renderGraphContext->defaultDescriptorSets[frameIndex], nullptr);
-
-    for (PipelineGroup &group : pipelineGroups) {
-      if (group.renderCalls.empty()) {
-        continue;
-      }
-
-      cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, *group.pipeline);
-
-      for (const RenderNodeUtils::RenderCall &renderCall : group.renderCalls) {
-        if (usePushConstants) {
-          renderCall.updatePushConstants();
-
-          cmd.pushConstants(
-              *pipelineLayout,
-              vk::ShaderStageFlagBits::eVertex |
-                  vk::ShaderStageFlagBits::eFragment,
-              0, sizeof(Shaders::PushConstantsBank::PushConstantData),
-              &renderGraphContext->pushConstantBank);
-        }
-
-        cmd.bindVertexBuffers(0, renderCall.vertexBuffer, {0});
-        cmd.bindIndexBuffer(renderCall.indexBuffer, 0, vk::IndexType::eUint32);
-        cmd.drawIndexed(static_cast<uint32_t>(renderCall.indexCount), 1, 0, 0,
-                        0);
-      }
-    }
-
-    cmd.endRendering();
   }
 };
 } // namespace Renderer
