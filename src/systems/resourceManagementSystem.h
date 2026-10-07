@@ -5,6 +5,7 @@
 #include "../utils/math.h"
 #include "../utils/types.h"
 #include "glm/fwd.hpp"
+#include <cstdint>
 #include <vector>
 
 enum class ObjectRenderKind { Static, Animated, TransformAnimated };
@@ -168,6 +169,13 @@ struct GravityComponent {
   glm::vec3 velocity{0.0f};
 };
 
+// V2
+struct ParticleEmitterComponent {
+  int entity = -1;
+  uint32_t maxParticles = MAX_PARTICLES;
+  Renderer::Types::Mesh *particleMesh;
+};
+
 struct Resources {
   std::vector<Renderable> renderables;
   std::vector<TransformComponent> transforms;
@@ -180,6 +188,7 @@ struct Resources {
   std::vector<SunLightComponent> sunLights;
   std::vector<PointLightComponent> pointLights;
   std::vector<GravityComponent> gravities;
+  std::vector<ParticleEmitterComponent> particleEmitters;
 };
 
 extern Resources resources;
@@ -232,6 +241,10 @@ OgreBehaviorComponent *tryGetOgreBehaviorComponent(int entity);
 GravityComponent &addGravityComponent(int entity);
 GravityComponent &getGravityComponent(int entity);
 GravityComponent *tryGetGravityComponent(int entity);
+
+ParticleEmitterComponent &addParticleEmitterComponent(int entity);
+ParticleEmitterComponent &getParticleEmitterComponent(int entity);
+ParticleEmitterComponent *tryGetParticleEmitterComponent(int entity);
 
 void destroyEntity(int entity);
 void processDestroyQueue();

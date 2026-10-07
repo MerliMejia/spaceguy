@@ -7,7 +7,6 @@
 #include <glm/gtc/quaternion.hpp>
 #include <string>
 #include <vector>
-#define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan_raii.hpp>
 
 namespace Blender::V2 {

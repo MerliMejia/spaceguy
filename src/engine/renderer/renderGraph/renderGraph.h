@@ -40,10 +40,12 @@ struct RenderGraph {
   Context context{};
   VConfig vConfig{};
 
-  Renderer::RenderNode mainNode;
-  Renderer::RenderNode depthTestNode;
-  Renderer::ComputeNode particlesComputeNode;
-  Renderer::VBarriers::VBarrier particlesComputeBarrier;
+  RenderNode mainNode;
+  RenderNode particlesDrawNode; // Same as mainNode, just a different shader
+                                // module and pipelines.
+  RenderNode depthTestNode;
+  ComputeNode particlesComputeNode;
+  VBarriers::VBarrier particlesComputeBarrier;
 
   Images::VTexture *sampledDepthTexture = nullptr;
   Images::VImage mainNodeDepthTestImage;
@@ -52,7 +54,7 @@ struct RenderGraph {
   NodePipelines mainPipelines{};
   NodePipelines depthTestPipelines{};
 
-  Renderer::Images::VManager vTextureManager{};
+  Images::VManager vTextureManager{};
 
   Images::TransitionState deptTestWriteAttachmentState{
       .stage = vk::PipelineStageFlagBits2::eEarlyFragmentTests |
@@ -115,6 +117,9 @@ struct RenderGraph {
     mainNode.preInit(context);
     mainNode.usePushConstants = true;
 
+    particlesDrawNode.preInit(context);
+    particlesDrawNode.usePushConstants = true;
+
     depthTestNode.preInit(context);
     depthTestNode.usePushConstants = true;
 
@@ -124,6 +129,10 @@ struct RenderGraph {
     mainNode.step1_initShaders(vDevice.device,
                                Renderer::step1_initShadersProps{
                                    .shaderFile = "shaders/v2/mainNode.spv"});
+
+    particlesDrawNode.step1_initShaders(
+        vDevice.device, Renderer::step1_initShadersProps{
+                            .shaderFile = "shaders/v2/particlesDrawNode.spv"});
 
     depthTestNode.step1_initShaders(
         vDevice.device, Renderer::step1_initShadersProps{
@@ -274,6 +283,13 @@ struct RenderGraph {
           static_cast<float>(vSwapChain.swapChainExtent.height), mainNode,
           commandBuffers[frameIndex], this->context, frameIndex);
 
+      // Draw the particles
+      vConfig.recordCommandBuffer(
+          static_cast<float>(vSwapChain.swapChainExtent.width),
+          static_cast<float>(vSwapChain.swapChainExtent.height),
+          particlesDrawNode, commandBuffers[frameIndex], this->context,
+          frameIndex);
+
       commandBuffers[frameIndex].endRendering();
 
       // From main pass to swapchain:
@@ -362,6 +378,8 @@ struct RenderGraph {
 
     mainNode.step2_createPipelineLayout(vDevice.device);
 
+    particlesDrawNode.step2_createPipelineLayout(vDevice.device);
+
     depthTestNode.step2_createPipelineLayout(vDevice.device);
 
     particlesComputeNode.step2_createPipelineLayout(vDevice.device);
@@ -428,11 +446,25 @@ struct RenderGraph {
              RenderNodeUtils::ShaderCreateInfo{
                  .type = RenderNodeUtils::ShaderType::Fragment,
                  .name = "fragMain"}});
+
+    particlesDrawNode.step2_addPipeline<Blender::V2::Vertex>(
+        vDevice.device,
+        Renderer::step2_pipelineConfigurationProps{
+            .useDepth = true,
+            .colorFormat = vSwapChain.swapChainSurfaceFormat.format,
+            .depthFormat = vk::Format::eD32Sfloat,
+            .samples = vk::SampleCountFlagBits::e4,
+            .useMultiSampling = true,
+        },
+        {RenderNodeUtils::ShaderCreateInfo{
+             .type = RenderNodeUtils::ShaderType::Vertex, .name = "vertMain"},
+         RenderNodeUtils::ShaderCreateInfo{
+             .type = RenderNodeUtils::ShaderType::Fragment,
+             .name = "fragMain"}});
   }
 
   void prepareNodes(vk::raii::Device &device,
                     Renderer::VSwapChain &vSwapChain) {
-
     auto fenceResult =
         device.waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
     if (fenceResult != vk::Result::eSuccess) {
@@ -492,7 +524,6 @@ struct RenderGraph {
 
   void submit(vk::raii::Queue &graphicsQueue,
               Renderer::VSwapChain &vSwapChain) {
-
     vk::PipelineStageFlags waitDestinationStageMask(
         vk::PipelineStageFlagBits::eTransfer);
 

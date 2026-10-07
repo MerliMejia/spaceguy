@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan_raii.hpp>
@@ -67,6 +68,7 @@ struct RenderCall {
   vk::Buffer vertexBuffer{};
   vk::Buffer indexBuffer{};
   uint32_t indexCount = 0;
+  uint32_t instanceCount = 1;
   std::function<void()> updatePushConstants;
 };
 } // namespace RenderNodeUtils

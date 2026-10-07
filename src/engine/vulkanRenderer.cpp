@@ -32,7 +32,7 @@ VulkanRendererContext vulkanRendererContext{};
 
 constexpr uint32_t WORKGROUP_SIZE = 256;
 constexpr uint32_t MAX_PARTICLE_EMITTERS = 128;
-constexpr uint32_t MAX_PARTICLES = 50000;
+// constexpr uint32_t MAX_PARTICLES = 50000;
 constexpr uint32_t INVALID_PARTICLE_EMITTER_SLOT =
     std::numeric_limits<uint32_t>::max();
 

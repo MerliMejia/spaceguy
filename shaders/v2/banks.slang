@@ -101,6 +101,9 @@ Texture2D<float4> textures[SG_MAX_TEXTURES];
 [[vk::binding(3, 0)]]
 StructuredBuffer<float4> animationsStorageBuffer;
 
+[[vk::binding(4, 0)]]
+StructuredBuffer<float4> particles;
+
 struct PushConstantData {
   // Slots 0–3: floats, float2s, and float3s
   float4 floatData[SG_PUSH_INT_FROM];

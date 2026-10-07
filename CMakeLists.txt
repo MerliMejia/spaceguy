@@ -62,6 +62,8 @@ add_custom_command(
     COMMAND ${SLANGC} shaders/v2/depthTest.slang -o shaders/v2/depthTest.spv
     OUTPUT ${SHADER_DIR}/particlesCompute.spv
     COMMAND ${SLANGC} shaders/v2/particlesCompute.slang -o shaders/v2/particlesCompute.spv
+    OUTPUT ${SHADER_DIR}/particlesDrawNode.spv
+    COMMAND ${SLANGC} shaders/v2/particlesDrawNode.slang -o shaders/v2/particlesDrawNode.spv
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     DEPENDS
         ${SHADER_DIR}/mainNode.slang

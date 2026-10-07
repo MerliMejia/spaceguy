@@ -1,12 +1,12 @@
 #pragma once
-#include "glm/fwd.hpp"
-#include <array>
-#include <vector>
-#define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include "../bufferUtils.h"
 #include "../shaders/shaders.h"
+#include "glm/fwd.hpp"
+#include <array>
 #include <glm/glm.hpp>
+#include <vector>
 #include <vulkan/vulkan_raii.hpp>
+
 
 namespace Renderer {
 namespace RenderGraph {
@@ -18,7 +18,7 @@ struct Context {
   };
 
   using VerAnimSSBank = std::array<glm::vec4, SG_STORAGE_ANIMATION_SLOTS>;
-  using ParticlesData = std::array<glm::vec4, 100>;
+  using ParticlesData = std::array<glm::vec4, MAX_PARTICLES>;
 
   // Data needed
   GlobalUniformBankBuffer globalUniformBufferData{};

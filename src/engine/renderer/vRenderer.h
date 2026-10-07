@@ -55,7 +55,7 @@ struct VRenderer {
   void mainLoop() {
 
     auto &depthTestingGroups = renderGraph.depthTestNode.pipelineGroups;
-    auto &visualizationGroups = renderGraph.mainNode.pipelineGroups;
+    auto &mainNodeGroups = renderGraph.mainNode.pipelineGroups;
 
     renderGraph.particlesComputeNode.updatePushConstants = [&]() {
       auto &pushConstantsBank = renderGraph.context.pushConstantBank;
@@ -76,6 +76,7 @@ struct VRenderer {
 
       renderGraph.depthTestNode.clearRenderCalls();
       renderGraph.mainNode.clearRenderCalls();
+      renderGraph.particlesDrawNode.clearRenderCalls();
 
       for (Renderable &renderable : resources.renderables) {
         if (!renderable.visible) {
@@ -107,7 +108,7 @@ struct VRenderer {
 
           // depthTestingGroups[renderGraph.depthTestPipelines.staticPipeline]
           //     .renderCalls.emplace_back(staticRenderCall);
-          visualizationGroups[renderGraph.mainPipelines.staticPipeline]
+          mainNodeGroups[renderGraph.mainPipelines.staticPipeline]
               .renderCalls.emplace_back(staticRenderCall);
         }
 
@@ -152,9 +153,27 @@ struct VRenderer {
 
           depthTestingGroups[renderGraph.depthTestPipelines.animatedPipeline]
               .renderCalls.emplace_back(animatedRenderCall);
-          visualizationGroups[renderGraph.mainPipelines.animatedPipeline]
+          mainNodeGroups[renderGraph.mainPipelines.animatedPipeline]
               .renderCalls.emplace_back(animatedRenderCall);
         }
+      }
+
+      for (auto &emitter : resources.particleEmitters) {
+        renderGraph.particlesDrawNode.pipelineGroups[0].renderCalls.push_back(
+            Renderer::RenderNodeUtils::RenderCall{
+                .vertexBuffer = emitter.particleMesh->vertexAllocations.buffer,
+                .indexBuffer = emitter.particleMesh->indexAllocations.buffer,
+                .indexCount = emitter.particleMesh->indexCount,
+                .instanceCount = emitter.maxParticles,
+                .updatePushConstants = [&]() {
+                  auto &pushConstantsBank =
+                      renderGraph.context.pushConstantBank;
+
+                  TransformComponent &tc = getTransform(emitter.entity);
+
+                  Renderer::Shaders::PushConstantsBank::setInt(
+                      pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
+                }});
       }
 
       renderGraph.prepareNodes(vDevice.device, vSwapChain);

@@ -23,6 +23,7 @@ static std::unordered_map<int, int> entityToAttachmentAnimationComponents;
 static std::unordered_map<int, int> entityToSunLights;
 static std::unordered_map<int, int> entityToPointLights;
 static std::unordered_map<int, int> entityToGravities;
+static std::unordered_map<int, int> entityToParticleEmitters;
 static int nextEntityId = 1;
 
 static std::unordered_set<int> alive;
@@ -340,6 +341,23 @@ GravityComponent *tryGetGravityComponent(int entity) {
                                            resources.gravities);
 }
 
+ParticleEmitterComponent &addParticleEmitterComponent(int entity) {
+  return addComponent<ParticleEmitterComponent>(
+      entity, entityToParticleEmitters, resources.particleEmitters,
+      "particle emitter component");
+}
+
+ParticleEmitterComponent &getParticleEmitterComponent(int entity) {
+  return getComponent<ParticleEmitterComponent>(
+      entity, entityToParticleEmitters, resources.particleEmitters,
+      "particle emitter component");
+}
+
+ParticleEmitterComponent *tryGetParticleEmitterComponent(int entity) {
+  return tryGetComponent<ParticleEmitterComponent>(
+      entity, entityToParticleEmitters, resources.particleEmitters);
+}
+
 static void destroyRenderable(int entity) {
   destroyComponent<Renderable>(entity, entityToRenderables,
                                resources.renderables);
@@ -414,6 +432,11 @@ static void destroyGravity(int entity) {
   destroyComponent(entity, entityToGravities, resources.gravities);
 }
 
+static void destroyParticleEmitter(int entity) {
+  destroyComponent(entity, entityToParticleEmitters,
+                   resources.particleEmitters);
+}
+
 void processDestroyQueue() {
   // Destruction can enqueue owned child entities. Indexing remains valid if
   // the vector reallocates while those dependencies are appended.
@@ -433,6 +456,7 @@ void processDestroyQueue() {
     destroyAttachmentAnimationComponent(entity);
     destroyOgreBahaviorComponent(entity);
     destroyGravity(entity);
+    destroyParticleEmitter(entity);
     alive.erase(entity);
   }
 

@@ -79,7 +79,7 @@ struct VConfig {
 
   void createDescriptorSetLayout(VDevice &vDevice,
                                  Renderer::RenderGraph::Context &context) {
-    std::array<vk::DescriptorSetLayoutBinding, 4> bingdings{
+    std::array<vk::DescriptorSetLayoutBinding, 5> bingdings{
         vk::DescriptorSetLayoutBinding{
             .binding = 0,
             .descriptorType = vk::DescriptorType::eUniformBuffer,
@@ -102,6 +102,12 @@ struct VConfig {
             .stageFlags = vk::ShaderStageFlagBits::eFragment},
         vk::DescriptorSetLayoutBinding{
             .binding = 3,
+            .descriptorType = vk::DescriptorType::eStorageBuffer,
+            .descriptorCount = 1,
+            .stageFlags = vk::ShaderStageFlagBits::eVertex |
+                          vk::ShaderStageFlagBits::eFragment},
+        vk::DescriptorSetLayoutBinding{
+            .binding = 4,
             .descriptorType = vk::DescriptorType::eStorageBuffer,
             .descriptorCount = 1,
             .stageFlags = vk::ShaderStageFlagBits::eVertex |
@@ -152,13 +158,16 @@ struct VConfig {
         // flight.
         vk::DescriptorPoolSize{.type = vk::DescriptorType::eStorageBuffer,
                                .descriptorCount =
-                                   RenderNodeUtils::MAX_FRAMES_IN_FLIGHT * 2}};
+                                   RenderNodeUtils::MAX_FRAMES_IN_FLIGHT *
+                                   3}}; // 3 storage buffers (animation data,
+                                        // particles compute, particles draw)
 
     vk::DescriptorPoolCreateInfo poolInfo{
         .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
         // For now, 1 bind for graphics pipeline and 1 for compute per frame in
         // flight.
-        .maxSets = RenderNodeUtils::MAX_FRAMES_IN_FLIGHT * 2,
+        .maxSets = RenderNodeUtils::MAX_FRAMES_IN_FLIGHT *
+                   2, // Default/graphics set is 0 and compute set is 1
         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
         .pPoolSizes = poolSizes.data()};
 
@@ -225,7 +234,12 @@ struct VConfig {
           .offset = 0,
           .range = sizeof(Renderer::RenderGraph::Context::VerAnimSSBank)};
 
-      std::array<vk::WriteDescriptorSet, 4> writes{
+      vk::DescriptorBufferInfo particlesDrawInfo{
+          .buffer = context.particlesAllocations.buffer,
+          .offset = 0,
+          .range = sizeof(Renderer::RenderGraph::Context::ParticlesData)};
+
+      std::array<vk::WriteDescriptorSet, 5> writes{
           vk::WriteDescriptorSet{
               .dstSet = *context.defaultDescriptorSets[i],
               .dstBinding = 0,
@@ -249,16 +263,23 @@ struct VConfig {
               .descriptorCount = static_cast<uint32_t>(imageInfos.size()),
               .descriptorType = vk::DescriptorType::eSampledImage,
               .pImageInfo = imageInfos.data(),
+          },
+          {
+              .dstSet = *context.defaultDescriptorSets[i],
+              .dstBinding = 3,
+              .dstArrayElement = 0,
+              .descriptorCount = 1,
+              .descriptorType = vk::DescriptorType::eStorageBuffer,
+              .pBufferInfo = &vertexAnimationStorageBufferBankInfo,
+          },
+          {
+              .dstSet = *context.defaultDescriptorSets[i],
+              .dstBinding = 4,
+              .dstArrayElement = 0,
+              .descriptorCount = 1,
+              .descriptorType = vk::DescriptorType::eStorageBuffer,
+              .pBufferInfo = &particlesDrawInfo,
           }};
-
-      writes[3] = vk::WriteDescriptorSet{
-          .dstSet = *context.defaultDescriptorSets[i],
-          .dstBinding = 3,
-          .dstArrayElement = 0,
-          .descriptorCount = 1,
-          .descriptorType = vk::DescriptorType::eStorageBuffer,
-          .pBufferInfo = &vertexAnimationStorageBufferBankInfo,
-      };
 
       device.updateDescriptorSets(writes, {});
     }
@@ -352,7 +373,7 @@ struct VConfig {
         commandBuffer.bindIndexBuffer(renderCall.indexBuffer, 0,
                                       vk::IndexType::eUint32);
         commandBuffer.drawIndexed(static_cast<uint32_t>(renderCall.indexCount),
-                                  1, 0, 0, 0);
+                                  renderCall.instanceCount, 0, 0, 0);
       }
     }
   }

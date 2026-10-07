@@ -10,6 +10,8 @@
 #include "systems/animationSystem.h"
 #include "systems/resourceManagementSystem.h"
 #include "systems/sceneContext.h"
+#include "utils/generators.h"
+#include "utils/math.h"
 #include "utils/types.h"
 #include <GLFW/glfw3.h>
 #include <cstdlib>
@@ -61,6 +63,8 @@ int main() {
 
     Renderer::Types::Mesh floorMesh;
     Renderer::Images::VTexture *floorDiffuse;
+
+    Renderer::Types::Mesh particleMesh;
 
     Renderer::Types::AnimatedMesh guyMesh;
     Renderer::Images::VTexture *guyDiffuse;
@@ -152,6 +156,32 @@ int main() {
       createBasicGameObject(floorModel, floorMesh, tc, uniformsBank,
                             renderer.renderGraph.commandPool, renderer.vDevice,
                             floorDiffuse->index);
+
+      Blender::V2::BlenderModel particleModel =
+          Blender::V2::loadModel("assets/particle_v2.3d");
+
+      particleMesh = Renderer::Generators::generateMesh(
+          particleModel.vertices, particleModel.indices,
+          renderer.renderGraph.commandPool, renderer.vDevice);
+
+      Transform peTransform;
+      peTransform.position = glm::vec3{0.0f, 0.0f, 0.0f};
+      peTransform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+      peTransform.scale = glm::vec3(1.0f);
+
+      int peEntity = createEntity();
+      ParticleEmitterComponent &particleEmitter =
+          addParticleEmitterComponent(peEntity);
+
+      particleEmitter.particleMesh = &particleMesh;
+
+      TransformComponent &peTc = addTransform(peEntity);
+      peTc.model = transformToModel(peTransform.position, peTransform.rotation,
+                                    peTransform.scale);
+
+      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, peTc.modelIndex,
+                                                  peTc.model);
+
       initAnimations(renderer.renderGraph.context.vertAnimSSBankData,
                      renderer.renderGraph.context.vertAnimSBBankAllocations,
                      renderer.vDevice, renderer.renderGraph.commandPool);
