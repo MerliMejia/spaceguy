@@ -1,5 +1,6 @@
 #pragma once
 
+#include "glm/fwd.hpp"
 #define VULKAN_HPP_NO_CONSTRUCTORS
 #include <vulkan/vulkan_raii.hpp>
 
@@ -113,6 +114,12 @@ struct AnimatedMesh {
   std::vector<AnimationClipGpu> animations;
   std::vector<AnimationKeyPoseGpu> keyPoses;
   Renderer::Types::Mesh mesh;
+};
+
+struct Particle {
+  glm::vec3 position = glm::vec3(0.0f);
+  float lifeTime = 1.0f;
+  glm::vec4 dir = glm::vec4(0.0f); // 1f not used
 };
 } // namespace Types
 } // namespace Renderer

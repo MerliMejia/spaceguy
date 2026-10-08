@@ -21,7 +21,27 @@ void moveTowardsDir(glm::mat4 &model, float speed, glm::vec2 dir,
                     float distance, float deltaTime);
 float getDistanceSqr(glm::vec2 p1, glm::vec2 p2);
 void faceTowardsDir(glm::mat4 &model, glm::vec2 dir);
-int getRandom(int size);
+
+inline int randomInt(int size) {
+  static std::random_device rd;
+  static std::mt19937 gen(rd());
+
+  std::uniform_int_distribution<int> dist(0, size);
+
+  return dist(gen);
+}
+
+inline float randomFloat(int size) {
+  static std::random_device rd;
+  static std::mt19937 gen(rd());
+
+  std::uniform_real_distribution<float> dist(1, size);
+
+  return dist(gen);
+}
+
+std::vector<glm::vec3> generatePointsInSphere(int n, double radius,
+                                              glm::vec3 center);
 
 template <typename T>
 size_t randomIndexFromValue(const std::vector<T> &vector) {

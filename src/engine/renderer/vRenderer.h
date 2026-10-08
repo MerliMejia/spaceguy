@@ -1,5 +1,7 @@
 #pragma once
 
+#include "glm/fwd.hpp"
+#include "glm/geometric.hpp"
 #include "renderGraph/renderGraph.h"
 #include "renderNode/renderNodeUtils.h"
 #include "shaders/banksManager.h"
@@ -9,7 +11,9 @@
 #include "vSwapChain.h"
 #include "window.h"
 #include <GLFW/glfw3.h>
+#include <cstddef>
 #include <functional>
+#include <iostream>
 
 #include "../../systems/animationSystem.h"
 #include "../../systems/resourceManagementSystem.h"
@@ -49,6 +53,43 @@ struct VRenderer {
       onInit();
     }
 
+    for (size_t i = 0; i < renderGraph.context.particlesData.size(); i++) {
+      renderGraph.context.particlesData[i] = Renderer::Types::Particle{};
+    }
+
+    size_t from = 0;
+
+    for (auto &emitter : resources.particleEmitters) {
+      TransformComponent &tc = getTransform(emitter.entity);
+      Transform t = modelToTransform(tc.model);
+
+      std::vector<glm::vec3> spherePoints =
+          generatePointsInSphere(emitter.maxParticles, 20, t.position);
+
+      size_t currentSpherePoint = 0;
+      for (size_t to = from + emitter.maxParticles; from < to; from++) {
+        if (from > MAX_PARTICLES) {
+          break;
+        }
+
+        float randomSpeed = randomFloat(3.0f);
+        std::cout << randomSpeed << std::endl;
+
+        renderGraph.context.particlesData[from].position =
+            spherePoints[currentSpherePoint];
+        // Make them point to the center
+        glm::vec3 toCenterDir =
+            glm::normalize(t.position - spherePoints[currentSpherePoint]);
+
+        renderGraph.context.particlesData[from].dir =
+            glm::vec4(toCenterDir, randomSpeed);
+
+        renderGraph.context.particlesData[from].lifeTime = 10.0f;
+
+        currentSpherePoint++;
+      }
+    }
+
     renderGraph.init(vSwapChain, vDevice);
   }
 
@@ -60,7 +101,7 @@ struct VRenderer {
     renderGraph.particlesComputeNode.updatePushConstants = [&]() {
       auto &pushConstantsBank = renderGraph.context.pushConstantBank;
       Renderer::Shaders::PushConstantsBank::setUInt(
-          pushConstantsBank, SG_PUSH_PARTICLES_COUNT_INDEX, 100);
+          pushConstantsBank, SG_PUSH_PARTICLES_COUNT_INDEX, MAX_PARTICLES);
     };
 
     window.update([&]() {
@@ -170,9 +211,13 @@ struct VRenderer {
                       renderGraph.context.pushConstantBank;
 
                   TransformComponent &tc = getTransform(emitter.entity);
+                  Transform t = modelToTransform(tc.model);
 
                   Renderer::Shaders::PushConstantsBank::setInt(
                       pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
+                  Renderer::Shaders::PushConstantsBank::setFloat3(
+                      pushConstantsBank, SG_PUSH_PARTICLES_EMITTER_POS_INDEX,
+                      t.position);
                 }});
       }
 

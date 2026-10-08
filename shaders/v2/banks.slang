@@ -1,3 +1,4 @@
+import types;
 #include "banks_shared.h"
 
 namespace UniformBank {
@@ -102,7 +103,7 @@ Texture2D<float4> textures[SG_MAX_TEXTURES];
 StructuredBuffer<float4> animationsStorageBuffer;
 
 [[vk::binding(4, 0)]]
-StructuredBuffer<float4> particles;
+StructuredBuffer<Particle> particles;
 
 struct PushConstantData {
   // Slots 0–3: floats, float2s, and float3s

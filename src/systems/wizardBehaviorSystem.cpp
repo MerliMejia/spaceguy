@@ -365,7 +365,7 @@ DecisionStatus chooseNextAttackEntityLogic(int entity) {
     return DecisionStatus::Done;
   }
 
-  wizard.nextAttackEntity = candidates[getRandom(candidates.size())];
+  wizard.nextAttackEntity = candidates[randomInt(candidates.size())];
   return DecisionStatus::Done;
 }
 

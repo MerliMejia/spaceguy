@@ -68,8 +68,10 @@ add_custom_command(
     DEPENDS
         ${SHADER_DIR}/mainNode.slang
         ${SHADER_DIR}/banks.slang
+        ${SHADER_DIR}/types.slang
         ${SHADER_DIR}/depthTest.slang
         ${SHADER_DIR}/particlesCompute.slang
+        ${SHADER_DIR}/particlesDrawNode.slang
         ${SHADER_DIR}/banks_shared.h
     COMMENT "Compiling shaders to SPIR-V"
     VERBATIM

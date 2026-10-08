@@ -169,10 +169,6 @@ struct RenderGraph {
                               vSwapChain.swapChainExtent.height, vDevice,
                               vk::SampleCountFlagBits::e4);
 
-    for (size_t i = 0; i < context.particlesData.size(); i++) {
-      context.particlesData[i] = glm::vec4(0.0f);
-    }
-
     particlesComputeNode.perFrameFunction =
         [&](Renderer::VSwapChain &vSwapChain, uint32_t imageIndex,
             uint32_t frameIndex) {
@@ -362,7 +358,7 @@ struct RenderGraph {
     vConfig.createUniformBuffers(vDevice, context);
 
     // Create the GPU only buffer for the particles
-    context.particlesAllocations = createDeviceLocalBuffer<glm::vec4>(
+    context.particlesAllocations = createDeviceLocalBuffer<Types::Particle>(
         vDevice, commandPool, context.particlesData,
         vk::BufferUsageFlagBits::eStorageBuffer |
             vk::BufferUsageFlagBits::eVertexBuffer);

@@ -1,4 +1,5 @@
 #pragma once
+#include "../../../utils/types.h"
 #include "../bufferUtils.h"
 #include "../shaders/shaders.h"
 #include "glm/fwd.hpp"
@@ -18,7 +19,7 @@ struct Context {
   };
 
   using VerAnimSSBank = std::array<glm::vec4, SG_STORAGE_ANIMATION_SLOTS>;
-  using ParticlesData = std::array<glm::vec4, MAX_PARTICLES>;
+  using ParticlesData = std::array<Renderer::Types::Particle, MAX_PARTICLES>;
 
   // Data needed
   GlobalUniformBankBuffer globalUniformBufferData{};

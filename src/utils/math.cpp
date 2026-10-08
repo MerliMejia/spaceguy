@@ -74,13 +74,29 @@ void faceTowardsDir(glm::mat4 &model, glm::vec2 dir) {
       transformToModel(transform.position, transform.rotation, transform.scale);
 }
 
-int getRandom(int size) {
-  static std::random_device rd;
-  static std::mt19937 gen(rd());
+std::vector<glm::vec3> generatePointsInSphere(int n, double radius,
+                                              glm::vec3 center) {
+  std::vector<glm::vec3> points;
+  points.reserve(n);
 
-  std::uniform_int_distribution<int> dist(0, size - 1);
+  std::random_device rd;
+  std::mt19937 gen(rd());
 
-  return dist(gen);
+  // Generate bounds relative to (0,0,0) for the rejection check
+  std::uniform_real_distribution<double> dis(-radius, radius);
+
+  while (points.size() < n) {
+    double x = dis(gen);
+    double y = dis(gen);
+    double z = dis(gen);
+
+    // 1. Check if the point falls inside a sphere centered at (0,0,0)
+    if (x * x + y * y + z * z <= radius * radius) {
+      // 2. Shift the valid point to your custom center before saving
+      points.push_back({x + center.x, y + center.y, z + center.z});
+    }
+  }
+  return points;
 }
 
 Transform modelToTransform(const glm::mat4 &model) {

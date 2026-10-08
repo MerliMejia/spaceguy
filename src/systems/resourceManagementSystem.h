@@ -172,8 +172,10 @@ struct GravityComponent {
 // V2
 struct ParticleEmitterComponent {
   int entity = -1;
-  uint32_t maxParticles = MAX_PARTICLES;
+  uint32_t maxParticles = 10;
   Renderer::Types::Mesh *particleMesh;
+  glm::vec3 direction = glm::vec3(0.0f);
+  ParticleEmitterShape shape = ParticleEmitterShape::Sphere;
 };
 
 struct Resources {

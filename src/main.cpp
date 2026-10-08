@@ -165,15 +165,17 @@ int main() {
           renderer.renderGraph.commandPool, renderer.vDevice);
 
       Transform peTransform;
-      peTransform.position = glm::vec3{0.0f, 0.0f, 0.0f};
+      peTransform.position = glm::vec3{0.0f, 0.0f, 3.0f};
       peTransform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-      peTransform.scale = glm::vec3(1.0f);
+      peTransform.scale = glm::vec3(0.5f);
 
       int peEntity = createEntity();
       ParticleEmitterComponent &particleEmitter =
           addParticleEmitterComponent(peEntity);
 
       particleEmitter.particleMesh = &particleMesh;
+      particleEmitter.direction = glm::vec3(0.0f, 0.0f, -1.0f);
+      particleEmitter.maxParticles = 50;
 
       TransformComponent &peTc = addTransform(peEntity);
       peTc.model = transformToModel(peTransform.position, peTransform.rotation,
