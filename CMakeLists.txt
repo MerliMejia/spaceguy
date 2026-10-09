@@ -20,26 +20,12 @@ FetchContent_MakeAvailable(glm)
 
 add_executable(spaceguy
     src/main.cpp
-    src/engine/vulkanBackend.cpp
-    src/engine/predefined/vulkanGraphicPipelines.cpp
-    src/engine/vulkanRenderer.cpp
-    src/engine/predefined/vulkanDescriptorSetLayouts.cpp
-    src/engine/blender/importer.cpp
-    src/utils/buffers.cpp
     src/systems/animationSystem.cpp
-    src/systems/lightsSystem.cpp
-    src/utils/input.cpp
     src/utils/time.cpp
     src/systems/sceneContext.cpp
     src/utils/math.cpp
     src/systems/resourceManagementSystem.cpp
-    src/systems/projectileSystem.cpp
-    src/systems/wizardBehaviorSystem.cpp
     src/systems/spacialGridHashSystem.cpp
-    src/systems/particleLifeSystem.cpp
-    src/systems/ogreBehaviorSystem.cpp
-    src/utils/behaviors.cpp
-    src/utils/behaviors/ogre.cpp
     src/systems/gravitySystem.cpp
     external/stb/stb_image.cpp
     src/engine/renderer/shaders/banksManager.cpp
@@ -79,18 +65,6 @@ add_custom_command(
 
 add_custom_target(shaders DEPENDS ${SHADER_DIR}/mainNode.spv)
 add_dependencies(spaceguy shaders)
-
-target_sources(spaceguy PRIVATE
-    src/utils/textMeshGenerator.cpp
-
-    external/libtess2/Source/bucketalloc.c
-    external/libtess2/Source/dict.c
-    external/libtess2/Source/geom.c
-    external/libtess2/Source/mesh.c
-    external/libtess2/Source/priorityq.c
-    external/libtess2/Source/sweep.c
-    external/libtess2/Source/tess.c
-)
 
 target_compile_features(spaceguy PRIVATE cxx_std_20)
 

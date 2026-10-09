@@ -1,5 +1,4 @@
 #include "spacialGridHashSystem.h"
-#include "../engine/vulkanRenderer.h"
 #include "../utils/math.h"
 #include "../utils/time.h"
 #include "glm/fwd.hpp"
@@ -69,9 +68,9 @@ void executeOnNearbyCells(
     for (int x = center.x - square; x <= center.x + square; x++) {
       CellCoord cell{x, y};
 
-      if (vulkanRendererContext.isDebug && isCellInBounds(cell)) {
-        rememberNearbyQueryCell(cell);
-      }
+      // if (vulkanRendererContext.isDebug && isCellInBounds(cell)) {
+      //   rememberNearbyQueryCell(cell);
+      // }
 
       auto it = spacialGridContext.grid.find(cell);
       if (it == spacialGridContext.grid.end()) {
@@ -155,23 +154,23 @@ void updateSpacialGridHash() {
     maxCellPopulation = std::max(maxCellPopulation, cellPopulation);
   }
 
-  if (!vulkanRendererContext.isDebug) {
-    nearbyQueryDebugCells.clear();
-    return;
-  }
+  // if (!vulkanRendererContext.isDebug) {
+  //   nearbyQueryDebugCells.clear();
+  //   return;
+  // }
 
-  addDebugGridCellsXY(glm::vec3{-floorHalfSize, -floorHalfSize, 1.0f},
-                      spacialGridContext.rows, spacialGridContext.columns,
-                      spacialGridContext.cellWidth,
-                      spacialGridContext.cellHeight, gridColor);
+  // addDebugGridCellsXY(glm::vec3{-floorHalfSize, -floorHalfSize, 1.0f},
+  //                     spacialGridContext.rows, spacialGridContext.columns,
+  //                     spacialGridContext.cellWidth,
+  //                     spacialGridContext.cellHeight, gridColor);
 
   for (const auto &[cell, entities] : spacialGridContext.grid) {
     if (!isCellInBounds(cell)) {
       continue;
     }
 
-    addDebugCellXY(cellToOrigin(cell, 1.01f), spacialGridContext.cellWidth,
-                   spacialGridContext.cellHeight, occupiedCellColor);
+    // addDebugCellXY(cellToOrigin(cell, 1.01f), spacialGridContext.cellWidth,
+    //                spacialGridContext.cellHeight, occupiedCellColor);
   }
 
   for (TimedDebugCell &debugCell : nearbyQueryDebugCells) {
@@ -181,9 +180,9 @@ void updateSpacialGridHash() {
       continue;
     }
 
-    addDebugCellXY(cellToOrigin(debugCell.cell, 1.02f),
-                   spacialGridContext.cellWidth, spacialGridContext.cellHeight,
-                   nearbyQueryColor);
+    // addDebugCellXY(cellToOrigin(debugCell.cell, 1.02f),
+    //                spacialGridContext.cellWidth,
+    //                spacialGridContext.cellHeight, nearbyQueryColor);
   }
 
   nearbyQueryDebugCells.erase(
