@@ -40,8 +40,11 @@ inline float randomFloat(int size) {
   return dist(gen);
 }
 
-std::vector<glm::vec3> generatePointsInSphere(int n, double radius,
+std::vector<glm::vec3> generatePointsOnSphere(int n, float radius,
                                               glm::vec3 center);
+
+void rotateTransform(Transform &t, float angularSpeed, glm::vec3 axis,
+                     float dt);
 
 template <typename T>
 size_t randomIndexFromValue(const std::vector<T> &vector) {

@@ -12,6 +12,7 @@
 #include "systems/sceneContext.h"
 #include "utils/generators.h"
 #include "utils/math.h"
+#include "utils/time.h"
 #include "utils/types.h"
 #include <GLFW/glfw3.h>
 #include <cstdlib>
@@ -28,8 +29,7 @@ struct SunMatrices {
 // Fits an orthographic shadow box around a bounding sphere.
 // Only the direction from sunPosition to center is used, the sun's distance
 // doesn't matter.
-SunMatrices computeSunMatrices(glm::vec3 sunPosition, glm::vec3 center,
-                               float radius, float margin) {
+SunMatrices computeSunMatrices(glm::vec3 sunPosition, glm::vec3 center, float radius, float margin) {
   glm::vec3 sunDir = glm::normalize(center - sunPosition);
 
   // Virtual eye just outside the sphere, on the sun's side.
@@ -73,6 +73,9 @@ int main() {
 
     Input::Camera::OrbitCamera camera;
 
+    // Testing...
+    int peEntity = -1;
+
     renderer.onInit = [&]() {
       sceneContext.cameraPosition = worldData.camera.transform.position;
       sceneContext.cameraLookAt = worldData.camera.direction;
@@ -91,37 +94,27 @@ int main() {
       glm::vec3 sunColorIntensity = glm::vec3{0.6f, 0.6f, 0.6f};
       glm::vec3 sunPosition = glm::vec3(10.7f, -24.6f, 17.0f);
 
-      auto &uniformsBank =
-          renderer.renderGraph.context.globalUniformBufferData.data;
+      auto &uniformsBank = renderer.renderGraph.context.globalUniformBufferData.data;
       auto &pushConstantsBank = renderer.renderGraph.context.pushConstantBank;
 
-      camera.update(renderer.vSwapChain.swapChainExtent.width,
-                    renderer.vSwapChain.swapChainExtent.height, uniformsBank,
-                    renderer.window.handler);
+      camera.update(renderer.vSwapChain.swapChainExtent.width, renderer.vSwapChain.swapChainExtent.height, uniformsBank, renderer.window.handler);
 
-      SunMatrices sun = computeSunMatrices(
-          sunPosition, glm::vec3{0.0f, 0.0f, 3.5f}, // sphere center
-          29.0f,                                    // R
-          5.0f);                                    // margin
+      SunMatrices sun = computeSunMatrices(sunPosition, glm::vec3{0.0f, 0.0f, 3.5f}, // sphere center
+                                           29.0f,                                    // R
+                                           5.0f);                                    // margin
 
-      Renderer::Shaders::UniformBank::setFloat3(uniformsBank, SG_SUN_POS_INDEX,
-                                                sunPosition);
-      Renderer::Shaders::UniformBank::setFloat3(
-          uniformsBank, SG_SUN_INTENSITY_INDEX, sunColorIntensity);
-      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank,
-                                                  SG_SUN_VIEW_INDEX, sun.view);
-      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank,
-                                                  SG_SUN_PROJ_INDEX, sun.proj);
+      Renderer::Shaders::UniformBank::setFloat3(uniformsBank, SG_SUN_POS_INDEX, sunPosition);
+      Renderer::Shaders::UniformBank::setFloat3(uniformsBank, SG_SUN_INTENSITY_INDEX, sunColorIntensity);
+      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, SG_SUN_VIEW_INDEX, sun.view);
+      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, SG_SUN_PROJ_INDEX, sun.proj);
 
-      Blender::V2::BlenderModel guyModel =
-          loadAnimatedModel("assets/guy_v2.3d");
+      Blender::V2::BlenderModel guyModel = loadAnimatedModel("assets/guy_v2.3d");
 
-      guyDiffuse = renderer.renderGraph.vTextureManager.createTexture(
-          guyModel.texturePath.string(), renderer.vDevice,
-          renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
+      guyDiffuse = renderer.renderGraph.vTextureManager.createTexture(guyModel.texturePath.string(), renderer.vDevice, renderer.renderGraph.commandPool,
+                                                                      renderer.vDevice.graphicsQueue);
 
       Transform guyTransform;
-      guyTransform.position = glm::vec3{0.0f, 0.0f, 3.0f};
+      guyTransform.position = glm::vec3{8.0f, 2.0f, 3.0f};
       guyTransform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
       guyTransform.scale = glm::vec3(1.0f);
 
@@ -130,70 +123,51 @@ int main() {
       guy2Transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
       guy2Transform.scale = glm::vec3(1.0f);
 
-      guyGameObject = createAnimatedGameObject(
-          guyModel, guyMesh, guyModel.globalPositionOffset, guyTransform,
-          uniformsBank, renderer.renderGraph.commandPool, renderer.vDevice,
-          guyDiffuse->index);
+      guyGameObject = createAnimatedGameObject(guyModel, guyMesh, guyModel.globalPositionOffset, guyTransform, uniformsBank, renderer.renderGraph.commandPool,
+                                               renderer.vDevice, guyDiffuse->index);
 
-      guyGameObject2 = createAnimatedGameObject(
-          guyModel, guyMesh, guyModel.globalPositionOffset * 2, guy2Transform,
-          uniformsBank, renderer.renderGraph.commandPool, renderer.vDevice,
-          guyDiffuse->index);
+      guyGameObject2 = createAnimatedGameObject(guyModel, guyMesh, guyModel.globalPositionOffset * 2, guy2Transform, uniformsBank,
+                                                renderer.renderGraph.commandPool, renderer.vDevice, guyDiffuse->index);
 
-      Blender::V2::BlenderModel floorModel =
-          Blender::V2::loadModel("assets/floor_v2.3d");
+      Blender::V2::BlenderModel floorModel = Blender::V2::loadModel("assets/floor_v2.3d");
 
-      floorDiffuse = renderer.renderGraph.vTextureManager.createTexture(
-          floorModel.texturePath.string(), renderer.vDevice,
-          renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
+      floorDiffuse = renderer.renderGraph.vTextureManager.createTexture(floorModel.texturePath.string(), renderer.vDevice, renderer.renderGraph.commandPool,
+                                                                        renderer.vDevice.graphicsQueue);
 
       glm::quat floorOrientation{glm::radians(worldData.floor.rotation)};
-      glm::mat4 floorModelMatrix = transformToModel(
-          worldData.floor.position, floorOrientation, worldData.floor.scale);
+      glm::mat4 floorModelMatrix = transformToModel(worldData.floor.position, floorOrientation, worldData.floor.scale);
 
       Transform tc = modelToTransform(floorModelMatrix);
 
-      createBasicGameObject(floorModel, floorMesh, tc, uniformsBank,
-                            renderer.renderGraph.commandPool, renderer.vDevice,
-                            floorDiffuse->index);
+      createBasicGameObject(floorModel, floorMesh, tc, uniformsBank, renderer.renderGraph.commandPool, renderer.vDevice, floorDiffuse->index);
 
-      Blender::V2::BlenderModel particleModel =
-          Blender::V2::loadModel("assets/particle_v2.3d");
-
-      particleMesh = Renderer::Generators::generateMesh(
-          particleModel.vertices, particleModel.indices,
-          renderer.renderGraph.commandPool, renderer.vDevice);
+      particleMesh = Renderer::Generators::quad(renderer.renderGraph.commandPool, renderer.vDevice);
 
       Transform peTransform;
-      peTransform.position = glm::vec3{0.0f, 0.0f, 3.0f};
+      peTransform.position = glm::vec3{0.0f, 0.0f, 5.0f};
       peTransform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-      peTransform.scale = glm::vec3(0.5f);
+      peTransform.scale = glm::vec3(0.001f);
 
-      int peEntity = createEntity();
-      ParticleEmitterComponent &particleEmitter =
-          addParticleEmitterComponent(peEntity);
+      peEntity = createEntity();
+      ParticleEmitterComponent &particleEmitter = addParticleEmitterComponent(peEntity);
 
       particleEmitter.particleMesh = &particleMesh;
       particleEmitter.direction = glm::vec3(0.0f, 0.0f, -1.0f);
-      particleEmitter.maxParticles = 50;
+      particleEmitter.maxParticles = 100;
 
       TransformComponent &peTc = addTransform(peEntity);
-      peTc.model = transformToModel(peTransform.position, peTransform.rotation,
-                                    peTransform.scale);
+      peTc.model = transformToModel(peTransform.position, peTransform.rotation, peTransform.scale);
 
-      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, peTc.modelIndex,
-                                                  peTc.model);
+      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, peTc.modelIndex, peTc.model);
 
-      initAnimations(renderer.renderGraph.context.vertAnimSSBankData,
-                     renderer.renderGraph.context.vertAnimSBBankAllocations,
-                     renderer.vDevice, renderer.renderGraph.commandPool);
+      initAnimations(renderer.renderGraph.context.vertAnimSSBankData, renderer.renderGraph.context.vertAnimSBBankAllocations, renderer.vDevice,
+                     renderer.renderGraph.commandPool);
     };
 
     bool isKeyPressed = false;
 
     renderer.onUpdate = [&]() {
-      auto &uniformsBank =
-          renderer.renderGraph.context.globalUniformBufferData.data;
+      auto &uniformsBank = renderer.renderGraph.context.globalUniformBufferData.data;
       auto &pushConstantsBank = renderer.renderGraph.context.pushConstantBank;
 
       if (glfwGetKey(renderer.window.handler, GLFW_KEY_RIGHT) == GLFW_PRESS) {
@@ -210,9 +184,19 @@ int main() {
         isKeyPressed = false;
       }
 
-      camera.update(renderer.vSwapChain.swapChainExtent.width,
-                    renderer.vSwapChain.swapChainExtent.height, uniformsBank,
-                    renderer.window.handler);
+      TransformComponent &tc = getTransform(peEntity);
+      Transform t = modelToTransform(tc.model);
+      rotateTransform(t, 1.0f, glm::vec3(1.0f, 0.0f, 1.0f), timeState.deltaTime);
+
+      if (t.scale.x < 0.5f) {
+        t.scale += 0.05f * timeState.deltaTime;
+      }
+
+      tc.model = transformToModel(t.position, t.rotation, t.scale);
+
+      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, tc.modelIndex, tc.model);
+
+      camera.update(renderer.vSwapChain.swapChainExtent.width, renderer.vSwapChain.swapChainExtent.height, uniformsBank, renderer.window.handler);
 
       updateAnimations();
     };

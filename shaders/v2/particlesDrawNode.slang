@@ -11,6 +11,7 @@ struct VSInput {
 
 struct VSOutput {
   float4 pos : SV_Position;
+  float2 uv;
   Particle currentParticle;
 };
 
@@ -23,11 +24,24 @@ VSOutput vertMain(VSInput input) {
   float4x4 proj = UniformBank::getFloat4x4(SG_PROJ_INDEX);
   Particle currentParticle = particles[input.instanceId];
 
-  float4 worldPosition = mul(model, float4(input.inPosition, 1.0f));
-  worldPosition = worldPosition + float4(currentParticle.position, 0.0f);
+  // Emitter scale = length of the model matrix's first column.
+  // The bank stores matrices as rows, so the column is (m[0].x, m[1].x,
+  // m[2].x).
+  float size = length(float3(model[0].x, model[1].x, model[2].x));
+
+  // Particles are now relative to the emitter pos (local pos).
+  float4 worldPos = mul(model, float4(currentParticle.position, 1.0f));
+
+  // Particle center (already world space) moved into view space.
+  float4 viewPosition = mul(view, worldPos);
+
+  // In view space +X is screen right and +Y is screen up, so offsetting
+  // here keeps the quad facing the camera.
+  viewPosition.xy += input.inPosition.xy * size;
 
   VSOutput out;
-  out.pos = mul(proj, mul(view, worldPosition));
+  out.pos = mul(proj, viewPosition);
+  out.uv = input.uv;
   out.currentParticle = currentParticle;
 
   return out;
@@ -37,6 +51,14 @@ VSOutput vertMain(VSInput input) {
 float4 fragMain(VSOutput input) {
 
   if (input.currentParticle.lifeTime <= 0) {
+    discard;
+  }
+
+  // uv runs 0..1 across the quad, so (0.5, 0.5) is the center and
+  // 0.5 is the radius of the largest circle that fits inside it.
+  float distanceFromCenter = distance(input.uv, float2(0.5f, 0.5f));
+
+  if (distanceFromCenter > 0.5f) {
     discard;
   }
 

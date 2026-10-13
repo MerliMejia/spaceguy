@@ -74,29 +74,42 @@ void faceTowardsDir(glm::mat4 &model, glm::vec2 dir) {
       transformToModel(transform.position, transform.rotation, transform.scale);
 }
 
-std::vector<glm::vec3> generatePointsInSphere(int n, double radius,
+std::vector<glm::vec3> generatePointsOnSphere(int n, float radius,
                                               glm::vec3 center) {
   std::vector<glm::vec3> points;
   points.reserve(n);
 
-  std::random_device rd;
-  std::mt19937 gen(rd());
+  std::mt19937 gen(std::random_device{}());
+  std::normal_distribution<float> gauss(0.0f, 1.0f); // mean 0, std-dev 1
 
-  // Generate bounds relative to (0,0,0) for the rejection check
-  std::uniform_real_distribution<double> dis(-radius, radius);
+  while (points.size() < static_cast<size_t>(n)) {
+    // 1. Random vector: same probability in every direction
+    glm::vec3 v{gauss(gen), gauss(gen), gauss(gen)};
 
-  while (points.size() < n) {
-    double x = dis(gen);
-    double y = dis(gen);
-    double z = dis(gen);
-
-    // 1. Check if the point falls inside a sphere centered at (0,0,0)
-    if (x * x + y * y + z * z <= radius * radius) {
-      // 2. Shift the valid point to your custom center before saving
-      points.push_back({x + center.x, y + center.y, z + center.z});
+    // 2. Skip the (extremely rare) near-zero vector to avoid dividing by ~0
+    float lenSq = glm::dot(v, v);
+    if (lenSq < 1e-12f) {
+      continue;
     }
+
+    // 3. Normalize -> uniform direction on the unit sphere
+    glm::vec3 dir = v / std::sqrt(lenSq);
+
+    // 4. Scale to the radius and move to the center
+    points.push_back(center + dir * radius);
   }
   return points;
+}
+
+void rotateTransform(Transform &t, float angularSpeed, glm::vec3 axis,
+                     float dt) {
+
+  float radianSpeed = glm::radians(angularSpeed);
+
+  glm::quat deltaRotation = glm::angleAxis(angularSpeed * dt, axis);
+
+  t.rotation = deltaRotation * t.rotation;
+  t.rotation = glm::normalize(t.rotation);
 }
 
 Transform modelToTransform(const glm::mat4 &model) {
