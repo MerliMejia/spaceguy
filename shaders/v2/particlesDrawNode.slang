@@ -18,11 +18,12 @@ struct VSOutput {
 [shader("vertex")]
 VSOutput vertMain(VSInput input) {
   uint modelIndex = PushConstantsBank::getInt(SG_PUSH_MODEL_INDEX);
+  int particleEmitterIndex = PushConstantsBank::getInt(SG_PUSH_PARTICLE_EMITTER_INDEX);
 
   float4x4 model = UniformBank::getFloat4x4(modelIndex);
   float4x4 view = UniformBank::getFloat4x4(SG_VIEW_INDEX);
   float4x4 proj = UniformBank::getFloat4x4(SG_PROJ_INDEX);
-  Particle currentParticle = particles[input.instanceId];
+  Particle currentParticle = particles[particleEmitterIndex + input.instanceId];
 
   // Emitter scale = length of the model matrix's first column.
   // The bank stores matrices as rows, so the column is (m[0].x, m[1].x,

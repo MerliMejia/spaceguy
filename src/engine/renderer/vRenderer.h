@@ -1,7 +1,5 @@
 #pragma once
 
-#include "glm/fwd.hpp"
-#include "glm/geometric.hpp"
 #include "renderGraph/renderGraph.h"
 #include "renderNode/renderNodeUtils.h"
 #include "shaders/banksManager.h"
@@ -13,7 +11,6 @@
 #include <GLFW/glfw3.h>
 #include <cstddef>
 #include <functional>
-#include <iostream>
 
 #include "../../systems/animationSystem.h"
 #include "../../systems/resourceManagementSystem.h"
@@ -48,41 +45,12 @@ struct VRenderer {
 
     renderGraph.preInit(vDevice);
 
-    if (onInit) {
-      onInit();
-    }
-
     for (size_t i = 0; i < renderGraph.context.particlesData.size(); i++) {
       renderGraph.context.particlesData[i] = Renderer::Types::Particle{};
     }
 
-    size_t from = 0;
-
-    for (auto &emitter : resources.particleEmitters) {
-      TransformComponent &tc = getTransform(emitter.entity);
-      Transform t = modelToTransform(tc.model);
-
-      std::vector<glm::vec3> spherePoints = generatePointsOnSphere(emitter.maxParticles, 10,
-                                                                   glm::vec3(0.0f)); // Center around the local origin
-
-      size_t currentSpherePoint = 0;
-      for (size_t to = from + emitter.maxParticles; from < to; from++) {
-        if (from > MAX_PARTICLES) {
-          break;
-        }
-
-        float randomSpeed = randomFloat(5.0f);
-
-        renderGraph.context.particlesData[from].position = spherePoints[currentSpherePoint];
-        // Point to local origin
-        glm::vec3 toCenterDir = -glm::normalize(spherePoints[currentSpherePoint]);
-
-        renderGraph.context.particlesData[from].dir = glm::vec4(toCenterDir, randomSpeed);
-
-        renderGraph.context.particlesData[from].lifeTime = 100.0f;
-
-        currentSpherePoint++;
-      }
+    if (onInit) {
+      onInit();
     }
 
     renderGraph.init(vSwapChain, vDevice);
@@ -171,20 +139,20 @@ struct VRenderer {
       }
 
       for (auto &emitter : resources.particleEmitters) {
-        renderGraph.particlesDrawNode.pipelineGroups[0].renderCalls.push_back(Renderer::RenderNodeUtils::RenderCall{
-            .vertexBuffer = emitter.particleMesh->vertexAllocations.buffer,
-            .indexBuffer = emitter.particleMesh->indexAllocations.buffer,
-            .indexCount = emitter.particleMesh->indexCount,
-            .instanceCount = emitter.maxParticles,
-            .updatePushConstants = [&]() {
-              auto &pushConstantsBank = renderGraph.context.pushConstantBank;
+        renderGraph.particlesDrawNode.pipelineGroups[0].renderCalls.push_back(
+            Renderer::RenderNodeUtils::RenderCall{.vertexBuffer = emitter.particleMesh->vertexAllocations.buffer,
+                                                  .indexBuffer = emitter.particleMesh->indexAllocations.buffer,
+                                                  .indexCount = emitter.particleMesh->indexCount,
+                                                  .instanceCount = emitter.maxParticles,
+                                                  .updatePushConstants = [&]() {
+                                                    auto &pushConstantsBank = renderGraph.context.pushConstantBank;
 
-              TransformComponent &tc = getTransform(emitter.entity);
-              Transform t = modelToTransform(tc.model);
+                                                    TransformComponent &tc = getTransform(emitter.entity);
+                                                    Transform t = modelToTransform(tc.model);
 
-              Renderer::Shaders::PushConstantsBank::setInt(pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
-              Renderer::Shaders::PushConstantsBank::setFloat3(pushConstantsBank, SG_PUSH_PARTICLES_EMITTER_POS_INDEX, t.position);
-            }});
+                                                    Renderer::Shaders::PushConstantsBank::setInt(pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
+                                                    Shaders::PushConstantsBank::setInt(pushConstantsBank, SG_PUSH_PARTICLE_EMITTER_INDEX, emitter.indexOffset);
+                                                  }});
       }
 
       renderGraph.prepareNodes(vDevice.device, vSwapChain);

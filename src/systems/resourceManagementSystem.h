@@ -5,6 +5,7 @@
 #include "../utils/math.h"
 #include "../utils/types.h"
 #include "glm/fwd.hpp"
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -49,17 +50,7 @@ struct ProjectileComponent {
   float timeAlive = 0.0f;
 };
 
-enum class WizzardState {
-  None,
-  ChoosingNewPosition,
-  MovingToPosition,
-  Attacking,
-  Waiting,
-  Evading,
-  Recovering,
-  Flying,
-  OnTheFloor
-};
+enum class WizzardState { None, ChoosingNewPosition, MovingToPosition, Attacking, Waiting, Evading, Recovering, Flying, OnTheFloor };
 
 struct WizardBehaviorComponent {
   int entity = -1;
@@ -92,13 +83,7 @@ struct WizardBehaviorComponent {
   int attackerEntity = -1;
 };
 
-enum class OgreState {
-  InitiatingAttackMode,
-  InAttackMode,
-  Iddle,
-  MovingToAttack,
-  Attacking
-};
+enum class OgreState { InitiatingAttackMode, InAttackMode, Iddle, MovingToAttack, Attacking };
 
 struct OgreBehaviorComponent {
   int entity = -1;
@@ -107,34 +92,6 @@ struct OgreBehaviorComponent {
   int attackingEntity = -1;
 
   float initAttackTime = 0;
-};
-
-struct ParticleEmitterCpuComponent {
-  int entity = -1;
-  int owner = -1;
-  uint32_t firstParticle = 0;
-  uint32_t maxParticles = 0;
-  bool active = true;
-  float spawnRate = 0.0f;
-  float spawnAccumulator = 0.0f;
-  float particleLifetime = 1.0f;
-  float particleStartSize = 0.1f;
-  float particleEndSize = 0.1f;
-  float spawnSpeed = 1.0f;
-  float maxColorSpeed = 1.0f;
-  glm::vec4 lifeColorStart{1.0f};
-  glm::vec4 lifeColorEnd{1.0f};
-  glm::vec4 speedColorSlow{1.0f};
-  glm::vec4 speedColorFast{1.0f};
-  glm::vec3 position{0.0f};
-  glm::vec3 direction{0.0f, 0.0f, 1.0f};
-  ParticleEmitterShape shape = ParticleEmitterShape::Cone;
-  int lightEntity = -1;
-  int secondaryLightEntity = -1;
-  float lightStartIntensity = 0.0f;
-  float lightTargetIntensity = -1.0f;
-  float secondaryLightStartIntensity = 0.0f;
-  float secondaryLightTargetIntensity = -1.0f;
 };
 
 struct AttachmentAnimationComponent {
@@ -173,6 +130,7 @@ struct GravityComponent {
 struct ParticleEmitterComponent {
   int entity = -1;
   uint32_t maxParticles = 10;
+  size_t indexOffset = 0;
   Renderer::Types::Mesh *particleMesh;
   glm::vec3 direction = glm::vec3(0.0f);
   ParticleEmitterShape shape = ParticleEmitterShape::Sphere;
@@ -185,7 +143,6 @@ struct Resources {
   std::vector<ProjectileComponent> projectiles;
   std::vector<WizardBehaviorComponent> wizardBehaviors;
   std::vector<OgreBehaviorComponent> ogreBehaviors;
-  std::vector<ParticleEmitterCpuComponent> particleEmitterCpuComponents;
   std::vector<AttachmentAnimationComponent> attachmentAnimationComponents;
   std::vector<SunLightComponent> sunLights;
   std::vector<PointLightComponent> pointLights;
@@ -220,10 +177,6 @@ WizardBehaviorComponent &addWizardBehavior(int entity);
 WizardBehaviorComponent &getWizardBehavior(int entity);
 WizardBehaviorComponent *tryGetWizardBehavior(int entity);
 
-ParticleEmitterCpuComponent &addParticleEmitterCpuComponent(int entity);
-ParticleEmitterCpuComponent &getParticleEmitterCpuComponent(int entity);
-ParticleEmitterCpuComponent *tryGetParticleEmitterCpuComponent(int entity);
-
 AttachmentAnimationComponent &addAttachmentAnimationComponent(int entity);
 AttachmentAnimationComponent &getAttachmentAnimationComponent(int entity);
 AttachmentAnimationComponent *tryGetAttachmentAnimationComponent(int entity);
@@ -255,16 +208,10 @@ struct BasicGameObject {
   int entity = -1;
 };
 
-BasicGameObject
-createBasicGameObject(Blender::V2::BlenderModel, Renderer::Types::Mesh &mesh,
-                      Transform transform,
-                      Renderer::Shaders::UniformBank::Data &uniformsBank,
-                      vk::raii::CommandPool &commandPool,
-                      Renderer::VDevice &vDevice, uint32_t textureIndex = -1);
+BasicGameObject createBasicGameObject(Blender::V2::BlenderModel, Renderer::Types::Mesh &mesh, Transform transform,
+                                      Renderer::Shaders::UniformBank::Data &uniformsBank, vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice,
+                                      uint32_t textureIndex = -1);
 
-BasicGameObject createAnimatedGameObject(
-    Blender::V2::BlenderModel, Renderer::Types::AnimatedMesh &mesh,
-    uint32_t firstGlobalPositionOffset, Transform transform,
-    Renderer::Shaders::UniformBank::Data &uniformsBank,
-    vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice,
-    uint32_t textureIndex = -1);
+BasicGameObject createAnimatedGameObject(Blender::V2::BlenderModel, Renderer::Types::AnimatedMesh &mesh, uint32_t firstGlobalPositionOffset,
+                                         Transform transform, Renderer::Shaders::UniformBank::Data &uniformsBank, vk::raii::CommandPool &commandPool,
+                                         Renderer::VDevice &vDevice, uint32_t textureIndex = -1);

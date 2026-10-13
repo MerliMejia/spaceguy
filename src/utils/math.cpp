@@ -5,8 +5,7 @@
 #include <glm/gtc/constants.hpp>
 #include <random>
 
-glm::mat4 transformToModel(glm::vec3 position, glm::quat rotation,
-                           glm::vec3 scale) {
+glm::mat4 transformToModel(glm::vec3 position, glm::quat rotation, glm::vec3 scale) {
   glm::mat4 translation = glm::translate(glm::mat4{1.0f}, position);
   glm::mat4 rot = glm::mat4_cast(glm::normalize(rotation));
   glm::mat4 sca = glm::scale(glm::mat4{1.0f}, scale);
@@ -43,8 +42,7 @@ float getDistanceSqr(glm::vec2 p1, glm::vec2 p2) {
   return glm::dot(delta, delta);
 }
 
-void moveTowardsDir(glm::mat4 &model, float speed, glm::vec2 dir,
-                    float distance, float deltaTime) {
+void moveTowardsDir(glm::mat4 &model, float speed, glm::vec2 dir, float distance, float deltaTime) {
 
   if (distance < 0.001f)
     return;
@@ -60,8 +58,7 @@ void moveTowardsDir(glm::mat4 &model, float speed, glm::vec2 dir,
   transform.position += glm::vec3(dir * step, 0.0f);
   transform.rotation = glm::angleAxis(angleRadians, glm::vec3{0.0, 0.0, 1.0});
 
-  model =
-      transformToModel(transform.position, transform.rotation, transform.scale);
+  model = transformToModel(transform.position, transform.rotation, transform.scale);
 }
 
 void faceTowardsDir(glm::mat4 &model, glm::vec2 dir) {
@@ -70,12 +67,10 @@ void faceTowardsDir(glm::mat4 &model, glm::vec2 dir) {
 
   transform.rotation = glm::angleAxis(angleRadians, glm::vec3{0.0, 0.0, 1.0});
 
-  model =
-      transformToModel(transform.position, transform.rotation, transform.scale);
+  model = transformToModel(transform.position, transform.rotation, transform.scale);
 }
 
-std::vector<glm::vec3> generatePointsOnSphere(int n, float radius,
-                                              glm::vec3 center) {
+std::vector<glm::vec3> generatePointsOnSphere(int n, float radius, glm::vec3 center) {
   std::vector<glm::vec3> points;
   points.reserve(n);
 
@@ -101,8 +96,7 @@ std::vector<glm::vec3> generatePointsOnSphere(int n, float radius,
   return points;
 }
 
-void rotateTransform(Transform &t, float angularSpeed, glm::vec3 axis,
-                     float dt) {
+void rotateTransform(Transform &t, float angularSpeed, glm::vec3 axis, float dt) {
 
   float radianSpeed = glm::radians(angularSpeed);
 
@@ -114,9 +108,7 @@ void rotateTransform(Transform &t, float angularSpeed, glm::vec3 axis,
 
 Transform modelToTransform(const glm::mat4 &model) {
   glm::vec3 position = glm::vec3(model[3]);
-  glm::vec3 scale = glm::vec3{glm::length(glm::vec3(model[0])),
-                              glm::length(glm::vec3(model[1])),
-                              glm::length(glm::vec3(model[2]))};
+  glm::vec3 scale = glm::vec3{glm::length(glm::vec3(model[0])), glm::length(glm::vec3(model[1])), glm::length(glm::vec3(model[2]))};
   glm::mat3 rotationMatrix{
       glm::vec3(model[0]) / scale.x,
       glm::vec3(model[1]) / scale.y,
@@ -125,4 +117,34 @@ Transform modelToTransform(const glm::mat4 &model) {
   glm::quat rotation = glm::quat_cast(rotationMatrix);
 
   return Transform{.position = position, .scale = scale, .rotation = rotation};
+}
+
+// Fits an orthographic shadow box around a bounding sphere.
+// Only the direction from sunPosition to center is used, the sun's distance
+// doesn't matter.
+ViewProjMatrices computeSunMatrices(glm::vec3 sunPosition, glm::vec3 center, float radius, float margin) {
+  glm::vec3 sunDir = glm::normalize(center - sunPosition);
+
+  // Virtual eye just outside the sphere, on the sun's side.
+  glm::vec3 eye = center - sunDir * (radius + margin);
+
+  // Z-up world; fall back to Y-up if the sun is (almost) straight overhead.
+  glm::vec3 up{0.0f, 0.0f, 1.0f};
+  if (glm::abs(glm::dot(sunDir, up)) > 0.99f) {
+    up = glm::vec3{0.0f, 1.0f, 0.0f};
+  }
+
+  ViewProjMatrices m;
+  m.view = glm::lookAt(eye, center, up);
+
+  // Explicit right-handed, 0..1 depth: doesn't depend on
+  // GLM_FORCE_DEPTH_ZERO_TO_ONE.
+  float zNear = 0.0f;
+  float zFar = 2.0f * (radius + margin);
+  m.proj = glm::orthoRH_ZO(-radius, radius, -radius, radius, zNear, zFar);
+
+  // Same Vulkan Y-flip as the camera.
+  m.proj[1][1] *= -1.0f;
+
+  return m;
 }

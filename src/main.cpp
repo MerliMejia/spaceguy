@@ -7,7 +7,9 @@
 #include "engine/renderer/vRenderer.h"
 #include "glm/ext/matrix_clip_space.hpp"
 #include "glm/ext/vector_float3.hpp"
+#include "glm/fwd.hpp"
 #include "systems/animationSystem.h"
+#include "systems/particlesSystem.h"
 #include "systems/resourceManagementSystem.h"
 #include "systems/sceneContext.h"
 #include "utils/generators.h"
@@ -20,41 +22,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp> // lookAt
 #include <iostream>
-
-struct SunMatrices {
-  glm::mat4 view;
-  glm::mat4 proj;
-};
-
-// Fits an orthographic shadow box around a bounding sphere.
-// Only the direction from sunPosition to center is used, the sun's distance
-// doesn't matter.
-SunMatrices computeSunMatrices(glm::vec3 sunPosition, glm::vec3 center, float radius, float margin) {
-  glm::vec3 sunDir = glm::normalize(center - sunPosition);
-
-  // Virtual eye just outside the sphere, on the sun's side.
-  glm::vec3 eye = center - sunDir * (radius + margin);
-
-  // Z-up world; fall back to Y-up if the sun is (almost) straight overhead.
-  glm::vec3 up{0.0f, 0.0f, 1.0f};
-  if (glm::abs(glm::dot(sunDir, up)) > 0.99f) {
-    up = glm::vec3{0.0f, 1.0f, 0.0f};
-  }
-
-  SunMatrices m;
-  m.view = glm::lookAt(eye, center, up);
-
-  // Explicit right-handed, 0..1 depth: doesn't depend on
-  // GLM_FORCE_DEPTH_ZERO_TO_ONE.
-  float zNear = 0.0f;
-  float zFar = 2.0f * (radius + margin);
-  m.proj = glm::orthoRH_ZO(-radius, radius, -radius, radius, zNear, zFar);
-
-  // Same Vulkan Y-flip as the camera.
-  m.proj[1][1] *= -1.0f;
-
-  return m;
-}
 
 int main() {
   try {
@@ -75,6 +42,7 @@ int main() {
 
     // Testing...
     int peEntity = -1;
+    int outEmitter = -1;
 
     renderer.onInit = [&]() {
       sceneContext.cameraPosition = worldData.camera.transform.position;
@@ -99,9 +67,9 @@ int main() {
 
       camera.update(renderer.vSwapChain.swapChainExtent.width, renderer.vSwapChain.swapChainExtent.height, uniformsBank, renderer.window.handler);
 
-      SunMatrices sun = computeSunMatrices(sunPosition, glm::vec3{0.0f, 0.0f, 3.5f}, // sphere center
-                                           29.0f,                                    // R
-                                           5.0f);                                    // margin
+      ViewProjMatrices sun = computeSunMatrices(sunPosition, glm::vec3{0.0f, 0.0f, 3.5f}, // sphere center
+                                                29.0f,                                    // R
+                                                5.0f);                                    // margin
 
       Renderer::Shaders::UniformBank::setFloat3(uniformsBank, SG_SUN_POS_INDEX, sunPosition);
       Renderer::Shaders::UniformBank::setFloat3(uniformsBank, SG_SUN_INTENSITY_INDEX, sunColorIntensity);
@@ -153,13 +121,32 @@ int main() {
 
       particleEmitter.particleMesh = &particleMesh;
       particleEmitter.direction = glm::vec3(0.0f, 0.0f, -1.0f);
-      particleEmitter.maxParticles = 100;
+      particleEmitter.maxParticles = 50;
+      particleEmitter.shape = ParticleEmitterShape::Sphere;
 
       TransformComponent &peTc = addTransform(peEntity);
       peTc.model = transformToModel(peTransform.position, peTransform.rotation, peTransform.scale);
 
       Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, peTc.modelIndex, peTc.model);
 
+      // Out particles
+      Transform outETransform{.position = glm::vec3{3.0f, 3.0f, 3.0f}, .scale = glm::vec3(1.0f), .rotation = glm::quat{1.0f, 0.0f, 0.0f, 0.0f}};
+
+      outEmitter = createEntity();
+      ParticleEmitterComponent &outerEmitterComponent = addParticleEmitterComponent(outEmitter);
+
+      outerEmitterComponent.particleMesh = &particleMesh;
+      outerEmitterComponent.direction = glm::vec3(0.0f, 0.0f, 1.0f);
+      outerEmitterComponent.maxParticles = 50;
+      outerEmitterComponent.shape = ParticleEmitterShape::Star;
+
+      TransformComponent &outTc = addTransform(outEmitter);
+
+      outTc.model = transformToModel(outETransform.position, outETransform.rotation, outETransform.scale);
+
+      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, outTc.modelIndex, outTc.model);
+
+      initParticlesSystem(renderer.renderGraph);
       initAnimations(renderer.renderGraph.context.vertAnimSSBankData, renderer.renderGraph.context.vertAnimSBBankAllocations, renderer.vDevice,
                      renderer.renderGraph.commandPool);
     };

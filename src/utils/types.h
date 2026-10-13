@@ -30,25 +30,13 @@ struct Vertex {
   glm::vec3 normal;
 
   static vk::VertexInputBindingDescription getBindingDescription() {
-    return {.binding = 0,
-            .stride = sizeof(Vertex),
-            .inputRate = vk::VertexInputRate::eVertex};
+    return {.binding = 0, .stride = sizeof(Vertex), .inputRate = vk::VertexInputRate::eVertex};
   }
-  static std::array<vk::VertexInputAttributeDescription, 3>
-  getAttributeDescriptions() {
+  static std::array<vk::VertexInputAttributeDescription, 3> getAttributeDescriptions() {
     return {{
-        {.location = 0,
-         .binding = 0,
-         .format = vk::Format::eR32G32B32Sfloat,
-         .offset = offsetof(Vertex, pos)},
-        {.location = 1,
-         .binding = 0,
-         .format = vk::Format::eR32G32B32Sfloat,
-         .offset = offsetof(Vertex, color)},
-        {.location = 2,
-         .binding = 0,
-         .format = vk::Format::eR32G32B32Sfloat,
-         .offset = offsetof(Vertex, normal)},
+        {.location = 0, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(Vertex, pos)},
+        {.location = 1, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(Vertex, color)},
+        {.location = 2, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(Vertex, normal)},
     }};
   }
 };
@@ -134,14 +122,7 @@ enum WizardAnimationMapping : uint32_t {
   WizardGotInFloorFromHit = 6
 };
 
-enum OgreAnimationMapping : uint32_t {
-  OgreAttackMode = 0,
-  OgreIddle = 1,
-  OgreInitAttackMode = 2,
-  OgreAttack1 = 3,
-  OgreRunning = 4,
-  OgreFlyingAttack = 5
-};
+enum OgreAnimationMapping : uint32_t { OgreAttackMode = 0, OgreIddle = 1, OgreInitAttackMode = 2, OgreAttack1 = 3, OgreRunning = 4, OgreFlyingAttack = 5 };
 
 struct TransformAnimationKeyPoseGPU {
   glm::vec3 location{};
@@ -172,15 +153,14 @@ struct ParticleSimUbo {
   uint32_t frameIndex;
 };
 
-enum class ParticleEmitterShape : uint32_t { Cone = 0, Sphere = 1 };
+enum class ParticleEmitterShape : uint32_t { Star = 0, Sphere = 1 };
 
 struct ParticleEmitterGpu {
   glm::vec4 position;
   glm::vec4 direction;
   glm::vec4 worldVelocitySpawnRate; // xyz = emitter velocity, w = spawn/sec
-  glm::vec4
-      config; // x = lifetime, y = start size, z = speed, w = max color speed
-  glm::vec4 sizeConfig; // x = end size, yzw = spare
+  glm::vec4 config;                 // x = lifetime, y = start size, z = speed, w = max color speed
+  glm::vec4 sizeConfig;             // x = end size, yzw = spare
   glm::vec4 lifeColorStart;
   glm::vec4 lifeColorEnd;
   glm::vec4 speedColorSlow;

@@ -18,7 +18,6 @@ static std::unordered_map<int, int> entityToAnimations;
 static std::unordered_map<int, int> entityToProjectiles;
 static std::unordered_map<int, int> entityToWizardBehaviors;
 static std::unordered_map<int, int> entityToOgreBehaviors;
-static std::unordered_map<int, int> entityToParticleEmitterCpuComponents;
 static std::unordered_map<int, int> entityToAttachmentAnimationComponents;
 static std::unordered_map<int, int> entityToSunLights;
 static std::unordered_map<int, int> entityToPointLights;
@@ -46,18 +45,14 @@ concept EntityComponent = requires(T component, int entity) {
   { component.entity } -> std::convertible_to<int>;
 };
 
-template <EntityComponent T>
-T &addComponent(int entity, std::unordered_map<int, int> &map,
-                std::vector<T> &list, std::string_view componentName) {
+template <EntityComponent T> T &addComponent(int entity, std::unordered_map<int, int> &map, std::vector<T> &list, std::string_view componentName) {
   if (!alive.contains(entity)) {
-    throw std::runtime_error("The entity " + std::to_string(entity) +
-                             " doesn't live anymore");
+    throw std::runtime_error("The entity " + std::to_string(entity) + " doesn't live anymore");
   }
 
   auto it = map.find(entity);
   if (it != map.end()) {
-    throw std::runtime_error("The entity " + std::to_string(entity) +
-                             " already has a " + std::string(componentName));
+    throw std::runtime_error("The entity " + std::to_string(entity) + " already has a " + std::string(componentName));
   }
 
   int tIndex = static_cast<int>(list.size());
@@ -67,22 +62,17 @@ T &addComponent(int entity, std::unordered_map<int, int> &map,
   return list[tIndex];
 }
 
-template <EntityComponent T>
-T &getComponent(int entity, std::unordered_map<int, int> &map,
-                std::vector<T> &list, std::string_view componentName) {
+template <EntityComponent T> T &getComponent(int entity, std::unordered_map<int, int> &map, std::vector<T> &list, std::string_view componentName) {
   auto it = map.find(entity);
 
   if (it != map.end()) {
     return list[it->second];
   }
 
-  throw std::runtime_error("Entity doesn't have a " +
-                           std::string(componentName));
+  throw std::runtime_error("Entity doesn't have a " + std::string(componentName));
 }
 
-template <EntityComponent T>
-T *tryGetComponent(int entity, std::unordered_map<int, int> &map,
-                   std::vector<T> &list) {
+template <EntityComponent T> T *tryGetComponent(int entity, std::unordered_map<int, int> &map, std::vector<T> &list) {
   auto it = map.find(entity);
 
   if (it != map.end()) {
@@ -92,9 +82,7 @@ T *tryGetComponent(int entity, std::unordered_map<int, int> &map,
   return nullptr;
 }
 
-template <EntityComponent T>
-void destroyComponent(int entity, std::unordered_map<int, int> &map,
-                      std::vector<T> &list) {
+template <EntityComponent T> void destroyComponent(int entity, std::unordered_map<int, int> &map, std::vector<T> &list) {
   auto it = map.find(entity);
   if (it == map.end()) {
     return;
@@ -114,31 +102,19 @@ void destroyComponent(int entity, std::unordered_map<int, int> &map,
   map.erase(entity);
 }
 
-Renderable &addRenderable(int entity) {
-  return addComponent<Renderable>(entity, entityToRenderables,
-                                  resources.renderables, "renderable");
-}
+Renderable &addRenderable(int entity) { return addComponent<Renderable>(entity, entityToRenderables, resources.renderables, "renderable"); }
 
-template <> Renderable &addComponent<Renderable>(int entity) {
-  return addRenderable(entity);
-}
+template <> Renderable &addComponent<Renderable>(int entity) { return addRenderable(entity); }
 
-Renderable &getRenderable(int entity) {
-  return getComponent<Renderable>(entity, entityToRenderables,
-                                  resources.renderables, "renderable");
-}
+Renderable &getRenderable(int entity) { return getComponent<Renderable>(entity, entityToRenderables, resources.renderables, "renderable"); }
 
-Renderable *tryGetRenderable(int entity) {
-  return tryGetComponent<Renderable>(entity, entityToRenderables,
-                                     resources.renderables);
-}
+Renderable *tryGetRenderable(int entity) { return tryGetComponent<Renderable>(entity, entityToRenderables, resources.renderables); }
 
 TransformComponent &addTransform(int entity) {
   int modelIndex = Renderer::Shaders::bankManager.useModelSlot();
 
   try {
-    TransformComponent &transform = addComponent<TransformComponent>(
-        entity, entityToTransforms, resources.transforms, "transform");
+    TransformComponent &transform = addComponent<TransformComponent>(entity, entityToTransforms, resources.transforms, "transform");
     transform.modelIndex = modelIndex;
     return transform;
   } catch (...) {
@@ -147,221 +123,117 @@ TransformComponent &addTransform(int entity) {
   }
 }
 
-template <> TransformComponent &addComponent<TransformComponent>(int entity) {
-  return addTransform(entity);
-}
+template <> TransformComponent &addComponent<TransformComponent>(int entity) { return addTransform(entity); }
 
-TransformComponent &getTransform(int entity) {
-  return getComponent<TransformComponent>(entity, entityToTransforms,
-                                          resources.transforms, "transform");
-}
+TransformComponent &getTransform(int entity) { return getComponent<TransformComponent>(entity, entityToTransforms, resources.transforms, "transform"); }
 
-TransformComponent *tryGetTransform(int entity) {
-  return tryGetComponent<TransformComponent>(entity, entityToTransforms,
-                                             resources.transforms);
-}
+TransformComponent *tryGetTransform(int entity) { return tryGetComponent<TransformComponent>(entity, entityToTransforms, resources.transforms); }
 
-AnimationComponent &addAnimation(int entity) {
-  return addComponent<AnimationComponent>(entity, entityToAnimations,
-                                          resources.animations, "animation");
-}
+AnimationComponent &addAnimation(int entity) { return addComponent<AnimationComponent>(entity, entityToAnimations, resources.animations, "animation"); }
 
-template <> AnimationComponent &addComponent<AnimationComponent>(int entity) {
-  return addAnimation(entity);
-}
+template <> AnimationComponent &addComponent<AnimationComponent>(int entity) { return addAnimation(entity); }
 
-AnimationComponent &getAnimation(int entity) {
-  return getComponent<AnimationComponent>(entity, entityToAnimations,
-                                          resources.animations, "animation");
-}
+AnimationComponent &getAnimation(int entity) { return getComponent<AnimationComponent>(entity, entityToAnimations, resources.animations, "animation"); }
 
-AnimationComponent *tryGetAnimation(int entity) {
-  return tryGetComponent<AnimationComponent>(entity, entityToAnimations,
-                                             resources.animations);
-}
+AnimationComponent *tryGetAnimation(int entity) { return tryGetComponent<AnimationComponent>(entity, entityToAnimations, resources.animations); }
 
 ProjectileComponent &addProjectile(int entity) {
-  return addComponent<ProjectileComponent>(entity, entityToProjectiles,
-                                           resources.projectiles,
-                                           "projectile component");
+  return addComponent<ProjectileComponent>(entity, entityToProjectiles, resources.projectiles, "projectile component");
 }
 
-template <> ProjectileComponent &addComponent<ProjectileComponent>(int entity) {
-  return addProjectile(entity);
-}
+template <> ProjectileComponent &addComponent<ProjectileComponent>(int entity) { return addProjectile(entity); }
 
 ProjectileComponent &getProjectile(int entity) {
-  return getComponent<ProjectileComponent>(entity, entityToProjectiles,
-                                           resources.projectiles,
-                                           "projectile component");
+  return getComponent<ProjectileComponent>(entity, entityToProjectiles, resources.projectiles, "projectile component");
 }
 
-ProjectileComponent *tryGetProjectile(int entity) {
-  return tryGetComponent<ProjectileComponent>(entity, entityToProjectiles,
-                                              resources.projectiles);
-}
+ProjectileComponent *tryGetProjectile(int entity) { return tryGetComponent<ProjectileComponent>(entity, entityToProjectiles, resources.projectiles); }
 
 WizardBehaviorComponent &addWizardBehavior(int entity) {
-  return addComponent<WizardBehaviorComponent>(entity, entityToWizardBehaviors,
-                                               resources.wizardBehaviors,
-                                               "wizard behavior component");
+  return addComponent<WizardBehaviorComponent>(entity, entityToWizardBehaviors, resources.wizardBehaviors, "wizard behavior component");
 }
 
-template <>
-WizardBehaviorComponent &addComponent<WizardBehaviorComponent>(int entity) {
-  return addWizardBehavior(entity);
-}
+template <> WizardBehaviorComponent &addComponent<WizardBehaviorComponent>(int entity) { return addWizardBehavior(entity); }
 
 WizardBehaviorComponent &getWizardBehavior(int entity) {
-  return getComponent<WizardBehaviorComponent>(entity, entityToWizardBehaviors,
-                                               resources.wizardBehaviors,
-                                               "wizard behavior component");
+  return getComponent<WizardBehaviorComponent>(entity, entityToWizardBehaviors, resources.wizardBehaviors, "wizard behavior component");
 }
 
 WizardBehaviorComponent *tryGetWizardBehavior(int entity) {
-  return tryGetComponent<WizardBehaviorComponent>(
-      entity, entityToWizardBehaviors, resources.wizardBehaviors);
-}
-
-ParticleEmitterCpuComponent &addParticleEmitterCpuComponent(int entity) {
-  return addComponent<ParticleEmitterCpuComponent>(
-      entity, entityToParticleEmitterCpuComponents,
-      resources.particleEmitterCpuComponents, "particle emitter cpu component");
-}
-
-template <>
-ParticleEmitterCpuComponent &
-addComponent<ParticleEmitterCpuComponent>(int entity) {
-  return addParticleEmitterCpuComponent(entity);
-}
-
-ParticleEmitterCpuComponent &getParticleEmitterCpuComponent(int entity) {
-  return getComponent<ParticleEmitterCpuComponent>(
-      entity, entityToParticleEmitterCpuComponents,
-      resources.particleEmitterCpuComponents, "particle emitter cpu component");
-}
-
-ParticleEmitterCpuComponent *tryGetParticleEmitterCpuComponent(int entity) {
-  return tryGetComponent<ParticleEmitterCpuComponent>(
-      entity, entityToParticleEmitterCpuComponents,
-      resources.particleEmitterCpuComponents);
+  return tryGetComponent<WizardBehaviorComponent>(entity, entityToWizardBehaviors, resources.wizardBehaviors);
 }
 
 void destroyEntity(int entity) { destroyQueue.push_back(entity); }
 
 AttachmentAnimationComponent &addAttachmentAnimationComponent(int entity) {
-  return addComponent<AttachmentAnimationComponent>(
-      entity, entityToAttachmentAnimationComponents,
-      resources.attachmentAnimationComponents,
-      "attachment animation component");
+  return addComponent<AttachmentAnimationComponent>(entity, entityToAttachmentAnimationComponents, resources.attachmentAnimationComponents,
+                                                    "attachment animation component");
 }
 
 AttachmentAnimationComponent &getAttachmentAnimationComponent(int entity) {
-  return getComponent<AttachmentAnimationComponent>(
-      entity, entityToAttachmentAnimationComponents,
-      resources.attachmentAnimationComponents,
-      "attachment animation component");
+  return getComponent<AttachmentAnimationComponent>(entity, entityToAttachmentAnimationComponents, resources.attachmentAnimationComponents,
+                                                    "attachment animation component");
 }
 
 AttachmentAnimationComponent *tryGetAttachmentAnimationComponent(int entity) {
-  return tryGetComponent<AttachmentAnimationComponent>(
-      entity, entityToAttachmentAnimationComponents,
-      resources.attachmentAnimationComponents);
+  return tryGetComponent<AttachmentAnimationComponent>(entity, entityToAttachmentAnimationComponents, resources.attachmentAnimationComponents);
 }
 
-SunLightComponent &addSunLight(int entity) {
-  return addComponent<SunLightComponent>(
-      entity, entityToSunLights, resources.sunLights, "sun light component");
-}
+SunLightComponent &addSunLight(int entity) { return addComponent<SunLightComponent>(entity, entityToSunLights, resources.sunLights, "sun light component"); }
 
-template <> SunLightComponent &addComponent<SunLightComponent>(int entity) {
-  return addSunLight(entity);
-}
+template <> SunLightComponent &addComponent<SunLightComponent>(int entity) { return addSunLight(entity); }
 
-SunLightComponent &getSunLight(int entity) {
-  return getComponent<SunLightComponent>(
-      entity, entityToSunLights, resources.sunLights, "sun light component");
-}
+SunLightComponent &getSunLight(int entity) { return getComponent<SunLightComponent>(entity, entityToSunLights, resources.sunLights, "sun light component"); }
 
-SunLightComponent *tryGetSunLight(int entity) {
-  return tryGetComponent<SunLightComponent>(entity, entityToSunLights,
-                                            resources.sunLights);
-}
+SunLightComponent *tryGetSunLight(int entity) { return tryGetComponent<SunLightComponent>(entity, entityToSunLights, resources.sunLights); }
 
 PointLightComponent &addPointLight(int entity) {
-  return addComponent<PointLightComponent>(entity, entityToPointLights,
-                                           resources.pointLights,
-                                           "point light component");
+  return addComponent<PointLightComponent>(entity, entityToPointLights, resources.pointLights, "point light component");
 }
 
-template <> PointLightComponent &addComponent<PointLightComponent>(int entity) {
-  return addPointLight(entity);
-}
+template <> PointLightComponent &addComponent<PointLightComponent>(int entity) { return addPointLight(entity); }
 
 PointLightComponent &getPointLight(int entity) {
-  return getComponent<PointLightComponent>(entity, entityToPointLights,
-                                           resources.pointLights,
-                                           "point light component");
+  return getComponent<PointLightComponent>(entity, entityToPointLights, resources.pointLights, "point light component");
 }
 
-PointLightComponent *tryGetPointLight(int entity) {
-  return tryGetComponent<PointLightComponent>(entity, entityToPointLights,
-                                              resources.pointLights);
-}
+PointLightComponent *tryGetPointLight(int entity) { return tryGetComponent<PointLightComponent>(entity, entityToPointLights, resources.pointLights); }
 
 OgreBehaviorComponent &addOgreBehaviorComponent(int entity) {
-  return addComponent<OgreBehaviorComponent>(entity, entityToOgreBehaviors,
-                                             resources.ogreBehaviors,
-                                             "ogre behavior component");
+  return addComponent<OgreBehaviorComponent>(entity, entityToOgreBehaviors, resources.ogreBehaviors, "ogre behavior component");
 }
 
 OgreBehaviorComponent &getOgreBehaviorComponent(int entity) {
-  return getComponent<OgreBehaviorComponent>(entity, entityToOgreBehaviors,
-                                             resources.ogreBehaviors,
-                                             "ogre behavior component");
+  return getComponent<OgreBehaviorComponent>(entity, entityToOgreBehaviors, resources.ogreBehaviors, "ogre behavior component");
 }
 
 OgreBehaviorComponent *tryGetOgreBehaviorComponent(int entity) {
-  return tryGetComponent<OgreBehaviorComponent>(entity, entityToOgreBehaviors,
-                                                resources.ogreBehaviors);
+  return tryGetComponent<OgreBehaviorComponent>(entity, entityToOgreBehaviors, resources.ogreBehaviors);
 }
 
 GravityComponent &addGravityComponent(int entity) {
-  return addComponent<GravityComponent>(
-      entity, entityToGravities, resources.gravities, "gravity component");
+  return addComponent<GravityComponent>(entity, entityToGravities, resources.gravities, "gravity component");
 }
 
 GravityComponent &getGravityComponent(int entity) {
-  return getComponent<GravityComponent>(
-      entity, entityToGravities, resources.gravities, "gravity component");
+  return getComponent<GravityComponent>(entity, entityToGravities, resources.gravities, "gravity component");
 }
 
-GravityComponent *tryGetGravityComponent(int entity) {
-  return tryGetComponent<GravityComponent>(entity, entityToGravities,
-                                           resources.gravities);
-}
+GravityComponent *tryGetGravityComponent(int entity) { return tryGetComponent<GravityComponent>(entity, entityToGravities, resources.gravities); }
 
 ParticleEmitterComponent &addParticleEmitterComponent(int entity) {
-  return addComponent<ParticleEmitterComponent>(
-      entity, entityToParticleEmitters, resources.particleEmitters,
-      "particle emitter component");
+  return addComponent<ParticleEmitterComponent>(entity, entityToParticleEmitters, resources.particleEmitters, "particle emitter component");
 }
 
 ParticleEmitterComponent &getParticleEmitterComponent(int entity) {
-  return getComponent<ParticleEmitterComponent>(
-      entity, entityToParticleEmitters, resources.particleEmitters,
-      "particle emitter component");
+  return getComponent<ParticleEmitterComponent>(entity, entityToParticleEmitters, resources.particleEmitters, "particle emitter component");
 }
 
 ParticleEmitterComponent *tryGetParticleEmitterComponent(int entity) {
-  return tryGetComponent<ParticleEmitterComponent>(
-      entity, entityToParticleEmitters, resources.particleEmitters);
+  return tryGetComponent<ParticleEmitterComponent>(entity, entityToParticleEmitters, resources.particleEmitters);
 }
 
-static void destroyRenderable(int entity) {
-  destroyComponent<Renderable>(entity, entityToRenderables,
-                               resources.renderables);
-}
+static void destroyRenderable(int entity) { destroyComponent<Renderable>(entity, entityToRenderables, resources.renderables); }
 
 static void destroyTransform(int entity) {
   TransformComponent *transform = tryGetTransform(entity);
@@ -374,19 +246,12 @@ static void destroyTransform(int entity) {
     Renderer::Shaders::bankManager.releaseModelSlot(transform->modelIndex);
   }
 
-  destroyComponent<TransformComponent>(entity, entityToTransforms,
-                                       resources.transforms);
+  destroyComponent<TransformComponent>(entity, entityToTransforms, resources.transforms);
 }
 
-static void destroyAnimation(int entity) {
-  destroyComponent<AnimationComponent>(entity, entityToAnimations,
-                                       resources.animations);
-}
+static void destroyAnimation(int entity) { destroyComponent<AnimationComponent>(entity, entityToAnimations, resources.animations); }
 
-static void destroyProjectile(int entity) {
-  destroyComponent<ProjectileComponent>(entity, entityToProjectiles,
-                                        resources.projectiles);
-}
+static void destroyProjectile(int entity) { destroyComponent<ProjectileComponent>(entity, entityToProjectiles, resources.projectiles); }
 
 static void destroyWizardBehavior(int entity) {
   if (WizardBehaviorComponent *wizard = tryGetWizardBehavior(entity)) {
@@ -398,44 +263,22 @@ static void destroyWizardBehavior(int entity) {
     }
   }
 
-  destroyComponent<WizardBehaviorComponent>(entity, entityToWizardBehaviors,
-                                            resources.wizardBehaviors);
+  destroyComponent<WizardBehaviorComponent>(entity, entityToWizardBehaviors, resources.wizardBehaviors);
 }
 
-static void destroyParticleEmitterCpuComponent(int entity) {
-  destroyComponent<ParticleEmitterCpuComponent>(
-      entity, entityToParticleEmitterCpuComponents,
-      resources.particleEmitterCpuComponents);
-}
+static void destroySunLight(int entity) { destroyComponent<SunLightComponent>(entity, entityToSunLights, resources.sunLights); }
 
-static void destroySunLight(int entity) {
-  destroyComponent<SunLightComponent>(entity, entityToSunLights,
-                                      resources.sunLights);
-}
-
-static void destroyPointLight(int entity) {
-  destroyComponent<PointLightComponent>(entity, entityToPointLights,
-                                        resources.pointLights);
-}
+static void destroyPointLight(int entity) { destroyComponent<PointLightComponent>(entity, entityToPointLights, resources.pointLights); }
 
 static void destroyAttachmentAnimationComponent(int entity) {
-  destroyComponent<AttachmentAnimationComponent>(
-      entity, entityToAttachmentAnimationComponents,
-      resources.attachmentAnimationComponents);
+  destroyComponent<AttachmentAnimationComponent>(entity, entityToAttachmentAnimationComponents, resources.attachmentAnimationComponents);
 }
 
-static void destroyOgreBahaviorComponent(int entity) {
-  destroyComponent(entity, entityToOgreBehaviors, resources.ogreBehaviors);
-}
+static void destroyOgreBahaviorComponent(int entity) { destroyComponent(entity, entityToOgreBehaviors, resources.ogreBehaviors); }
 
-static void destroyGravity(int entity) {
-  destroyComponent(entity, entityToGravities, resources.gravities);
-}
+static void destroyGravity(int entity) { destroyComponent(entity, entityToGravities, resources.gravities); }
 
-static void destroyParticleEmitter(int entity) {
-  destroyComponent(entity, entityToParticleEmitters,
-                   resources.particleEmitters);
-}
+static void destroyParticleEmitter(int entity) { destroyComponent(entity, entityToParticleEmitters, resources.particleEmitters); }
 
 void processDestroyQueue() {
   // Destruction can enqueue owned child entities. Indexing remains valid if
@@ -450,7 +293,6 @@ void processDestroyQueue() {
     destroyAnimation(entity);
     destroyProjectile(entity);
     destroyWizardBehavior(entity);
-    destroyParticleEmitterCpuComponent(entity);
     destroySunLight(entity);
     destroyPointLight(entity);
     destroyAttachmentAnimationComponent(entity);
@@ -463,15 +305,11 @@ void processDestroyQueue() {
   destroyQueue.clear();
 }
 
-BasicGameObject
-createBasicGameObject(Blender::V2::BlenderModel blenderModel,
-                      Renderer::Types::Mesh &mesh, Transform transform,
-                      Renderer::Shaders::UniformBank::Data &uniformsBank,
-                      vk::raii::CommandPool &commandPool,
-                      Renderer::VDevice &vDevice, uint32_t textureIndex) {
+BasicGameObject createBasicGameObject(Blender::V2::BlenderModel blenderModel, Renderer::Types::Mesh &mesh, Transform transform,
+                                      Renderer::Shaders::UniformBank::Data &uniformsBank, vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice,
+                                      uint32_t textureIndex) {
 
-  mesh = Renderer::Generators::generateMesh<Blender::V2::Vertex>(
-      blenderModel.vertices, blenderModel.indices, commandPool, vDevice);
+  mesh = Renderer::Generators::generateMesh<Blender::V2::Vertex>(blenderModel.vertices, blenderModel.indices, commandPool, vDevice);
 
   int entity = createEntity();
   Renderable &renderable = addRenderable(entity);
@@ -486,21 +324,16 @@ createBasicGameObject(Blender::V2::BlenderModel blenderModel,
 
   tc.model = transformToModel(floorT.position, floorT.rotation, floorT.scale);
 
-  Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, tc.modelIndex,
-                                              tc.model);
+  Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, tc.modelIndex, tc.model);
 
   return BasicGameObject{.entity = entity};
 }
 
-BasicGameObject createAnimatedGameObject(
-    Blender::V2::BlenderModel blenderModel, Renderer::Types::AnimatedMesh &mesh,
-    uint32_t firstGlobalPositionOffset, Transform transform,
-    Renderer::Shaders::UniformBank::Data &uniformsBank,
-    vk::raii::CommandPool &commandPool, Renderer::VDevice &vDevice,
-    uint32_t textureIndex) {
+BasicGameObject createAnimatedGameObject(Blender::V2::BlenderModel blenderModel, Renderer::Types::AnimatedMesh &mesh, uint32_t firstGlobalPositionOffset,
+                                         Transform transform, Renderer::Shaders::UniformBank::Data &uniformsBank, vk::raii::CommandPool &commandPool,
+                                         Renderer::VDevice &vDevice, uint32_t textureIndex) {
 
-  mesh = Renderer::Generators::generateAnimatedMesh(
-      blenderModel, firstGlobalPositionOffset, commandPool, vDevice);
+  mesh = Renderer::Generators::generateAnimatedMesh(blenderModel, firstGlobalPositionOffset, commandPool, vDevice);
 
   int entity = createEntity();
   Renderable &renderable = addRenderable(entity);
@@ -516,8 +349,7 @@ BasicGameObject createAnimatedGameObject(
 
   tc.model = transformToModel(floorT.position, floorT.rotation, floorT.scale);
 
-  Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, tc.modelIndex,
-                                              tc.model);
+  Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, tc.modelIndex, tc.model);
 
   addAnimation(entity);
 

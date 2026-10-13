@@ -31,6 +31,7 @@ add_executable(spaceguy
     src/engine/renderer/shaders/banksManager.cpp
     src/engine/blender/v2/importer.cpp
     src/engine/input/orbitCamera.cpp
+    src/systems/particlesSystem.cpp
 )
 
 # Slang -> SPIR-V
@@ -78,6 +79,7 @@ target_compile_definitions(spaceguy
 target_include_directories(spaceguy
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/external/stb
     ${CMAKE_CURRENT_SOURCE_DIR}/external/libtess2/Include
 )

@@ -12,13 +12,11 @@ struct Transform {
   glm::quat rotation;
 };
 
-glm::mat4 transformToModel(glm::vec3 position, glm::quat rotation,
-                           glm::vec3 scale);
+glm::mat4 transformToModel(glm::vec3 position, glm::quat rotation, glm::vec3 scale);
 Transform modelToTransform(const glm::mat4 &model);
 glm::vec2 randomPointInCircle(float centerX, float centerY, float radius);
 bool isCloseBox(glm::vec2 p1, glm::vec2 p2, float threshold);
-void moveTowardsDir(glm::mat4 &model, float speed, glm::vec2 dir,
-                    float distance, float deltaTime);
+void moveTowardsDir(glm::mat4 &model, float speed, glm::vec2 dir, float distance, float deltaTime);
 float getDistanceSqr(glm::vec2 p1, glm::vec2 p2);
 void faceTowardsDir(glm::mat4 &model, glm::vec2 dir);
 
@@ -40,22 +38,25 @@ inline float randomFloat(int size) {
   return dist(gen);
 }
 
-std::vector<glm::vec3> generatePointsOnSphere(int n, float radius,
-                                              glm::vec3 center);
+std::vector<glm::vec3> generatePointsOnSphere(int n, float radius, glm::vec3 center);
 
-void rotateTransform(Transform &t, float angularSpeed, glm::vec3 axis,
-                     float dt);
+void rotateTransform(Transform &t, float angularSpeed, glm::vec3 axis, float dt);
 
-template <typename T>
-size_t randomIndexFromValue(const std::vector<T> &vector) {
+template <typename T> size_t randomIndexFromValue(const std::vector<T> &vector) {
   static std::mt19937 rng(std::random_device{}());
 
   std::uniform_int_distribution<size_t> dist(0, vector.size() - 1);
   return dist(rng);
 }
 
+struct ViewProjMatrices {
+  glm::mat4 view;
+  glm::mat4 proj;
+};
+
+ViewProjMatrices computeSunMatrices(glm::vec3 sunPosition, glm::vec3 center, float radius, float margin);
+
 inline constexpr float CHECK_RADIUS = 4.0f;
 inline constexpr float RADIUS_SQ = CHECK_RADIUS * CHECK_RADIUS;
 inline constexpr float SUPER_CLOSE_RADIUS = 1.1f;
-inline constexpr float SUPER_CLOSE_RADIUS_SQ =
-    SUPER_CLOSE_RADIUS * SUPER_CLOSE_RADIUS;
+inline constexpr float SUPER_CLOSE_RADIUS_SQ = SUPER_CLOSE_RADIUS * SUPER_CLOSE_RADIUS;
