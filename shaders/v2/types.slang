@@ -1,5 +1,10 @@
 struct Particle {
   float3 position;
   float lifeTime;
-  float4 dir;
+  float3 dir;
+  float speed;
+  float waitTime;
+  float outerRadius;
+  float innerRadius;
+  float delay;
 };

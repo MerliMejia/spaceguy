@@ -107,7 +107,12 @@ struct AnimatedMesh {
 struct Particle {
   glm::vec3 position = glm::vec3(0.0f);
   float lifeTime = 1.0f;
-  glm::vec4 dir = glm::vec4(0.0f); // 1f not used
+  glm::vec3 dir = glm::vec3(0.0f);
+  float speed = 1.0f;
+  float waitTime = 0.0f;
+  float outerRadius = 10.0f;
+  float innerRadius = 0.5f;
+  float delay = 0.5f;
 };
 } // namespace Types
 } // namespace Renderer

@@ -129,6 +129,7 @@ struct GravityComponent {
 // V2
 struct ParticleEmitterComponent {
   int entity = -1;
+  bool visible = true;
   uint32_t maxParticles = 10;
   size_t indexOffset = 0;
   Renderer::Types::Mesh *particleMesh;

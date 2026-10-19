@@ -54,6 +54,8 @@ struct VRenderer {
     }
 
     renderGraph.init(vSwapChain, vDevice);
+
+    updateTime();
   }
 
   void mainLoop() {
@@ -139,20 +141,22 @@ struct VRenderer {
       }
 
       for (auto &emitter : resources.particleEmitters) {
-        renderGraph.particlesDrawNode.pipelineGroups[0].renderCalls.push_back(
-            Renderer::RenderNodeUtils::RenderCall{.vertexBuffer = emitter.particleMesh->vertexAllocations.buffer,
-                                                  .indexBuffer = emitter.particleMesh->indexAllocations.buffer,
-                                                  .indexCount = emitter.particleMesh->indexCount,
-                                                  .instanceCount = emitter.maxParticles,
-                                                  .updatePushConstants = [&]() {
-                                                    auto &pushConstantsBank = renderGraph.context.pushConstantBank;
+        if (emitter.visible) {
+          renderGraph.particlesDrawNode.pipelineGroups[0].renderCalls.push_back(Renderer::RenderNodeUtils::RenderCall{
+              .vertexBuffer = emitter.particleMesh->vertexAllocations.buffer,
+              .indexBuffer = emitter.particleMesh->indexAllocations.buffer,
+              .indexCount = emitter.particleMesh->indexCount,
+              .instanceCount = emitter.maxParticles,
+              .updatePushConstants = [&]() {
+                auto &pushConstantsBank = renderGraph.context.pushConstantBank;
 
-                                                    TransformComponent &tc = getTransform(emitter.entity);
-                                                    Transform t = modelToTransform(tc.model);
+                TransformComponent &tc = getTransform(emitter.entity);
+                Transform t = modelToTransform(tc.model);
 
-                                                    Renderer::Shaders::PushConstantsBank::setInt(pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
-                                                    Shaders::PushConstantsBank::setInt(pushConstantsBank, SG_PUSH_PARTICLE_EMITTER_INDEX, emitter.indexOffset);
-                                                  }});
+                Renderer::Shaders::PushConstantsBank::setInt(pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
+                Shaders::PushConstantsBank::setInt(pushConstantsBank, SG_PUSH_PARTICLE_EMITTER_INDEX, emitter.indexOffset);
+              }});
+        }
       }
 
       renderGraph.prepareNodes(vDevice.device, vSwapChain);

@@ -130,10 +130,12 @@ int main() {
       Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, peTc.modelIndex, peTc.model);
 
       // Out particles
-      Transform outETransform{.position = glm::vec3{3.0f, 3.0f, 3.0f}, .scale = glm::vec3(1.0f), .rotation = glm::quat{1.0f, 0.0f, 0.0f, 0.0f}};
+      Transform outETransform{.position = glm::vec3{0.0f, 0.0f, 5.0f}, .scale = glm::vec3(0.5f), .rotation = glm::quat{1.0f, 0.0f, 0.0f, 0.0f}};
 
       outEmitter = createEntity();
       ParticleEmitterComponent &outerEmitterComponent = addParticleEmitterComponent(outEmitter);
+
+      outerEmitterComponent.visible = false;
 
       outerEmitterComponent.particleMesh = &particleMesh;
       outerEmitterComponent.direction = glm::vec3(0.0f, 0.0f, 1.0f);
@@ -182,6 +184,23 @@ int main() {
       tc.model = transformToModel(t.position, t.rotation, t.scale);
 
       Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, tc.modelIndex, tc.model);
+
+      if (t.scale.x >= 0.5f) {
+        ParticleEmitterComponent &pec = getParticleEmitterComponent(outEmitter);
+        pec.visible = true;
+
+        // Star emitter
+        TransformComponent &starTc = getTransform(outEmitter);
+        Transform starT = modelToTransform(starTc.model);
+
+        if (starT.scale.x >= 0.0f) {
+          starT.scale -= 0.05f * timeState.deltaTime;
+        }
+
+        rotateTransform(starT, 2.0f, glm::vec3(0.0f, 1.0f, 0.0f), timeState.deltaTime);
+        starTc.model = transformToModel(starT.position, starT.rotation, starT.scale);
+        Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, starTc.modelIndex, starTc.model);
+      }
 
       camera.update(renderer.vSwapChain.swapChainExtent.width, renderer.vSwapChain.swapChainExtent.height, uniformsBank, renderer.window.handler);
 

@@ -12,7 +12,7 @@ struct VSInput {
 struct VSOutput {
   float4 pos : SV_Position;
   float2 uv;
-  Particle currentParticle;
+  float particleLifeTime;
 };
 
 [shader("vertex")]
@@ -43,7 +43,7 @@ VSOutput vertMain(VSInput input) {
   VSOutput out;
   out.pos = mul(proj, viewPosition);
   out.uv = input.uv;
-  out.currentParticle = currentParticle;
+  out.particleLifeTime = currentParticle.lifeTime;
 
   return out;
 }
@@ -51,7 +51,7 @@ VSOutput vertMain(VSInput input) {
 [shader("fragment")]
 float4 fragMain(VSOutput input) {
 
-  if (input.currentParticle.lifeTime <= 0) {
+  if (input.particleLifeTime <= 0) {
     discard;
   }
 

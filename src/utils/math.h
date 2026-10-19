@@ -38,6 +38,15 @@ inline float randomFloat(int size) {
   return dist(gen);
 }
 
+inline float randomFloatBetween(int s1, int s2) {
+  static std::random_device rd;
+  static std::mt19937 gen(rd());
+
+  std::uniform_real_distribution<float> dist(s1, s2);
+
+  return dist(gen);
+}
+
 std::vector<glm::vec3> generatePointsOnSphere(int n, float radius, glm::vec3 center);
 
 void rotateTransform(Transform &t, float angularSpeed, glm::vec3 axis, float dt);
