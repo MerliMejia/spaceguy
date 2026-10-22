@@ -29,6 +29,28 @@ glm::vec2 randomPointInCircle(float centerX, float centerY, float radius) {
   return glm::vec2{centerX + xOffset, centerY + yOffset};
 }
 
+std::vector<glm::vec2> generateCirclePoints(glm::vec2 center, float radius, int numPoints) {
+  std::vector<glm::vec2> points;
+  points.reserve(numPoints);
+
+  // Total radians in a full circle (2 * pi)
+  float totalRadians = glm::two_pi<float>();
+
+  for (int i = 0; i < numPoints; ++i) {
+    // Calculate the current angle (fraction of the full circle)
+    float theta = totalRadians * (static_cast<float>(i) / numPoints);
+
+    // Apply parametric equations: x = h + r*cos(θ), y = k + r*sin(θ)
+    glm::vec2 point;
+    point.x = center.x + radius * glm::cos(theta);
+    point.y = center.y + radius * glm::sin(theta);
+
+    points.push_back(point);
+  }
+
+  return points;
+}
+
 bool isCloseBox(glm::vec2 p1, glm::vec2 p2, float threshold) {
   if (std::abs(p1.x - p2.x) > threshold)
     return false;

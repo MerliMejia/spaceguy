@@ -1,10 +1,9 @@
 struct Particle {
   float3 position;
-  float lifeTime;
-  float3 dir;
   float speed;
-  float waitTime;
-  float outerRadius;
-  float innerRadius;
-  float delay;
+  float3 dir;
+  float maxDistance;
+  float distance;
+  uint isTooFar;
+  float2 _pad1;
 };

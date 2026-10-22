@@ -12,7 +12,7 @@ struct VSInput {
 struct VSOutput {
   float4 pos : SV_Position;
   float2 uv;
-  float particleLifeTime;
+  uint particleTooFar;
 };
 
 [shader("vertex")]
@@ -43,7 +43,7 @@ VSOutput vertMain(VSInput input) {
   VSOutput out;
   out.pos = mul(proj, viewPosition);
   out.uv = input.uv;
-  out.particleLifeTime = currentParticle.lifeTime;
+  out.particleTooFar = currentParticle.isTooFar;
 
   return out;
 }
@@ -51,7 +51,7 @@ VSOutput vertMain(VSInput input) {
 [shader("fragment")]
 float4 fragMain(VSOutput input) {
 
-  if (input.particleLifeTime <= 0) {
+  if (input.particleTooFar != 0) {
     discard;
   }
 

@@ -1,66 +1,37 @@
-An actual Render graph
+Particle Emitter Management
 
-Idea: You set up a couple of render nodes, you *define* their inputs, what they're
-going to do (this part is already kind of implemented) and their output (probably a sampled image)
-Then you create another node and *define* it's input (that can be output of the previous node).
-Keep doing that and the last node may or may not do something but at the end it presents to
-the swapchain.
+using ParticlesData = std::array<Renderer::Types::Particle, MAX_PARTICLES>;
+ParticlesData particlesData;
+int usedParticles = 0
 
-Current RenderGraph just store the nodes in a vector and go one by one... Kind of hard to keep
-track of inputs and outputs.
+struct ParticleRange{
+    int from;
+    int to;
+}
 
-A better idea:
+std::vector<ParticleRange> freeToUseParticles
 
-Outside the render graph, create the nodes. Define their inputs and outputs and connect them
-however you want, then just pass the first node to the render graph. The render graph should be
-able to traverse it as if it's a linked list. With a do while it can call the
-perFrameFunction on the current node, update the current node to be the output of the current node
-if that current node is not null, do it again
+each emitter now also has ParticleRange as property
 
-so renderNodes need a pointer to the next renderNode. And abrstactions like colorRenderNode should
-only do one job.
+on init:
 
+for each emitter:
+    ParticleRange.from = usedParticles, ParticleRange.to = usedParticles + emitter.maxParticles
+    usedParticles += emitter.maxParticles
 
-BTWWWWW.
+On each frame:
 
-I need to decide "which image I will be working on". Should each node have it's own image?
-Or should they all work on the same image?
+Each emitter owns a range of particles, those particles are not "free" until the emitter is done.
+Doesn't matter if the particle is not being drawn or computed.
 
-So at the end, we should have a node that presents the swapchain image. What's the easiest way
-to do that at the end?
+A set of particles gets "freed" when:
+- The emitter runs out of seconds and it's not loop=true
+- The emitter gets destroyed
 
-An idea:
+When the emitter is done, the ParticleRange is saved on freeToUseParticles
 
-The VTextureManager will have a section of sampled textures that will be used exclusively for
-render nodes. So each render node could own a texture (sampled image)
+Every time an emitter is spawn:
 
-
-NEVER MIND ALL OF THE ABOVE...
-
-Basically:
-
-Each Render Node will own an image for each frame in flight. Those images needs to be bound as
-a sampled image in the descriptor sets, that way those images can always be sampled on a shader.
-
-Then the process becomes:
-
-- Node 1:
-    - On the absolutely very first frame: Transition its own image (for the current frame index)
-    from UNDEFINED to COLOR_ATTACHMENT_OPTIMAL.
-    - For the frames after the absolutely very first frame: Transition its own
-    image (for the current frame index) from SHADER_READ_ONLY_OPTIMAL to COLOR_ATTACHMENT_OPTIMAL.
-    - Shader executes and writes color.
-    - Transition image to SHADER_READ_ONLY_OPTIMAL.
-- Node 2:
-    - Transition its own image from SHADER_READ_ONLY_OPTIMAL to COLOR_ATTACHMENT_OPTIMAL.
-    - Shader samples Node 1's image (which is safely in SHADER_READ_ONLY_OPTIMAL).
-    - Shader writes color to Node 2's image.
-    - Transition Node 2's image to SHADER_READ_ONLY_OPTIMAL.
-- Node 3 (Present Node):
-    - Acquire Swapchain Image.
-    - Transition Swapchain Image from UNDEFINED to COLOR_ATTACHMENT_OPTIMAL.
-    - Shader samples Node 2's image and draws a full-screen quad onto the Swapchain Image.
-    - Transition Swapchain Image from COLOR_ATTACHMENT_OPTIMAL to PRESENT_SRC_KHR.
-    - Submit command buffer and Present.
-
-Repeat for next frame.
+The maxParticles is calculated, we ask if it can be filled only with what's on freeToUseParticles, if not, we ask if
+it can be filled with freeToUseParticles + particlesData remaining. If those checks fails, we log some warning and prevent
+the emitter to be created.

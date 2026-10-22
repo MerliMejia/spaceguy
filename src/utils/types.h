@@ -106,28 +106,15 @@ struct AnimatedMesh {
 
 struct Particle {
   glm::vec3 position = glm::vec3(0.0f);
-  float lifeTime = 1.0f;
-  glm::vec3 dir = glm::vec3(0.0f);
   float speed = 1.0f;
-  float waitTime = 0.0f;
-  float outerRadius = 10.0f;
-  float innerRadius = 0.5f;
-  float delay = 0.5f;
+  glm::vec3 dir = glm::vec3(0.0f);
+  float maxDistance = 10.0f;
+  float distance = 0.0f;
+  int isTooFar = 0;
+  glm::vec2 _pad1 = glm::vec2(0.0f);
 };
 } // namespace Types
 } // namespace Renderer
-
-enum WizardAnimationMapping : uint32_t {
-  Attacking = 0,
-  Iddle = 1,
-  Kicking = 2,
-  Running = 3,
-  WizardBeingAttacked = 4,
-  WizardFlyingHit = 5,
-  WizardGotInFloorFromHit = 6
-};
-
-enum OgreAnimationMapping : uint32_t { OgreAttackMode = 0, OgreIddle = 1, OgreInitAttackMode = 2, OgreAttack1 = 3, OgreRunning = 4, OgreFlyingAttack = 5 };
 
 struct TransformAnimationKeyPoseGPU {
   glm::vec3 location{};
@@ -143,33 +130,4 @@ struct TransformAnimatedMesh {
   std::vector<TransformAnimationKeyPoseGPU> keyPoses;
 };
 
-struct ParticleGpu {
-  glm::vec4 positionLifeTime; // xyz = position, w = lifetime
-  glm::vec4 velocitySize;     // xyz = velocity, w = quad size
-  glm::vec4 color;
-  glm::vec4 state; // x = initial lifetime, yzw = spare
-  glm::uvec4 meta; // x = emitter index, y = active, z = seed, w = spare
-};
-
-struct ParticleSimUbo {
-  float deltaTime;
-  uint32_t particleCount;
-  uint32_t emitterCount;
-  uint32_t frameIndex;
-};
-
-enum class ParticleEmitterShape : uint32_t { Star = 0, Sphere = 1 };
-
-struct ParticleEmitterGpu {
-  glm::vec4 position;
-  glm::vec4 direction;
-  glm::vec4 worldVelocitySpawnRate; // xyz = emitter velocity, w = spawn/sec
-  glm::vec4 config;                 // x = lifetime, y = start size, z = speed, w = max color speed
-  glm::vec4 sizeConfig;             // x = end size, yzw = spare
-  glm::vec4 lifeColorStart;
-  glm::vec4 lifeColorEnd;
-  glm::vec4 speedColorSlow;
-  glm::vec4 speedColorFast;
-  glm::uvec4 rangeActive; // x = first, y = max, z = active, w = spawn budget
-  glm::uvec4 shape;       // x = ParticleEmitterShape, yzw = spare
-};
+enum class ParticleEmitterShape { Cone };

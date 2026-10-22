@@ -27,12 +27,6 @@ static void updateAnimation(int entity) {
     return;
   }
 
-  if (animation.activeAnimation >=
-      renderable.animatedMeshV2->animations.size()) {
-    animation.activeAnimation = WizardAnimationMapping::Iddle;
-    animation.animationTimeSeconds = 0.0f;
-  }
-
   const AnimationClipGpu &clip =
       renderable.animatedMeshV2->animations[animation.activeAnimation];
 

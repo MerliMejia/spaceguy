@@ -134,7 +134,7 @@ struct ParticleEmitterComponent {
   size_t indexOffset = 0;
   Renderer::Types::Mesh *particleMesh;
   glm::vec3 direction = glm::vec3(0.0f);
-  ParticleEmitterShape shape = ParticleEmitterShape::Sphere;
+  ParticleEmitterShape shape = ParticleEmitterShape::Cone;
 };
 
 struct Resources {
