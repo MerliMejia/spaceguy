@@ -111,7 +111,8 @@ struct Particle {
   float maxDistance = 10.0f;
   float distance = 0.0f;
   int isTooFar = 0;
-  glm::vec2 _pad1 = glm::vec2(0.0f);
+  int isAlive = 0;
+  float _pad1 = 0.0f;
 };
 } // namespace Types
 } // namespace Renderer

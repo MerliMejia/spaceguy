@@ -75,6 +75,6 @@
 //  vertex v lives at base + 2*v
 #define SG_STORAGE_ANIMATION_SLOTS 1048576
 
-#define MAX_PARTICLES 100
+#define MAX_PARTICLES 10000
 
 #endif

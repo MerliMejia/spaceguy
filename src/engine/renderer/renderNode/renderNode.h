@@ -39,6 +39,7 @@ struct step2_pipelineConfigurationProps {
   vk::Format depthFormat;
   vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
   bool useMultiSampling = false;
+  vk::CullModeFlagBits cullMode = vk::CullModeFlagBits::eBack;
   //... More stuff when dealing with more stuff
 };
 
@@ -127,7 +128,7 @@ struct RenderNode {
         .depthClampEnable = vk::False,
         .rasterizerDiscardEnable = vk::False,
         .polygonMode = vk::PolygonMode::eFill,
-        .cullMode = vk::CullModeFlagBits::eBack,
+        .cullMode = props.cullMode,
         .frontFace = vk::FrontFace::eCounterClockwise,
         .depthBiasEnable = props.isDepthPass ? vk::True : vk::False,
         .lineWidth = 1.0f};

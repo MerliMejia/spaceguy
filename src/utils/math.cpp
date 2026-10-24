@@ -33,19 +33,8 @@ std::vector<glm::vec2> generateCirclePoints(glm::vec2 center, float radius, int 
   std::vector<glm::vec2> points;
   points.reserve(numPoints);
 
-  // Total radians in a full circle (2 * pi)
-  float totalRadians = glm::two_pi<float>();
-
   for (int i = 0; i < numPoints; ++i) {
-    // Calculate the current angle (fraction of the full circle)
-    float theta = totalRadians * (static_cast<float>(i) / numPoints);
-
-    // Apply parametric equations: x = h + r*cos(θ), y = k + r*sin(θ)
-    glm::vec2 point;
-    point.x = center.x + radius * glm::cos(theta);
-    point.y = center.y + radius * glm::sin(theta);
-
-    points.push_back(point);
+    points.push_back(randomPointInCircle(center.x, center.y, radius));
   }
 
   return points;

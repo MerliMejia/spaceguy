@@ -4,8 +4,9 @@
 #include "../engine/renderer/shaders/shaders.h"
 #include "../utils/math.h"
 #include "../utils/types.h"
+#include "engine/renderer/renderGraph/renderGraphUtils.h"
 #include "glm/fwd.hpp"
-#include <cstddef>
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -127,14 +128,26 @@ struct GravityComponent {
 };
 
 // V2
+struct ParticleBurst {
+  float rate = 1.0f;
+  float time = 0.0f;
+  uint32_t offset = 0;
+  uint32_t count = 1;
+};
+
 struct ParticleEmitterComponent {
   int entity = -1;
   bool visible = true;
-  uint32_t maxParticles = 10;
-  size_t indexOffset = 0;
   Renderer::Types::Mesh *particleMesh;
   glm::vec3 direction = glm::vec3(0.0f);
   ParticleEmitterShape shape = ParticleEmitterShape::Cone;
+  float duration = 1.0f;
+  float time = 0.0f;
+  Renderer::RenderGraph::Context::ParticleRange range{};
+  ParticleBurst burst{};
+  uint32_t maxParticles() const { return (floor(duration / burst.rate)) * burst.count; };
+  bool loop = false;
+  uint32_t textureIndex = -1;
 };
 
 struct Resources {

@@ -5,5 +5,6 @@ struct Particle {
   float maxDistance;
   float distance;
   uint isTooFar;
-  float2 _pad1;
+  uint isAlive;
+  float _pad1;
 };

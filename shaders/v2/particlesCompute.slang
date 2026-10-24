@@ -19,8 +19,13 @@ void main(uint3 id: SV_DispatchThreadID) {
 
   Particle p = particlesPositions[i];
 
-  if (p.isTooFar != 0)
+  if (p.isTooFar != 0) {
+    p.isAlive = 0;
     return;
+  }
+  if (p.isAlive == 0) {
+    return;
+  }
 
   p.position += p.dir * p.speed * deltaTime;
 

@@ -146,7 +146,7 @@ struct VRenderer {
               .vertexBuffer = emitter.particleMesh->vertexAllocations.buffer,
               .indexBuffer = emitter.particleMesh->indexAllocations.buffer,
               .indexCount = emitter.particleMesh->indexCount,
-              .instanceCount = emitter.maxParticles,
+              .instanceCount = emitter.maxParticles(),
               .updatePushConstants = [&]() {
                 auto &pushConstantsBank = renderGraph.context.pushConstantBank;
 
@@ -154,7 +154,12 @@ struct VRenderer {
                 Transform t = modelToTransform(tc.model);
 
                 Renderer::Shaders::PushConstantsBank::setInt(pushConstantsBank, SG_PUSH_MODEL_INDEX, tc.modelIndex);
-                Shaders::PushConstantsBank::setInt(pushConstantsBank, SG_PUSH_PARTICLE_EMITTER_INDEX, emitter.indexOffset);
+                Shaders::PushConstantsBank::setInt(pushConstantsBank, SG_PUSH_PARTICLE_EMITTER_INDEX, emitter.range.from);
+
+                Renderer::Shaders::PushConstantsBank::setUInt(pushConstantsBank, SG_PUSH_DIFF_TEX_INDEX,
+                                                              emitter.textureIndex != -1 ? emitter.textureIndex : SG_MAX_TEXTURES - 1);
+
+                Renderer::Shaders::PushConstantsBank::setInt(pushConstantsBank, SG_PUSH_SAMPLED_DEPTH_PASS_IMAGE_INDEX, renderGraph.sampledDepthTexture->index);
               }});
         }
       }

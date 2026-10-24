@@ -13,7 +13,36 @@ struct VSOutput {
   float4 pos : SV_Position;
   float2 uv;
   uint particleTooFar;
+  uint particleIsAlive;
 };
+
+// Rotates a vertex given in the mesh's local space so that the mesh's
+// local +Z axis points from the particle toward `target`.
+// All three inputs must be in the same space (e.g. emitter-local).
+float3 faceTarget(float3 localVertex, float3 particlePosition, float3 target) {
+  float3 toTarget = target - particlePosition;
+  toTarget.z = 0.0f;
+  float distanceToTarget = length(toTarget);
+
+  // Particle sits on the target: there is no direction, so keep the
+  // mesh unrotated instead of normalizing a zero vector (NaN).
+  if (distanceToTarget < 1e-5f)
+    return localVertex;
+
+  // Local +Y: the flattened direction toward the target (no tilt).
+  float3 towardTarget = toTarget / distanceToTarget;
+
+  // Local +Z: world up. It never changes, so the mesh only spins around Z.
+  float3 worldUp = float3(0.0f, 0.0f, 1.0f);
+
+  // Local +X: sideways, perpendicular to both.
+  // Y x Z = X keeps the basis right-handed (the mesh isn't mirrored).
+  // Both inputs are unit length and perpendicular, so no normalize is needed.
+  float3 sideways = cross(towardTarget, worldUp);
+
+  // Rotation = "walk x along sideways, y toward the target, z straight up".
+  return sideways * localVertex.x + towardTarget * localVertex.y + worldUp * localVertex.z;
+}
 
 [shader("vertex")]
 VSOutput vertMain(VSInput input) {
@@ -25,25 +54,23 @@ VSOutput vertMain(VSInput input) {
   float4x4 proj = UniformBank::getFloat4x4(SG_PROJ_INDEX);
   Particle currentParticle = particles[particleEmitterIndex + input.instanceId];
 
-  // Emitter scale = length of the model matrix's first column.
-  // The bank stores matrices as rows, so the column is (m[0].x, m[1].x,
-  // m[2].x).
-  float size = length(float3(model[0].x, model[1].x, model[2].x));
+  // In emitter-local space the emitter's origin is simply (0, 0, 0).
+  float3 emitterOrigin = float3(0, 0, 0);
 
-  // Particles are now relative to the emitter pos (local pos).
-  float4 worldPos = mul(model, float4(currentParticle.position, 1.0f));
+  // 1. Rotate the vertex around the mesh's own origin.
+  float3 rotatedVertex = faceTarget(input.inPosition, currentParticle.position, emitterOrigin);
 
-  // Particle center (already world space) moved into view space.
-  float4 viewPosition = mul(view, worldPos);
+  // 2. Move it to where the particle is (still emitter-local).
+  float3 emitterLocal = rotatedVertex + currentParticle.position;
 
-  // In view space +X is screen right and +Y is screen up, so offsetting
-  // here keeps the quad facing the camera.
-  viewPosition.xy += input.inPosition.xy * size;
+  // 3. Emitter-local -> world -> view -> clip.
+  float4 world = mul(model, float4(emitterLocal, 1.0f));
 
   VSOutput out;
-  out.pos = mul(proj, viewPosition);
+  out.pos = mul(proj, mul(view, world));
   out.uv = input.uv;
   out.particleTooFar = currentParticle.isTooFar;
+  out.particleIsAlive = currentParticle.isAlive;
 
   return out;
 }
@@ -54,14 +81,26 @@ float4 fragMain(VSOutput input) {
   if (input.particleTooFar != 0) {
     discard;
   }
-
-  // uv runs 0..1 across the quad, so (0.5, 0.5) is the center and
-  // 0.5 is the radius of the largest circle that fits inside it.
-  float distanceFromCenter = distance(input.uv, float2(0.5f, 0.5f));
-
-  if (distanceFromCenter > 0.5f) {
+  if (input.particleIsAlive == 0) {
     discard;
   }
 
-  return float4(1.0f, 0.0f, 0.0f, 1.0f);
+  // uv runs 0..1 across the quad, so (0.5, 0.5) is the center and
+  // 0.5 is the radius of the largest circle that fits inside it.
+  // float distanceFromCenter = distance(input.uv, float2(0.5f, 0.5f));
+
+  // if (distanceFromCenter > 0.5f) {
+  //   discard;
+  // }
+
+  int diffTexIndex = PushConstantsBank::getInt(SG_PUSH_DIFF_TEX_INDEX);
+  Texture2D<float4> diffuseTexture = textures[diffTexIndex];
+  float2 sampledUv = float2(input.uv.x, 1.0f - input.uv.y);
+  float4 sampledColor = diffuseTexture.Sample(textureSampler, sampledUv);
+
+  if (sampledColor.a < 0.5f) {
+    discard;
+  }
+
+  return sampledColor;
 }

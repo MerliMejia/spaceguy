@@ -5,7 +5,6 @@
 #include "engine/renderer/images/vTexture.h"
 #include "engine/renderer/shaders/shaders.h"
 #include "engine/renderer/vRenderer.h"
-#include "glm/ext/matrix_clip_space.hpp"
 #include "glm/ext/vector_float3.hpp"
 #include "glm/fwd.hpp"
 #include "systems/animationSystem.h"
@@ -23,26 +22,27 @@
 #include <glm/gtc/matrix_transform.hpp> // lookAt
 #include <iostream>
 
+Renderer::VRenderer renderer;
+auto worldData = Blender::V2::loadWorldData();
+
+Renderer::Types::Mesh floorMesh;
+Renderer::Images::VTexture *floorDiffuse;
+
+Renderer::Types::Mesh particleMesh;
+Renderer::Images::VTexture *particleTexture;
+
+Renderer::Types::AnimatedMesh guyMesh;
+Renderer::Images::VTexture *guyDiffuse;
+BasicGameObject guyGameObject;
+BasicGameObject guyGameObject2;
+
+Input::Camera::OrbitCamera camera;
+
+// Testing...
+int peEntity = -1;
+
 int main() {
   try {
-    Renderer::VRenderer renderer;
-    auto worldData = Blender::V2::loadWorldData();
-
-    Renderer::Types::Mesh floorMesh;
-    Renderer::Images::VTexture *floorDiffuse;
-
-    Renderer::Types::Mesh particleMesh;
-
-    Renderer::Types::AnimatedMesh guyMesh;
-    Renderer::Images::VTexture *guyDiffuse;
-    BasicGameObject guyGameObject;
-    BasicGameObject guyGameObject2;
-
-    Input::Camera::OrbitCamera camera;
-
-    // Testing...
-    int peEntity = -1;
-
     renderer.onInit = [&]() {
       sceneContext.cameraPosition = worldData.camera.transform.position;
       sceneContext.cameraLookAt = worldData.camera.direction;
@@ -81,7 +81,7 @@ int main() {
                                                                       renderer.vDevice.graphicsQueue);
 
       Transform guyTransform;
-      guyTransform.position = glm::vec3{8.0f, 2.0f, 3.0f};
+      guyTransform.position = glm::vec3{0.0f, 0.0f, 3.0f};
       guyTransform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
       guyTransform.scale = glm::vec3(1.0f);
 
@@ -108,10 +108,16 @@ int main() {
 
       createBasicGameObject(floorModel, floorMesh, tc, uniformsBank, renderer.renderGraph.commandPool, renderer.vDevice, floorDiffuse->index);
 
-      particleMesh = Renderer::Generators::quad(renderer.renderGraph.commandPool, renderer.vDevice);
+      auto dustBlenderModel = Blender::V2::loadModel("assets/dust_particle_v2.3d");
+
+      particleMesh =
+          Renderer::Generators::generateMesh(dustBlenderModel.vertices, dustBlenderModel.indices, renderer.renderGraph.commandPool, renderer.vDevice);
+
+      particleTexture = renderer.renderGraph.vTextureManager.createTexture(dustBlenderModel.texturePath.string(), renderer.vDevice,
+                                                                           renderer.renderGraph.commandPool, renderer.vDevice.graphicsQueue);
 
       Transform peTransform;
-      peTransform.position = glm::vec3{0.0f, 0.0f, 5.0f};
+      peTransform.position = glm::vec3{0.0f, 0.0f, 0.2f};
       peTransform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
       peTransform.scale = glm::vec3(1.0f);
 
@@ -120,8 +126,12 @@ int main() {
 
       particleEmitter.particleMesh = &particleMesh;
       particleEmitter.direction = glm::vec3(0.0f, 0.0f, -1.0f);
-      particleEmitter.maxParticles = 50;
       particleEmitter.shape = ParticleEmitterShape::Cone;
+      particleEmitter.duration = 5.0f;
+      particleEmitter.burst.count = 3;
+      particleEmitter.burst.rate = 1.0f;
+      particleEmitter.loop = true;
+      particleEmitter.textureIndex = particleTexture->index;
 
       TransformComponent &peTc = addTransform(peEntity);
       peTc.model = transformToModel(peTransform.position, peTransform.rotation, peTransform.scale);
@@ -153,21 +163,27 @@ int main() {
         isKeyPressed = false;
       }
 
-      TransformComponent &tc = getTransform(peEntity);
-      Transform t = modelToTransform(tc.model);
-      // rotateTransform(t, 1.0f, glm::vec3(0.0f, 0.0f, 1.0f), timeState.deltaTime);
+      if (auto *tc = tryGetTransform(peEntity)) {
+        Transform t = modelToTransform(tc->model);
 
-      if (t.scale.x < 0.5f) {
-        t.scale += 0.05f * timeState.deltaTime;
+        rotateTransform(t, 1.0f, glm::vec3(0.0f, 0.0f, 1.0f), timeState.deltaTime);
+
+        if (t.scale.x < 0.5f) {
+          t.scale += 0.05f * timeState.deltaTime;
+        }
+
+        tc->model = transformToModel(t.position, t.rotation, t.scale);
+
+        Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, tc->modelIndex, tc->model);
       }
-
-      tc.model = transformToModel(t.position, t.rotation, t.scale);
-
-      Renderer::Shaders::UniformBank::setFloat4x4(uniformsBank, tc.modelIndex, tc.model);
 
       camera.update(renderer.vSwapChain.swapChainExtent.width, renderer.vSwapChain.swapChainExtent.height, uniformsBank, renderer.window.handler);
 
+      updateParticlesSystem(renderer.renderGraph);
       updateAnimations();
+
+      renderer.vDevice.device.waitIdle();
+      processDestroyQueue();
     };
 
     renderer.run();

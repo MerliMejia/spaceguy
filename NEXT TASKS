@@ -35,3 +35,32 @@ Every time an emitter is spawn:
 The maxParticles is calculated, we ask if it can be filled only with what's on freeToUseParticles, if not, we ask if
 it can be filled with freeToUseParticles + particlesData remaining. If those checks fails, we log some warning and prevent
 the emitter to be created.
+
+
+How in the world can I mark particles as "should move and be visible now" and viceversa?: Mark each particle as "not alive" at
+first and be the one that decides which particles are initialized
+
+How should the initialization works?
+
+It needs to use the burst config...
+
+so...
+
+struct ParticleBurst {
+  float rate = 1.0f;
+  float time = 0.0f;
+  size_t offset = 0;
+  uint32_t count = 2;
+};
+
+struct ParticleRange {
+  size_t from = 0;
+  size_t to = 10;
+};
+
+You have a list from index 0 to 10, go through each, on each:
+
+initialize based on type (initEmitter)
+
+initEmitter should just use the range instead of the whole amount of particles.
+so from (from + offset) to burst.count initialize based on type and add + 1 to offset

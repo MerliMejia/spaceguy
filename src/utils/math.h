@@ -39,7 +39,7 @@ inline float randomFloat(int size) {
   return dist(gen);
 }
 
-inline float randomFloatBetween(int s1, int s2) {
+inline float randomFloatBetween(float s1, float s2) {
   static std::random_device rd;
   static std::mt19937 gen(rd());
 
