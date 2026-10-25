@@ -48,7 +48,7 @@ static void updateEmitter(ParticleEmitterComponent &emitter, Renderer::RenderGra
       particle.dir = glm::normalize(forward * topCone + glm::normalize(radial) * bottomCone);
       particle.speed = randomSpeed;
       particle.isAlive = 1;
-      particle.maxDistance = 5.0f;
+      particle.maxDistance = 100.0f;
 
       currentCirclePoint++;
     }

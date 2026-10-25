@@ -14,6 +14,7 @@ struct VSOutput {
   float2 uv;
   uint particleTooFar;
   uint particleIsAlive;
+  float distanceDiff;
 };
 
 // Rotates a vertex given in the mesh's local space so that the mesh's
@@ -71,6 +72,7 @@ VSOutput vertMain(VSInput input) {
   out.uv = input.uv;
   out.particleTooFar = currentParticle.isTooFar;
   out.particleIsAlive = currentParticle.isAlive;
+  out.distanceDiff = (currentParticle.maxDistance - currentParticle.distance) / currentParticle.maxDistance;
 
   return out;
 }
@@ -102,5 +104,5 @@ float4 fragMain(VSOutput input) {
     discard;
   }
 
-  return sampledColor;
+  return float4(sampledColor.xyz, clamp(input.distanceDiff, 0.0f, 0.5f));
 }

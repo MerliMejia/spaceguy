@@ -141,11 +141,15 @@ struct RenderNode {
       multisampling.rasterizationSamples = vk::SampleCountFlagBits::e1;
     }
 
-    vk::PipelineColorBlendAttachmentState colorBlendAttachment{
-        .blendEnable = vk::False,
-        .colorWriteMask =
-            vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-            vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA};
+    vk::PipelineColorBlendAttachmentState colorBlendAttachment{.blendEnable = vk::True,
+                                                               .srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
+                                                               .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+                                                               .colorBlendOp = vk::BlendOp::eAdd,
+                                                               .srcAlphaBlendFactor = vk::BlendFactor::eOne,
+                                                               .dstAlphaBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+                                                               .alphaBlendOp = vk::BlendOp::eAdd,
+                                                               .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                                                                                 vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA};
 
     vk::PipelineColorBlendStateCreateInfo colorBlending{
         .logicOpEnable = vk::False,
